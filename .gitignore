@@ -1,0 +1,17 @@
+node_modules
+bench/.work/
+apps/*/dist/
+apps/*/dist-*/
+apps/dist-*/
+dist-hono-coord/
+apps/raw-http-hello/rust-server/target/
+*.log
+.DS_Store
+apps/regex-probe/actual.gea.txt
+
+# Reject accidental directory-to-itself links created by malformed output paths.
+apps/apps
+packages/packages
+plugin/plugin
+runtime/runtime
+tools/tools

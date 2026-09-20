@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "files": [
+    "../../runtime/node/node-globals.ts",
+    "valid.ts"
+  ]
+}

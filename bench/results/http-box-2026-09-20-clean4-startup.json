@@ -1,0 +1,3425 @@
+{
+  "utc": "2026-09-20T11:36:51Z",
+  "settings": {
+    "output": "bench/results/http-clean4-startup.json",
+    "rounds": 5,
+    "duration": "8s",
+    "servers": [
+      "hono-gea",
+      "hono-node",
+      "gea-raw",
+      "node-raw",
+      "cpp-drogon",
+      "rust-axum",
+      "rust-hyper",
+      "cpp-epoll"
+    ],
+    "workers": [
+      1,
+      4
+    ],
+    "gea_dist": "dist",
+    "startup_only": true,
+    "server_cpus": "0-3"
+  },
+  "server_cpus": {
+    "1": "0",
+    "multi": "0-3"
+  },
+  "load_cpus": "4-7",
+  "connections": 64,
+  "load_threads": 4,
+  "caveat": "Eight-worker servers and wrk share CPUs; loopback throughput is host-limited.",
+  "machine": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Xeon(R) CPU E3-1231 v3 @ 3.40GHz\nCPU family:                              6\nModel:                                   60\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                3\nCPU(s) scaling MHz:                      53%\nCPU max MHz:                             3800.0000\nCPU min MHz:                             800.0000\nBogoMIPS:                                6784.29\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid xsaveopt dtherm ida arat pln pts vnmi md_clear flush_l1d ibpb_exit_to_user\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: VMX disabled\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Unknown: No mitigations\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Retpolines; IBPB conditional; IBRS_FW; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace\n",
+  "node": "v24.21.0",
+  "start_load": "3.15 3.78 2.54 1/280 1793328",
+  "sha256": {
+    "apps/hono-hello/dist/server": "7a44d5a1beae35b9efa4a4aadb66585fc7a5f4b916ff50e38bda50bffa8a40de",
+    "apps/hono-hello/dist/server.cpp": "caaf05e9829f0438d9bb3f61d0bcb70c4ba7218611d6e0234966f13ba92ed7bc",
+    "apps/raw-http-hello/dist/server": "58987dd6943e3499643f590ae79c9afbaf5236a38bca7be23615c8f63b407534",
+    "apps/raw-http-hello/dist/server.cpp": "00d9a48d12fb36cc1ea6e13e96ef425639a3b6f0562908ec48fce0d8f2ebc914",
+    "apps/raw-http-hello/dist/cpp-drogon": "9a84b5b346e96980e1be69ce554bba56a7f1ae370aa3b3dccf0f749c846aa466",
+    "apps/raw-http-hello/dist/cpp-epoll": "ad0505beb7ee715432cf93411164e90a20427f1ad8cdd606e445105582cda6d8",
+    "runtime/gea_node.cpp": "e488b73bc0b8cc0284aefcad893b4eb75aefdc8324a029aa8446abd8a97027f2",
+    "runtime/gea_node.hpp": "2dcec7806891dca5afc0499e4e7963f2cd240d18e301f38b64476519d1ded59c",
+    "apps/hono-hello/server.node.mjs": "ebd47d008f7e66d6841ee8656cf9a91eda340b95c348879002856430f917c174",
+    "apps/hono-hello/cluster.node.mjs": "406b49ca878ef15d762f8bc623e7dea69c932dade4dcc9f981d7717e5082ddc4",
+    "apps/hono-hello/node_modules/hono/package.json": "83da95303f0d0e1df8b146d3d12df282e7ba0b28204a83501e8b29ba1bebd131",
+    "apps/raw-http-hello/server.node.mjs": "f0981deb78cb1203b5943d63aee6d0be0c627c580a19cb38ca69a78aa228529d",
+    "apps/raw-http-hello/cluster.node.mjs": "5ed904308537410a481203258ed9a861853209fdf7949573499051fbd998dcb4",
+    "apps/raw-http-hello/rust-server/target/release/rust-http-hello": "4b884ceeb062648323fe9198fa5b636c3761361493d2489114cb2b4d62394c89",
+    "apps/raw-http-hello/rust-server/target/release/axum-http-hello": "58e778accda01b512d541218bea532824d8b6ac7f53888789761c8d53ce187f9",
+    "apps/raw-http-hello/rust-server/src/main.rs": "97f335c379a9f9153e30cef1b841d33f13e29d5b4251f319dad4b35a03ff33dd",
+    "apps/raw-http-hello/rust-server/src/bin/axum-http-hello.rs": "32c1d1fc4c5e76557672a3b9b78e383ba0cf7aeb5570deb7838b804c3ddab226",
+    "apps/raw-http-hello/cpp-server/server.cpp": "4881106e502fc43cbc6747af2cc3bb7d8457117ab656bde58b575c78efe25fb0",
+    "apps/raw-http-hello/drogon-server/main.cc": "aa790d8d9fef9ab76259e986c1705adcbf994592d7df119af4f08842ab165459",
+    "apps/raw-http-hello/rust-server/Cargo.lock": "914e45a89042aaacb3f6a0870902fd415d4e325b0a394674c2a9c63c06605a58",
+    "bench/http-matrix.py": "485c77a82bd68b3911af268a1204726515ba25a626852702dd01096af6423b4e"
+  },
+  "wire_contract": [
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "gea-raw",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "gea-raw",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "gea-raw",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "gea-raw",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "node-raw",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "node-raw",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "node-raw",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "node-raw",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-drogon",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "content-type": [
+          "application/json; charset=utf-8"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-drogon",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-drogon",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "content-type": [
+          "application/json; charset=utf-8"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-drogon",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-axum",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-axum",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-axum",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-axum",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-hyper",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-hyper",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-hyper",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-hyper",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-epoll",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-epoll",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-epoll",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-epoll",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-epoll",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-epoll",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-epoll",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-epoll",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-hyper",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-hyper",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-hyper",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-hyper",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-axum",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-axum",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-axum",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-axum",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-drogon",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "content-type": [
+          "application/json; charset=utf-8"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-drogon",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-drogon",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:51 GMT"
+        ],
+        "content-type": [
+          "application/json; charset=utf-8"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-drogon",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "node-raw",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "node-raw",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "node-raw",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "node-raw",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "gea-raw",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "gea-raw",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "gea-raw",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "gea-raw",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "gea-raw",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "gea-raw",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "gea-raw",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "gea-raw",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "node-raw",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "node-raw",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:52 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "node-raw",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "node-raw",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-drogon",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "content-type": [
+          "application/json; charset=utf-8"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-drogon",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-drogon",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "content-type": [
+          "application/json; charset=utf-8"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-drogon",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-axum",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-axum",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-axum",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-axum",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-hyper",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-hyper",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-hyper",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-hyper",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-epoll",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-epoll",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-epoll",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-epoll",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-epoll",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-epoll",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-epoll",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-epoll",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-hyper",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-hyper",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-hyper",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-hyper",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-axum",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-axum",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-axum",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-axum",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-drogon",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "content-type": [
+          "application/json; charset=utf-8"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-drogon",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-drogon",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "content-type": [
+          "application/json; charset=utf-8"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-drogon",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "node-raw",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "node-raw",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "node-raw",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "node-raw",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "gea-raw",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "gea-raw",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "gea-raw",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:53 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "gea-raw",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "gea-raw",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "gea-raw",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "gea-raw",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "gea-raw",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "node-raw",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "node-raw",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "node-raw",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "node-raw",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-drogon",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "content-type": [
+          "application/json; charset=utf-8"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-drogon",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-drogon",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "transfer-encoding": [
+          "chunked"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "content-type": [
+          "application/json; charset=utf-8"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-drogon",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-axum",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-axum",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-axum",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-axum",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-hyper",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-hyper",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "rust-hyper",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "rust-hyper",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-epoll",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-epoll",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "cpp-epoll",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Sun, 20 Sep 2026 11:36:54 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "cpp-epoll",
+      "workers": 4
+    }
+  ],
+  "startups": [
+    {
+      "round": 1,
+      "server": "hono-gea",
+      "workers": 1,
+      "milliseconds": 7.817354053258896
+    },
+    {
+      "round": 1,
+      "server": "hono-gea",
+      "workers": 4,
+      "milliseconds": 6.794922053813934
+    },
+    {
+      "round": 1,
+      "server": "hono-node",
+      "workers": 1,
+      "milliseconds": 91.70249104499817
+    },
+    {
+      "round": 1,
+      "server": "hono-node",
+      "workers": 4,
+      "milliseconds": 164.22903770580888
+    },
+    {
+      "round": 1,
+      "server": "gea-raw",
+      "workers": 1,
+      "milliseconds": 6.200853735208511
+    },
+    {
+      "round": 1,
+      "server": "gea-raw",
+      "workers": 4,
+      "milliseconds": 6.049846764653921
+    },
+    {
+      "round": 1,
+      "server": "node-raw",
+      "workers": 1,
+      "milliseconds": 71.9713568687439
+    },
+    {
+      "round": 1,
+      "server": "node-raw",
+      "workers": 4,
+      "milliseconds": 146.528544370085
+    },
+    {
+      "round": 1,
+      "server": "cpp-drogon",
+      "workers": 1,
+      "milliseconds": 11.312530376017094
+    },
+    {
+      "round": 1,
+      "server": "cpp-drogon",
+      "workers": 4,
+      "milliseconds": 11.166354175657034
+    },
+    {
+      "round": 1,
+      "server": "rust-axum",
+      "workers": 1,
+      "milliseconds": 6.035143043845892
+    },
+    {
+      "round": 1,
+      "server": "rust-axum",
+      "workers": 4,
+      "milliseconds": 6.139188073575497
+    },
+    {
+      "round": 1,
+      "server": "rust-hyper",
+      "workers": 1,
+      "milliseconds": 6.059074308723211
+    },
+    {
+      "round": 1,
+      "server": "rust-hyper",
+      "workers": 4,
+      "milliseconds": 6.1073508113622665
+    },
+    {
+      "round": 1,
+      "server": "cpp-epoll",
+      "workers": 1,
+      "milliseconds": 6.0495189391076565
+    },
+    {
+      "round": 1,
+      "server": "cpp-epoll",
+      "workers": 4,
+      "milliseconds": 6.186082027852535
+    },
+    {
+      "round": 2,
+      "server": "cpp-epoll",
+      "workers": 4,
+      "milliseconds": 6.104374770075083
+    },
+    {
+      "round": 2,
+      "server": "cpp-epoll",
+      "workers": 1,
+      "milliseconds": 6.074100732803345
+    },
+    {
+      "round": 2,
+      "server": "rust-hyper",
+      "workers": 4,
+      "milliseconds": 6.126957945525646
+    },
+    {
+      "round": 2,
+      "server": "rust-hyper",
+      "workers": 1,
+      "milliseconds": 6.024000234901905
+    },
+    {
+      "round": 2,
+      "server": "rust-axum",
+      "workers": 4,
+      "milliseconds": 6.094120908528566
+    },
+    {
+      "round": 2,
+      "server": "rust-axum",
+      "workers": 1,
+      "milliseconds": 6.0617090202867985
+    },
+    {
+      "round": 2,
+      "server": "cpp-drogon",
+      "workers": 4,
+      "milliseconds": 11.371773201972246
+    },
+    {
+      "round": 2,
+      "server": "cpp-drogon",
+      "workers": 1,
+      "milliseconds": 11.441564187407494
+    },
+    {
+      "round": 2,
+      "server": "node-raw",
+      "workers": 4,
+      "milliseconds": 139.93358658626676
+    },
+    {
+      "round": 2,
+      "server": "node-raw",
+      "workers": 1,
+      "milliseconds": 66.54436280950904
+    },
+    {
+      "round": 2,
+      "server": "gea-raw",
+      "workers": 4,
+      "milliseconds": 6.247985642403364
+    },
+    {
+      "round": 2,
+      "server": "gea-raw",
+      "workers": 1,
+      "milliseconds": 6.113290786743164
+    },
+    {
+      "round": 2,
+      "server": "hono-node",
+      "workers": 4,
+      "milliseconds": 161.9687108322978
+    },
+    {
+      "round": 2,
+      "server": "hono-node",
+      "workers": 1,
+      "milliseconds": 86.52976807206869
+    },
+    {
+      "round": 2,
+      "server": "hono-gea",
+      "workers": 4,
+      "milliseconds": 6.827875971794128
+    },
+    {
+      "round": 2,
+      "server": "hono-gea",
+      "workers": 1,
+      "milliseconds": 6.514938082545996
+    },
+    {
+      "round": 3,
+      "server": "hono-gea",
+      "workers": 1,
+      "milliseconds": 6.530310958623886
+    },
+    {
+      "round": 3,
+      "server": "hono-gea",
+      "workers": 4,
+      "milliseconds": 6.651035044342279
+    },
+    {
+      "round": 3,
+      "server": "hono-node",
+      "workers": 1,
+      "milliseconds": 86.49087371304631
+    },
+    {
+      "round": 3,
+      "server": "hono-node",
+      "workers": 4,
+      "milliseconds": 167.49207489192486
+    },
+    {
+      "round": 3,
+      "server": "gea-raw",
+      "workers": 1,
+      "milliseconds": 6.305092014372349
+    },
+    {
+      "round": 3,
+      "server": "gea-raw",
+      "workers": 4,
+      "milliseconds": 6.2532201409339905
+    },
+    {
+      "round": 3,
+      "server": "node-raw",
+      "workers": 1,
+      "milliseconds": 72.00156198814511
+    },
+    {
+      "round": 3,
+      "server": "node-raw",
+      "workers": 4,
+      "milliseconds": 151.0080387815833
+    },
+    {
+      "round": 3,
+      "server": "cpp-drogon",
+      "workers": 1,
+      "milliseconds": 11.470544151961803
+    },
+    {
+      "round": 3,
+      "server": "cpp-drogon",
+      "workers": 4,
+      "milliseconds": 11.351006105542183
+    },
+    {
+      "round": 3,
+      "server": "rust-axum",
+      "workers": 1,
+      "milliseconds": 6.098974030464888
+    },
+    {
+      "round": 3,
+      "server": "rust-axum",
+      "workers": 4,
+      "milliseconds": 6.146716885268688
+    },
+    {
+      "round": 3,
+      "server": "rust-hyper",
+      "workers": 1,
+      "milliseconds": 6.04355288669467
+    },
+    {
+      "round": 3,
+      "server": "rust-hyper",
+      "workers": 4,
+      "milliseconds": 6.080198101699352
+    },
+    {
+      "round": 3,
+      "server": "cpp-epoll",
+      "workers": 1,
+      "milliseconds": 6.034601014107466
+    },
+    {
+      "round": 3,
+      "server": "cpp-epoll",
+      "workers": 4,
+      "milliseconds": 6.210296414792538
+    },
+    {
+      "round": 4,
+      "server": "cpp-epoll",
+      "workers": 4,
+      "milliseconds": 6.192572880536318
+    },
+    {
+      "round": 4,
+      "server": "cpp-epoll",
+      "workers": 1,
+      "milliseconds": 6.153868045657873
+    },
+    {
+      "round": 4,
+      "server": "rust-hyper",
+      "workers": 4,
+      "milliseconds": 6.22955895960331
+    },
+    {
+      "round": 4,
+      "server": "rust-hyper",
+      "workers": 1,
+      "milliseconds": 6.159733980894089
+    },
+    {
+      "round": 4,
+      "server": "rust-axum",
+      "workers": 4,
+      "milliseconds": 6.163821090012789
+    },
+    {
+      "round": 4,
+      "server": "rust-axum",
+      "workers": 1,
+      "milliseconds": 6.028794217854738
+    },
+    {
+      "round": 4,
+      "server": "cpp-drogon",
+      "workers": 4,
+      "milliseconds": 11.14999083802104
+    },
+    {
+      "round": 4,
+      "server": "cpp-drogon",
+      "workers": 1,
+      "milliseconds": 11.323896702378988
+    },
+    {
+      "round": 4,
+      "server": "node-raw",
+      "workers": 4,
+      "milliseconds": 138.31543689593673
+    },
+    {
+      "round": 4,
+      "server": "node-raw",
+      "workers": 1,
+      "milliseconds": 66.5422328747809
+    },
+    {
+      "round": 4,
+      "server": "gea-raw",
+      "workers": 4,
+      "milliseconds": 6.3519952818751335
+    },
+    {
+      "round": 4,
+      "server": "gea-raw",
+      "workers": 1,
+      "milliseconds": 6.180466152727604
+    },
+    {
+      "round": 4,
+      "server": "hono-node",
+      "workers": 4,
+      "milliseconds": 164.9326765909791
+    },
+    {
+      "round": 4,
+      "server": "hono-node",
+      "workers": 1,
+      "milliseconds": 91.72958880662918
+    },
+    {
+      "round": 4,
+      "server": "hono-gea",
+      "workers": 4,
+      "milliseconds": 6.657506804913282
+    },
+    {
+      "round": 4,
+      "server": "hono-gea",
+      "workers": 1,
+      "milliseconds": 6.523306015878916
+    },
+    {
+      "round": 5,
+      "server": "hono-gea",
+      "workers": 1,
+      "milliseconds": 6.534916814416647
+    },
+    {
+      "round": 5,
+      "server": "hono-gea",
+      "workers": 4,
+      "milliseconds": 6.875121034681797
+    },
+    {
+      "round": 5,
+      "server": "hono-node",
+      "workers": 1,
+      "milliseconds": 86.64376987144351
+    },
+    {
+      "round": 5,
+      "server": "hono-node",
+      "workers": 4,
+      "milliseconds": 169.04941108077765
+    },
+    {
+      "round": 5,
+      "server": "gea-raw",
+      "workers": 1,
+      "milliseconds": 6.240289192646742
+    },
+    {
+      "round": 5,
+      "server": "gea-raw",
+      "workers": 4,
+      "milliseconds": 6.305953022092581
+    },
+    {
+      "round": 5,
+      "server": "node-raw",
+      "workers": 1,
+      "milliseconds": 71.97761675342917
+    },
+    {
+      "round": 5,
+      "server": "node-raw",
+      "workers": 4,
+      "milliseconds": 148.85465567931533
+    },
+    {
+      "round": 5,
+      "server": "cpp-drogon",
+      "workers": 1,
+      "milliseconds": 11.383425910025835
+    },
+    {
+      "round": 5,
+      "server": "cpp-drogon",
+      "workers": 4,
+      "milliseconds": 11.151740793138742
+    },
+    {
+      "round": 5,
+      "server": "rust-axum",
+      "workers": 1,
+      "milliseconds": 6.14138413220644
+    },
+    {
+      "round": 5,
+      "server": "rust-axum",
+      "workers": 4,
+      "milliseconds": 6.176709197461605
+    },
+    {
+      "round": 5,
+      "server": "rust-hyper",
+      "workers": 1,
+      "milliseconds": 6.0599143616855145
+    },
+    {
+      "round": 5,
+      "server": "rust-hyper",
+      "workers": 4,
+      "milliseconds": 6.109538022428751
+    },
+    {
+      "round": 5,
+      "server": "cpp-epoll",
+      "workers": 1,
+      "milliseconds": 6.07631029561162
+    },
+    {
+      "round": 5,
+      "server": "cpp-epoll",
+      "workers": 4,
+      "milliseconds": 6.1259800568223
+    }
+  ],
+  "samples": [],
+  "complete": true
+}

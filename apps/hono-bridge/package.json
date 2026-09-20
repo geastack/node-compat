@@ -1,0 +1,8 @@
+{
+  "name": "hono-bridge",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "hono": "4.12.34"
+  }
+}

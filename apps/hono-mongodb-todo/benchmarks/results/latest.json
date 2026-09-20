@@ -1,0 +1,458 @@
+{
+  "metadata": {
+    "timestamp": "2026-09-05T02:47:45.772Z",
+    "host": "Apple M4 Max (16 logical cores)",
+    "platform": "darwin 25.5.0 arm64",
+    "mongodb": "8.0.29",
+    "node": "v24.8.0",
+    "nodeDriver": "7.1.1",
+    "rust": "rustc 1.96.1 (31fca3adb 2026-06-26) (Homebrew)",
+    "rustDriver": "3.9.0",
+    "cppDriver": "mongo-cxx-driver 4.5.2",
+    "iterations": 2000,
+    "warmup": 50,
+    "rounds": 7
+  },
+  "methodology": {
+    "database": "MongoDB on 127.0.0.1:27017, acknowledged writes, indexed _id reads",
+    "workload": "256-byte payload plus _id/title/completed/revision fields; sequential insertOne, findOne, updateOne, deleteOne phases",
+    "timing": "connection setup and warmup excluded; median elapsed phase time across rounds",
+    "connectionPolicy": "all drivers use one warmed pooled connection"
+  },
+  "samples": [
+    {
+      "round": 1,
+      "driver": "gea-native",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 523,
+        "findOne": 576,
+        "updateOne": 539,
+        "deleteOne": 513
+      }
+    },
+    {
+      "round": 1,
+      "driver": "nodejs-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 560.470666,
+        "findOne": 634.4789169999999,
+        "updateOne": 605.3573339999998,
+        "deleteOne": 563.9251660000002
+      }
+    },
+    {
+      "round": 1,
+      "driver": "rust-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 530.243666,
+        "findOne": 561.523125,
+        "updateOne": 554.63,
+        "deleteOne": 518.402833
+      }
+    },
+    {
+      "round": 1,
+      "driver": "cpp-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 488.582,
+        "findOne": 542.111,
+        "updateOne": 559.903,
+        "deleteOne": 533.802
+      }
+    },
+    {
+      "round": 2,
+      "driver": "nodejs-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 579.133458,
+        "findOne": 600.9716249999999,
+        "updateOne": 555.538417,
+        "deleteOne": 529.4365829999999
+      }
+    },
+    {
+      "round": 2,
+      "driver": "rust-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 507.60541699999993,
+        "findOne": 520.522291,
+        "updateOne": 524.0475,
+        "deleteOne": 578.173583
+      }
+    },
+    {
+      "round": 2,
+      "driver": "cpp-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 513.878,
+        "findOne": 531.422,
+        "updateOne": 527.484,
+        "deleteOne": 497.707
+      }
+    },
+    {
+      "round": 2,
+      "driver": "gea-native",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 515,
+        "findOne": 568,
+        "updateOne": 569,
+        "deleteOne": 489
+      }
+    },
+    {
+      "round": 3,
+      "driver": "rust-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 508.567459,
+        "findOne": 548.20125,
+        "updateOne": 572.161792,
+        "deleteOne": 542.0382500000001
+      }
+    },
+    {
+      "round": 3,
+      "driver": "cpp-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 496.689,
+        "findOne": 495.034,
+        "updateOne": 510.986,
+        "deleteOne": 557.796
+      }
+    },
+    {
+      "round": 3,
+      "driver": "gea-native",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 541,
+        "findOne": 590,
+        "updateOne": 548,
+        "deleteOne": 572
+      }
+    },
+    {
+      "round": 3,
+      "driver": "nodejs-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 601.634417,
+        "findOne": 582.823958,
+        "updateOne": 579.9717499999999,
+        "deleteOne": 548.766959
+      }
+    },
+    {
+      "round": 4,
+      "driver": "cpp-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 494.445,
+        "findOne": 511.119,
+        "updateOne": 566.224,
+        "deleteOne": 579.678
+      }
+    },
+    {
+      "round": 4,
+      "driver": "gea-native",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 512,
+        "findOne": 537,
+        "updateOne": 529,
+        "deleteOne": 535
+      }
+    },
+    {
+      "round": 4,
+      "driver": "nodejs-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 561.38175,
+        "findOne": 556.9490829999999,
+        "updateOne": 549.380958,
+        "deleteOne": 551.6457499999999
+      }
+    },
+    {
+      "round": 4,
+      "driver": "rust-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 532.210625,
+        "findOne": 570.116625,
+        "updateOne": 542.8707919999999,
+        "deleteOne": 518.3413340000001
+      }
+    },
+    {
+      "round": 5,
+      "driver": "gea-native",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 492,
+        "findOne": 540,
+        "updateOne": 530,
+        "deleteOne": 546
+      }
+    },
+    {
+      "round": 5,
+      "driver": "nodejs-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 589.881,
+        "findOne": 618.9072910000001,
+        "updateOne": 586.2847920000002,
+        "deleteOne": 558.9637079999998
+      }
+    },
+    {
+      "round": 5,
+      "driver": "rust-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 503.105542,
+        "findOne": 549.2334169999999,
+        "updateOne": 567.47275,
+        "deleteOne": 540.799708
+      }
+    },
+    {
+      "round": 5,
+      "driver": "cpp-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 494.598,
+        "findOne": 530.617,
+        "updateOne": 521.142,
+        "deleteOne": 498.786
+      }
+    },
+    {
+      "round": 6,
+      "driver": "nodejs-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 570.670417,
+        "findOne": 628.6917090000001,
+        "updateOne": 556.477959,
+        "deleteOne": 586.160083
+      }
+    },
+    {
+      "round": 6,
+      "driver": "rust-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 554.250125,
+        "findOne": 536.027,
+        "updateOne": 534.754708,
+        "deleteOne": 524.464833
+      }
+    },
+    {
+      "round": 6,
+      "driver": "cpp-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 474.635,
+        "findOne": 491.446,
+        "updateOne": 514.048,
+        "deleteOne": 477.978
+      }
+    },
+    {
+      "round": 6,
+      "driver": "gea-native",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 497,
+        "findOne": 562,
+        "updateOne": 531,
+        "deleteOne": 560
+      }
+    },
+    {
+      "round": 7,
+      "driver": "rust-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 525.061875,
+        "findOne": 585.002292,
+        "updateOne": 599.9755409999999,
+        "deleteOne": 535.596708
+      }
+    },
+    {
+      "round": 7,
+      "driver": "cpp-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 479.105,
+        "findOne": 502.472,
+        "updateOne": 535.028,
+        "deleteOne": 527.355
+      }
+    },
+    {
+      "round": 7,
+      "driver": "gea-native",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 515,
+        "findOne": 584,
+        "updateOne": 586,
+        "deleteOne": 513
+      }
+    },
+    {
+      "round": 7,
+      "driver": "nodejs-official",
+      "iterations": 2000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 597.588292,
+        "findOne": 593.520417,
+        "updateOne": 578.8598749999999,
+        "deleteOne": 534.8525840000002
+      }
+    }
+  ],
+  "summary": [
+    {
+      "driver": "gea-native",
+      "transport": "one warmed pooled connection",
+      "medianMilliseconds": {
+        "insertOne": 515,
+        "findOne": 568,
+        "updateOne": 539,
+        "deleteOne": 535
+      },
+      "operationsPerSecond": {
+        "insertOne": 3883.4951456310678,
+        "findOne": 3521.1267605633802,
+        "updateOne": 3710.575139146568,
+        "deleteOne": 3738.3177570093458,
+        "combined": 3708.8548910523878
+      },
+      "relativeToNode": {
+        "insertOne": 1.124530986407767,
+        "findOne": 1.05804863556338,
+        "updateOne": 1.0739515306122447,
+        "deleteOne": 1.031113551401869,
+        "combined": 1.0712149782104774
+      }
+    },
+    {
+      "driver": "nodejs-official",
+      "transport": "one warmed pooled connection",
+      "medianMilliseconds": {
+        "insertOne": 579.133458,
+        "findOne": 600.9716249999999,
+        "updateOne": 578.8598749999999,
+        "deleteOne": 551.6457499999999
+      },
+      "operationsPerSecond": {
+        "insertOne": 3453.435425587171,
+        "findOne": 3327.944143785491,
+        "updateOne": 3455.0676016367524,
+        "deleteOne": 3625.5151063884755,
+        "combined": 3462.2881181592797
+      },
+      "relativeToNode": {
+        "insertOne": 1,
+        "findOne": 1,
+        "updateOne": 1,
+        "deleteOne": 1,
+        "combined": 1
+      }
+    },
+    {
+      "driver": "rust-official",
+      "transport": "one warmed pooled connection",
+      "medianMilliseconds": {
+        "insertOne": 525.061875,
+        "findOne": 549.2334169999999,
+        "updateOne": 554.63,
+        "deleteOne": 535.596708
+      },
+      "operationsPerSecond": {
+        "insertOne": 3809.0748828411893,
+        "findOne": 3641.439027734906,
+        "updateOne": 3606.007608676054,
+        "deleteOne": 3734.152899237013,
+        "combined": 3695.966130166383
+      },
+      "relativeToNode": {
+        "insertOne": 1.1029813543403815,
+        "findOne": 1.0942007649181331,
+        "updateOne": 1.0436865568036346,
+        "deleteOne": 1.0299647883571381,
+        "combined": 1.0674923645959706
+      }
+    },
+    {
+      "driver": "cpp-official",
+      "transport": "one warmed pooled connection",
+      "medianMilliseconds": {
+        "insertOne": 494.445,
+        "findOne": 511.119,
+        "updateOne": 527.484,
+        "deleteOne": 527.355
+      },
+      "operationsPerSecond": {
+        "insertOne": 4044.939275349129,
+        "findOne": 3912.9830822176436,
+        "updateOne": 3791.5841997103225,
+        "deleteOne": 3792.5116856766313,
+        "combined": 3882.735561926477
+      },
+      "relativeToNode": {
+        "insertOne": 1.1712798349664777,
+        "findOne": 1.1757959007589227,
+        "updateOne": 1.097397977948146,
+        "deleteOne": 1.0460614766144245,
+        "combined": 1.1214362957149642
+      }
+    }
+  ]
+}

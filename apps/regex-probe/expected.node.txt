@@ -1,0 +1,48 @@
+root "" [0]="" index=0 input="" len=1
+root "/" [0]="/" index=0 input="/" len=1
+root "//" null
+root "x" null
+json "/json" [0]="/json" index=0 input="/json" len=1
+json "/json/" [0]="/json/" index=0 input="/json/" len=1
+json "/json//" null
+json "/jsonx" null
+json "a/json" null
+json test true false
+empty "" [0]="" index=0 input="" len=1
+empty "x" null
+bare "ab" [0]="" index=0 input="ab" len=1
+opt "a" [0]="a" index=0 input="a" len=1
+opt "ab" [0]="ab" index=0 input="ab" len=1
+opt "abb" null
+find "/a/json/x" [0]="json" index=3 input="/a/json/x" len=1
+find "nope" null
+end "ajson" [0]="json" index=1 input="ajson" len=1
+end "json/" null
+endOpt "ajson" [0]="json" index=1 input="ajson" len=1
+start "abc" [0]="ab" index=0 input="abc" len=1
+start "zab" null
+g#1 "foo" [0]="o" index=1 input="foo" len=1
+g.lastIndex 2
+g#2 "foo" [0]="o" index=2 input="foo" len=1
+g.lastIndex 3
+g#3 "foo" null
+g.lastIndex 0
+y@1 "foo" [0]="o" index=1 input="foo" len=1
+y.lastIndex 2
+y@0 "foo" null
+y0.lastIndex 0
+yA@0 "foo" [0]="f" index=0 input="foo" len=1
+esc? "a?b" [0]="a?b" index=0 input="a?b" len=1
+esc? "ab" null
+esc. "a.b" [0]="a.b" index=0 input="a.b" len=1
+esc. "axb" null
+esc/- "/x-y" [0]="/x-y" index=0 input="/x-y" len=1
+dot "axb" [0]="axb" index=0 input="axb" len=1
+cls "a42" [0]="42" index=1 input="a42" len=1
+ic "xabc" [0]="abc" index=1 input="xabc" len=1
+two "ac" [0]="ac" index=0 input="ac" len=1
+midopt "b" [0]="b" index=0 input="b" len=1
+split ["a","b","c"]
+replace bbb
+match ["a"]
+search 1

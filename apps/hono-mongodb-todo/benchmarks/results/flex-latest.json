@@ -1,0 +1,3079 @@
+{
+  "metadata": {
+    "timestamp": "2026-09-05T09:14:45.917Z",
+    "host": "Apple M4 Max (16 logical cores)",
+    "platform": "darwin 25.5.0 arm64",
+    "mongodb": "8.0.29",
+    "rounds": 3
+  },
+  "methodology": {
+    "bsonSmall": "50,000 in-process BSON encodes and 50,000 full decodes of a 334-byte mixed-type todo document; no MongoDB",
+    "bsonString": "1,000 in-process BSON encodes and 1,000 full decodes of a document containing one 256-KiB UTF-8 string; no MongoDB",
+    "bsonArray": "1,000 in-process BSON encodes and 1,000 full decodes of a document containing 4,096 integers; no MongoDB",
+    "concurrent": "4,000 acknowledged ping commands split over 64 workers; pool sizes 1, 4, 16, and 64",
+    "large": "10 sequential acknowledged inserts and indexed reads of 256-KiB documents with 4,096-number arrays",
+    "batch": "2,000 documents inserted in batches of 100, followed by one acknowledged multi-document update",
+    "process": "macOS /usr/bin/time -l wall/user/system CPU, peak RSS, peak footprint, and page-reclaim counters",
+    "aggregation": "median across rotated driver order; all raw samples retained"
+  },
+  "samples": [
+    {
+      "round": 1,
+      "profile": "bson-small",
+      "driver": "gea-native",
+      "mode": "bson-small",
+      "checksum": 16750000,
+      "operations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "milliseconds": {
+        "encode": 215,
+        "decode": 395
+      },
+      "bytes": 334,
+      "peakRssBytes": 21938176,
+      "peakFootprintBytes": 19726648,
+      "pageReclaims": 2517,
+      "processSeconds": {
+        "real": 0.62,
+        "user": 0.61,
+        "system": 0
+      }
+    },
+    {
+      "round": 1,
+      "profile": "bson-small",
+      "driver": "nodejs-official",
+      "mode": "bson-small",
+      "checksum": 16750000,
+      "operations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "milliseconds": {
+        "encode": 22.436999999999998,
+        "decode": 36.197041999999996
+      },
+      "bytes": 334,
+      "peakRssBytes": 101515264,
+      "peakFootprintBytes": 61708216,
+      "pageReclaims": 6388,
+      "processSeconds": {
+        "real": 0.16,
+        "user": 0.16,
+        "system": 0.01
+      }
+    },
+    {
+      "round": 1,
+      "profile": "bson-small",
+      "driver": "rust-official",
+      "mode": "bson-small",
+      "checksum": 16750000,
+      "operations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "milliseconds": {
+        "encode": 23.561584,
+        "decode": 47.349917
+      },
+      "bytes": 334,
+      "peakRssBytes": 7143424,
+      "peakFootprintBytes": 1966416,
+      "pageReclaims": 572,
+      "processSeconds": {
+        "real": 0.08,
+        "user": 0.07,
+        "system": 0
+      }
+    },
+    {
+      "round": 1,
+      "profile": "bson-small",
+      "driver": "cpp-official",
+      "mode": "bson-small",
+      "checksum": 16750000,
+      "operations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "milliseconds": {
+        "encode": 13.318,
+        "decode": 2.709
+      },
+      "bytes": 334,
+      "peakRssBytes": 8978432,
+      "peakFootprintBytes": 2802000,
+      "pageReclaims": 1443,
+      "processSeconds": {
+        "real": 0.06,
+        "user": 0.02,
+        "system": 0
+      }
+    },
+    {
+      "round": 1,
+      "profile": "bson-string-256k",
+      "driver": "nodejs-official",
+      "mode": "bson-string-256k",
+      "checksum": 524307000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 113.6735,
+        "decode": 295.38208299999997
+      },
+      "bytes": 262163,
+      "peakRssBytes": 195575808,
+      "peakFootprintBytes": 166367848,
+      "pageReclaims": 28566,
+      "processSeconds": {
+        "real": 0.47,
+        "user": 0.48,
+        "system": 0.04
+      }
+    },
+    {
+      "round": 1,
+      "profile": "bson-string-256k",
+      "driver": "rust-official",
+      "mode": "bson-string-256k",
+      "checksum": 524307000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 8.155292,
+        "decode": 12.702667000000002
+      },
+      "bytes": 262163,
+      "peakRssBytes": 9060352,
+      "peakFootprintBytes": 4080000,
+      "pageReclaims": 755,
+      "processSeconds": {
+        "real": 0.02,
+        "user": 0.02,
+        "system": 0
+      }
+    },
+    {
+      "round": 1,
+      "profile": "bson-string-256k",
+      "driver": "cpp-official",
+      "mode": "bson-string-256k",
+      "checksum": 524307000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 7.792,
+        "decode": 0.037
+      },
+      "bytes": 262163,
+      "peakRssBytes": 10289152,
+      "peakFootprintBytes": 4178304,
+      "pageReclaims": 1582,
+      "processSeconds": {
+        "real": 0.02,
+        "user": 0.01,
+        "system": 0
+      }
+    },
+    {
+      "round": 1,
+      "profile": "bson-string-256k",
+      "driver": "gea-native",
+      "mode": "bson-string-256k",
+      "checksum": 524307000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 232,
+        "decode": 5019
+      },
+      "bytes": 262163,
+      "peakRssBytes": 25329664,
+      "peakFootprintBytes": 23118160,
+      "pageReclaims": 2723,
+      "processSeconds": {
+        "real": 5.26,
+        "user": 5.23,
+        "system": 0.02
+      }
+    },
+    {
+      "round": 1,
+      "profile": "bson-array-4096",
+      "driver": "rust-official",
+      "mode": "bson-array-4096",
+      "checksum": 43964000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 46.480833,
+        "decode": 122.013791
+      },
+      "bytes": 39868,
+      "peakRssBytes": 8781824,
+      "peakFootprintBytes": 3735912,
+      "pageReclaims": 736,
+      "processSeconds": {
+        "real": 0.17,
+        "user": 0.16,
+        "system": 0
+      }
+    },
+    {
+      "round": 1,
+      "profile": "bson-array-4096",
+      "driver": "cpp-official",
+      "mode": "bson-array-4096",
+      "checksum": 43964000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 128.632,
+        "decode": 74.776
+      },
+      "bytes": 39868,
+      "peakRssBytes": 9158656,
+      "peakFootprintBytes": 3047808,
+      "pageReclaims": 1513,
+      "processSeconds": {
+        "real": 0.21,
+        "user": 0.21,
+        "system": 0
+      }
+    },
+    {
+      "round": 1,
+      "profile": "bson-array-4096",
+      "driver": "gea-native",
+      "mode": "bson-array-4096",
+      "checksum": 43964000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 1020,
+        "decode": 251
+      },
+      "bytes": 39868,
+      "peakRssBytes": 27213824,
+      "peakFootprintBytes": 24985960,
+      "pageReclaims": 2838,
+      "processSeconds": {
+        "real": 1.28,
+        "user": 1.27,
+        "system": 0
+      }
+    },
+    {
+      "round": 1,
+      "profile": "bson-array-4096",
+      "driver": "nodejs-official",
+      "mode": "bson-array-4096",
+      "checksum": 43964000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 61.556833,
+        "decode": 57.20774999999999
+      },
+      "bytes": 39868,
+      "peakRssBytes": 143245312,
+      "peakFootprintBytes": 103635040,
+      "pageReclaims": 8934,
+      "processSeconds": {
+        "real": 0.19,
+        "user": 0.22,
+        "system": 0.02
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-1",
+      "driver": "cpp-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 1,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 1055.135
+      },
+      "peakRssBytes": 10371072,
+      "peakFootprintBytes": 3785064,
+      "pageReclaims": 1654,
+      "processSeconds": {
+        "real": 1.52,
+        "user": 0.03,
+        "system": 0.05
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-1",
+      "driver": "gea-native",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 1,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 1000
+      },
+      "peakRssBytes": 23855104,
+      "peakFootprintBytes": 21397816,
+      "pageReclaims": 2636,
+      "processSeconds": {
+        "real": 1.03,
+        "user": 0.08,
+        "system": 0.05
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-1",
+      "driver": "nodejs-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 1,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 1122.360541
+      },
+      "peakRssBytes": 98418688,
+      "peakFootprintBytes": 58726808,
+      "pageReclaims": 6207,
+      "processSeconds": {
+        "real": 1.22,
+        "user": 0.33,
+        "system": 0.08
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-1",
+      "driver": "rust-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 1,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 992.762166
+      },
+      "peakRssBytes": 14516224,
+      "peakFootprintBytes": 7160288,
+      "pageReclaims": 947,
+      "processSeconds": {
+        "real": 1,
+        "user": 0.08,
+        "system": 0.15
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-4",
+      "driver": "gea-native",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 4,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 437
+      },
+      "peakRssBytes": 23937024,
+      "peakFootprintBytes": 21446968,
+      "pageReclaims": 2639,
+      "processSeconds": {
+        "real": 0.45,
+        "user": 0.09,
+        "system": 0.04
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-4",
+      "driver": "nodejs-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 4,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 503.60016599999994
+      },
+      "peakRssBytes": 103874560,
+      "peakFootprintBytes": 66003992,
+      "pageReclaims": 6535,
+      "processSeconds": {
+        "real": 0.6,
+        "user": 0.32,
+        "system": 0.07
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-4",
+      "driver": "rust-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 4,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 427.987209
+      },
+      "peakRssBytes": 14925824,
+      "peakFootprintBytes": 7569888,
+      "pageReclaims": 1134,
+      "processSeconds": {
+        "real": 0.43,
+        "user": 0.09,
+        "system": 0.16
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-4",
+      "driver": "cpp-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 4,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 444.321
+      },
+      "peakRssBytes": 10518528,
+      "peakFootprintBytes": 3948928,
+      "pageReclaims": 1698,
+      "processSeconds": {
+        "real": 0.51,
+        "user": 0.04,
+        "system": 0.06
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-16",
+      "driver": "nodejs-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 16,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 207.659083
+      },
+      "peakRssBytes": 119341056,
+      "peakFootprintBytes": 81568864,
+      "pageReclaims": 7479,
+      "processSeconds": {
+        "real": 0.3,
+        "user": 0.29,
+        "system": 0.06
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-16",
+      "driver": "rust-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 16,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 182.83033400000002
+      },
+      "peakRssBytes": 15450112,
+      "peakFootprintBytes": 8077768,
+      "pageReclaims": 1164,
+      "processSeconds": {
+        "real": 0.18,
+        "user": 0.1,
+        "system": 0.24
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-16",
+      "driver": "cpp-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 16,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 195.809
+      },
+      "peakRssBytes": 10829824,
+      "peakFootprintBytes": 4260224,
+      "pageReclaims": 1720,
+      "processSeconds": {
+        "real": 0.51,
+        "user": 0.05,
+        "system": 0.1
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-16",
+      "driver": "gea-native",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 16,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 176
+      },
+      "peakRssBytes": 24182784,
+      "peakFootprintBytes": 21692728,
+      "pageReclaims": 2654,
+      "processSeconds": {
+        "real": 0.2,
+        "user": 0.11,
+        "system": 0.04
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-64",
+      "driver": "rust-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 64,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 115.86437500000001
+      },
+      "peakRssBytes": 17170432,
+      "peakFootprintBytes": 9814496,
+      "pageReclaims": 1283,
+      "processSeconds": {
+        "real": 0.12,
+        "user": 0.11,
+        "system": 0.26
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-64",
+      "driver": "cpp-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 64,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 78.859
+      },
+      "peakRssBytes": 11812864,
+      "peakFootprintBytes": 5226856,
+      "pageReclaims": 1782,
+      "processSeconds": {
+        "real": 0.52,
+        "user": 0.06,
+        "system": 0.15
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-64",
+      "driver": "gea-native",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 64,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 216
+      },
+      "peakRssBytes": 24805376,
+      "peakFootprintBytes": 22348136,
+      "pageReclaims": 2692,
+      "processSeconds": {
+        "real": 0.25,
+        "user": 0.19,
+        "system": 0.03
+      }
+    },
+    {
+      "round": 1,
+      "profile": "concurrent-pool-64",
+      "driver": "nodejs-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 64,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 144.629458
+      },
+      "peakRssBytes": 120537088,
+      "peakFootprintBytes": 82912592,
+      "pageReclaims": 7557,
+      "processSeconds": {
+        "real": 0.24,
+        "user": 0.28,
+        "system": 0.05
+      }
+    },
+    {
+      "round": 1,
+      "profile": "large",
+      "driver": "cpp-official",
+      "mode": "large",
+      "iterations": 10,
+      "documentBytes": 262144,
+      "arrayElements": 4096,
+      "milliseconds": {
+        "largeInsert": 35.819,
+        "largeFind": 16.792
+      },
+      "peakRssBytes": 12271616,
+      "peakFootprintBytes": 5570944,
+      "pageReclaims": 1695,
+      "processSeconds": {
+        "real": 0.06,
+        "user": 0.01,
+        "system": 0
+      }
+    },
+    {
+      "round": 1,
+      "profile": "large",
+      "driver": "gea-native",
+      "mode": "large",
+      "iterations": 10,
+      "documentBytes": 262144,
+      "arrayElements": 4096,
+      "milliseconds": {
+        "largeInsert": 54,
+        "largeFind": 71
+      },
+      "peakRssBytes": 29982720,
+      "peakFootprintBytes": 27443560,
+      "pageReclaims": 3008,
+      "processSeconds": {
+        "real": 0.13,
+        "user": 0.08,
+        "system": 0
+      }
+    },
+    {
+      "round": 1,
+      "profile": "large",
+      "driver": "nodejs-official",
+      "mode": "large",
+      "iterations": 10,
+      "documentBytes": 262144,
+      "arrayElements": 4096,
+      "milliseconds": {
+        "largeInsert": 39.522834,
+        "largeFind": 22.66900000000001
+      },
+      "peakRssBytes": 103612416,
+      "peakFootprintBytes": 64511128,
+      "pageReclaims": 6520,
+      "processSeconds": {
+        "real": 0.14,
+        "user": 0.14,
+        "system": 0.01
+      }
+    },
+    {
+      "round": 1,
+      "profile": "large",
+      "driver": "rust-official",
+      "mode": "large",
+      "iterations": 10,
+      "documentBytes": 262144,
+      "arrayElements": 4096,
+      "milliseconds": {
+        "largeInsert": 26.159417,
+        "largeFind": 14.772833
+      },
+      "peakRssBytes": 13615104,
+      "peakFootprintBytes": 5669248,
+      "pageReclaims": 1013,
+      "processSeconds": {
+        "real": 0.04,
+        "user": 0,
+        "system": 0
+      }
+    },
+    {
+      "round": 1,
+      "profile": "batch",
+      "driver": "gea-native",
+      "mode": "batch",
+      "iterations": 2000,
+      "batchSize": 100,
+      "milliseconds": {
+        "insertBatch": 43,
+        "bulkUpdate": 9
+      },
+      "peakRssBytes": 23887872,
+      "peakFootprintBytes": 21381456,
+      "pageReclaims": 2636,
+      "processSeconds": {
+        "real": 0.06,
+        "user": 0.03,
+        "system": 0
+      }
+    },
+    {
+      "round": 1,
+      "profile": "batch",
+      "driver": "nodejs-official",
+      "mode": "batch",
+      "iterations": 2000,
+      "batchSize": 100,
+      "milliseconds": {
+        "insertBatch": 33.662667,
+        "bulkUpdate": 11.166458000000006
+      },
+      "peakRssBytes": 89423872,
+      "peakFootprintBytes": 49797336,
+      "pageReclaims": 5655,
+      "processSeconds": {
+        "real": 0.12,
+        "user": 0.11,
+        "system": 0.01
+      }
+    },
+    {
+      "round": 1,
+      "profile": "batch",
+      "driver": "rust-official",
+      "mode": "batch",
+      "iterations": 2000,
+      "batchSize": 100,
+      "milliseconds": {
+        "insertBatch": 27.042792,
+        "bulkUpdate": 7.839874999999999
+      },
+      "peakRssBytes": 11616256,
+      "peakFootprintBytes": 3916184,
+      "pageReclaims": 910,
+      "processSeconds": {
+        "real": 0.04,
+        "user": 0,
+        "system": 0
+      }
+    },
+    {
+      "round": 1,
+      "profile": "batch",
+      "driver": "cpp-official",
+      "mode": "batch",
+      "iterations": 2000,
+      "batchSize": 100,
+      "milliseconds": {
+        "insertBatch": 20.144,
+        "bulkUpdate": 7.485
+      },
+      "peakRssBytes": 10027008,
+      "peakFootprintBytes": 3293544,
+      "pageReclaims": 1564,
+      "processSeconds": {
+        "real": 0.04,
+        "user": 0.01,
+        "system": 0
+      }
+    },
+    {
+      "round": 2,
+      "profile": "bson-small",
+      "driver": "nodejs-official",
+      "mode": "bson-small",
+      "checksum": 16750000,
+      "operations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "milliseconds": {
+        "encode": 22.337959000000005,
+        "decode": 37.053250000000006
+      },
+      "bytes": 334,
+      "peakRssBytes": 101711872,
+      "peakFootprintBytes": 61986792,
+      "pageReclaims": 6406,
+      "processSeconds": {
+        "real": 0.12,
+        "user": 0.16,
+        "system": 0.01
+      }
+    },
+    {
+      "round": 2,
+      "profile": "bson-small",
+      "driver": "rust-official",
+      "mode": "bson-small",
+      "checksum": 16750000,
+      "operations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "milliseconds": {
+        "encode": 23.135792,
+        "decode": 45.459125
+      },
+      "bytes": 334,
+      "peakRssBytes": 7143424,
+      "peakFootprintBytes": 1966416,
+      "pageReclaims": 638,
+      "processSeconds": {
+        "real": 0.07,
+        "user": 0.07,
+        "system": 0
+      }
+    },
+    {
+      "round": 2,
+      "profile": "bson-small",
+      "driver": "cpp-official",
+      "mode": "bson-small",
+      "checksum": 16750000,
+      "operations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "milliseconds": {
+        "encode": 13.429,
+        "decode": 2.451
+      },
+      "bytes": 334,
+      "peakRssBytes": 8945664,
+      "peakFootprintBytes": 2785640,
+      "pageReclaims": 1499,
+      "processSeconds": {
+        "real": 0.03,
+        "user": 0.02,
+        "system": 0
+      }
+    },
+    {
+      "round": 2,
+      "profile": "bson-small",
+      "driver": "gea-native",
+      "mode": "bson-small",
+      "checksum": 16750000,
+      "operations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "milliseconds": {
+        "encode": 205,
+        "decode": 389
+      },
+      "bytes": 334,
+      "peakRssBytes": 21970944,
+      "peakFootprintBytes": 19743032,
+      "pageReclaims": 2518,
+      "processSeconds": {
+        "real": 0.6,
+        "user": 0.59,
+        "system": 0
+      }
+    },
+    {
+      "round": 2,
+      "profile": "bson-string-256k",
+      "driver": "rust-official",
+      "mode": "bson-string-256k",
+      "checksum": 524307000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 8.12625,
+        "decode": 12.555250000000001
+      },
+      "bytes": 262163,
+      "peakRssBytes": 8519680,
+      "peakFootprintBytes": 3522920,
+      "pageReclaims": 722,
+      "processSeconds": {
+        "real": 0.02,
+        "user": 0.02,
+        "system": 0
+      }
+    },
+    {
+      "round": 2,
+      "profile": "bson-string-256k",
+      "driver": "cpp-official",
+      "mode": "bson-string-256k",
+      "checksum": 524307000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 8.008,
+        "decode": 0.039
+      },
+      "bytes": 262163,
+      "peakRssBytes": 9699328,
+      "peakFootprintBytes": 3588480,
+      "pageReclaims": 1546,
+      "processSeconds": {
+        "real": 0.02,
+        "user": 0.01,
+        "system": 0
+      }
+    },
+    {
+      "round": 2,
+      "profile": "bson-string-256k",
+      "driver": "gea-native",
+      "mode": "bson-string-256k",
+      "checksum": 524307000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 238,
+        "decode": 4979
+      },
+      "bytes": 262163,
+      "peakRssBytes": 25755648,
+      "peakFootprintBytes": 23560552,
+      "pageReclaims": 2749,
+      "processSeconds": {
+        "real": 5.22,
+        "user": 5.19,
+        "system": 0.02
+      }
+    },
+    {
+      "round": 2,
+      "profile": "bson-string-256k",
+      "driver": "nodejs-official",
+      "mode": "bson-string-256k",
+      "checksum": 524307000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 110.326709,
+        "decode": 285.71566599999994
+      },
+      "bytes": 262163,
+      "peakRssBytes": 198950912,
+      "peakFootprintBytes": 169349304,
+      "pageReclaims": 28777,
+      "processSeconds": {
+        "real": 0.46,
+        "user": 0.47,
+        "system": 0.04
+      }
+    },
+    {
+      "round": 2,
+      "profile": "bson-array-4096",
+      "driver": "cpp-official",
+      "mode": "bson-array-4096",
+      "checksum": 43964000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 131.759,
+        "decode": 76.029
+      },
+      "bytes": 39868,
+      "peakRssBytes": 9388032,
+      "peakFootprintBytes": 3277184,
+      "pageReclaims": 1527,
+      "processSeconds": {
+        "real": 0.22,
+        "user": 0.21,
+        "system": 0
+      }
+    },
+    {
+      "round": 2,
+      "profile": "bson-array-4096",
+      "driver": "gea-native",
+      "mode": "bson-array-4096",
+      "checksum": 43964000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 1013,
+        "decode": 254
+      },
+      "bytes": 39868,
+      "peakRssBytes": 27475968,
+      "peakFootprintBytes": 25248104,
+      "pageReclaims": 2854,
+      "processSeconds": {
+        "real": 1.27,
+        "user": 1.26,
+        "system": 0.01
+      }
+    },
+    {
+      "round": 2,
+      "profile": "bson-array-4096",
+      "driver": "nodejs-official",
+      "mode": "bson-array-4096",
+      "checksum": 43964000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 61.646167,
+        "decode": 57.255791000000016
+      },
+      "bytes": 39868,
+      "peakRssBytes": 142655488,
+      "peakFootprintBytes": 103127208,
+      "pageReclaims": 8908,
+      "processSeconds": {
+        "real": 0.18,
+        "user": 0.22,
+        "system": 0.01
+      }
+    },
+    {
+      "round": 2,
+      "profile": "bson-array-4096",
+      "driver": "rust-official",
+      "mode": "bson-array-4096",
+      "checksum": 43964000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 45.244125000000004,
+        "decode": 123.13775000000001
+      },
+      "bytes": 39868,
+      "peakRssBytes": 8814592,
+      "peakFootprintBytes": 3785088,
+      "pageReclaims": 742,
+      "processSeconds": {
+        "real": 0.17,
+        "user": 0.16,
+        "system": 0
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-1",
+      "driver": "gea-native",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 1,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 932
+      },
+      "peakRssBytes": 23953408,
+      "peakFootprintBytes": 21479760,
+      "pageReclaims": 2640,
+      "processSeconds": {
+        "real": 0.97,
+        "user": 0.08,
+        "system": 0.04
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-1",
+      "driver": "nodejs-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 1,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 998.569417
+      },
+      "peakRssBytes": 103022592,
+      "peakFootprintBytes": 63347120,
+      "pageReclaims": 6486,
+      "processSeconds": {
+        "real": 1.11,
+        "user": 0.33,
+        "system": 0.07
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-1",
+      "driver": "rust-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 1,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 986.520625
+      },
+      "peakRssBytes": 14499840,
+      "peakFootprintBytes": 7127496,
+      "pageReclaims": 1102,
+      "processSeconds": {
+        "real": 0.99,
+        "user": 0.08,
+        "system": 0.15
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-1",
+      "driver": "cpp-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 1,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 905.943
+      },
+      "peakRssBytes": 10403840,
+      "peakFootprintBytes": 3834240,
+      "pageReclaims": 1685,
+      "processSeconds": {
+        "real": 1.01,
+        "user": 0.03,
+        "system": 0.05
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-4",
+      "driver": "nodejs-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 4,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 492.50541699999997
+      },
+      "peakRssBytes": 105299968,
+      "peakFootprintBytes": 67511416,
+      "pageReclaims": 6621,
+      "processSeconds": {
+        "real": 0.58,
+        "user": 0.31,
+        "system": 0.06
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-4",
+      "driver": "rust-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 4,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 458.55812499999996
+      },
+      "peakRssBytes": 15155200,
+      "peakFootprintBytes": 7782856,
+      "pageReclaims": 1150,
+      "processSeconds": {
+        "real": 0.46,
+        "user": 0.09,
+        "system": 0.16
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-4",
+      "driver": "cpp-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 4,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 425.483
+      },
+      "peakRssBytes": 10502144,
+      "peakFootprintBytes": 3916136,
+      "pageReclaims": 1701,
+      "processSeconds": {
+        "real": 0.51,
+        "user": 0.04,
+        "system": 0.06
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-4",
+      "driver": "gea-native",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 4,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 489
+      },
+      "peakRssBytes": 24002560,
+      "peakFootprintBytes": 21528912,
+      "pageReclaims": 2643,
+      "processSeconds": {
+        "real": 0.51,
+        "user": 0.09,
+        "system": 0.05
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-16",
+      "driver": "rust-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 16,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 186.455
+      },
+      "peakRssBytes": 15532032,
+      "peakFootprintBytes": 8159688,
+      "pageReclaims": 1165,
+      "processSeconds": {
+        "real": 0.2,
+        "user": 0.1,
+        "system": 0.23
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-16",
+      "driver": "cpp-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 16,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 167.07
+      },
+      "peakRssBytes": 10829824,
+      "peakFootprintBytes": 4260224,
+      "pageReclaims": 1715,
+      "processSeconds": {
+        "real": 0.51,
+        "user": 0.04,
+        "system": 0.09
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-16",
+      "driver": "gea-native",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 16,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 180
+      },
+      "peakRssBytes": 24150016,
+      "peakFootprintBytes": 21659960,
+      "pageReclaims": 2652,
+      "processSeconds": {
+        "real": 0.2,
+        "user": 0.1,
+        "system": 0.04
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-16",
+      "driver": "nodejs-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 16,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 191.856625
+      },
+      "peakRssBytes": 113983488,
+      "peakFootprintBytes": 76260544,
+      "pageReclaims": 7153,
+      "processSeconds": {
+        "real": 0.29,
+        "user": 0.28,
+        "system": 0.06
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-64",
+      "driver": "cpp-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 64,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 80.664
+      },
+      "peakRssBytes": 11829248,
+      "peakFootprintBytes": 5243240,
+      "pageReclaims": 1777,
+      "processSeconds": {
+        "real": 0.52,
+        "user": 0.05,
+        "system": 0.13
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-64",
+      "driver": "gea-native",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 64,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 217
+      },
+      "peakRssBytes": 24608768,
+      "peakFootprintBytes": 22135120,
+      "pageReclaims": 2680,
+      "processSeconds": {
+        "real": 0.24,
+        "user": 0.19,
+        "system": 0.03
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-64",
+      "driver": "nodejs-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 64,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 153.20775
+      },
+      "peakRssBytes": 120537088,
+      "peakFootprintBytes": 82846960,
+      "pageReclaims": 7554,
+      "processSeconds": {
+        "real": 0.25,
+        "user": 0.29,
+        "system": 0.05
+      }
+    },
+    {
+      "round": 2,
+      "profile": "concurrent-pool-64",
+      "driver": "rust-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 64,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 104.647083
+      },
+      "peakRssBytes": 17317888,
+      "peakFootprintBytes": 9945544,
+      "pageReclaims": 1286,
+      "processSeconds": {
+        "real": 0.11,
+        "user": 0.1,
+        "system": 0.24
+      }
+    },
+    {
+      "round": 2,
+      "profile": "large",
+      "driver": "gea-native",
+      "mode": "large",
+      "iterations": 10,
+      "documentBytes": 262144,
+      "arrayElements": 4096,
+      "milliseconds": {
+        "largeInsert": 53,
+        "largeFind": 72
+      },
+      "peakRssBytes": 29655040,
+      "peakFootprintBytes": 27115880,
+      "pageReclaims": 2988,
+      "processSeconds": {
+        "real": 0.13,
+        "user": 0.08,
+        "system": 0
+      }
+    },
+    {
+      "round": 2,
+      "profile": "large",
+      "driver": "nodejs-official",
+      "mode": "large",
+      "iterations": 10,
+      "documentBytes": 262144,
+      "arrayElements": 4096,
+      "milliseconds": {
+        "largeInsert": 39.231083999999996,
+        "largeFind": 22.93308300000001
+      },
+      "peakRssBytes": 101941248,
+      "peakFootprintBytes": 62823552,
+      "pageReclaims": 6420,
+      "processSeconds": {
+        "real": 0.15,
+        "user": 0.14,
+        "system": 0.01
+      }
+    },
+    {
+      "round": 2,
+      "profile": "large",
+      "driver": "rust-official",
+      "mode": "large",
+      "iterations": 10,
+      "documentBytes": 262144,
+      "arrayElements": 4096,
+      "milliseconds": {
+        "largeInsert": 32.707584,
+        "largeFind": 15.563125000000001
+      },
+      "peakRssBytes": 13647872,
+      "peakFootprintBytes": 5702016,
+      "pageReclaims": 1038,
+      "processSeconds": {
+        "real": 0.05,
+        "user": 0,
+        "system": 0
+      }
+    },
+    {
+      "round": 2,
+      "profile": "large",
+      "driver": "cpp-official",
+      "mode": "large",
+      "iterations": 10,
+      "documentBytes": 262144,
+      "arrayElements": 4096,
+      "milliseconds": {
+        "largeInsert": 28.26,
+        "largeFind": 15.09
+      },
+      "peakRssBytes": 12353536,
+      "peakFootprintBytes": 5669272,
+      "pageReclaims": 1707,
+      "processSeconds": {
+        "real": 0.05,
+        "user": 0.01,
+        "system": 0
+      }
+    },
+    {
+      "round": 2,
+      "profile": "batch",
+      "driver": "nodejs-official",
+      "mode": "batch",
+      "iterations": 2000,
+      "batchSize": 100,
+      "milliseconds": {
+        "insertBatch": 35.13879200000001,
+        "bulkUpdate": 9.149708999999987
+      },
+      "peakRssBytes": 89260032,
+      "peakFootprintBytes": 49748328,
+      "pageReclaims": 5645,
+      "processSeconds": {
+        "real": 0.12,
+        "user": 0.11,
+        "system": 0.01
+      }
+    },
+    {
+      "round": 2,
+      "profile": "batch",
+      "driver": "rust-official",
+      "mode": "batch",
+      "iterations": 2000,
+      "batchSize": 100,
+      "milliseconds": {
+        "insertBatch": 21.741625,
+        "bulkUpdate": 7.649667
+      },
+      "peakRssBytes": 11730944,
+      "peakFootprintBytes": 4014464,
+      "pageReclaims": 920,
+      "processSeconds": {
+        "real": 0.03,
+        "user": 0,
+        "system": 0
+      }
+    },
+    {
+      "round": 2,
+      "profile": "batch",
+      "driver": "cpp-official",
+      "mode": "batch",
+      "iterations": 2000,
+      "batchSize": 100,
+      "milliseconds": {
+        "insertBatch": 22.818,
+        "bulkUpdate": 8.164
+      },
+      "peakRssBytes": 10043392,
+      "peakFootprintBytes": 3309928,
+      "pageReclaims": 1567,
+      "processSeconds": {
+        "real": 0.04,
+        "user": 0.01,
+        "system": 0
+      }
+    },
+    {
+      "round": 2,
+      "profile": "batch",
+      "driver": "gea-native",
+      "mode": "batch",
+      "iterations": 2000,
+      "batchSize": 100,
+      "milliseconds": {
+        "insertBatch": 50,
+        "bulkUpdate": 7
+      },
+      "peakRssBytes": 23855104,
+      "peakFootprintBytes": 21348688,
+      "pageReclaims": 2634,
+      "processSeconds": {
+        "real": 0.06,
+        "user": 0.03,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "bson-small",
+      "driver": "rust-official",
+      "mode": "bson-small",
+      "checksum": 16750000,
+      "operations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "milliseconds": {
+        "encode": 23.423958000000002,
+        "decode": 47.557958
+      },
+      "bytes": 334,
+      "peakRssBytes": 7176192,
+      "peakFootprintBytes": 1999184,
+      "pageReclaims": 640,
+      "processSeconds": {
+        "real": 0.07,
+        "user": 0.07,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "bson-small",
+      "driver": "cpp-official",
+      "mode": "bson-small",
+      "checksum": 16750000,
+      "operations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "milliseconds": {
+        "encode": 14.056,
+        "decode": 2.552
+      },
+      "bytes": 334,
+      "peakRssBytes": 8962048,
+      "peakFootprintBytes": 2802024,
+      "pageReclaims": 1500,
+      "processSeconds": {
+        "real": 0.03,
+        "user": 0.02,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "bson-small",
+      "driver": "gea-native",
+      "mode": "bson-small",
+      "checksum": 16750000,
+      "operations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "milliseconds": {
+        "encode": 215,
+        "decode": 394
+      },
+      "bytes": 334,
+      "peakRssBytes": 21954560,
+      "peakFootprintBytes": 19726648,
+      "pageReclaims": 2517,
+      "processSeconds": {
+        "real": 0.62,
+        "user": 0.61,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "bson-small",
+      "driver": "nodejs-official",
+      "mode": "bson-small",
+      "checksum": 16750000,
+      "operations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "milliseconds": {
+        "encode": 22.751250000000006,
+        "decode": 35.95008299999999
+      },
+      "bytes": 334,
+      "peakRssBytes": 102203392,
+      "peakFootprintBytes": 62478312,
+      "pageReclaims": 6430,
+      "processSeconds": {
+        "real": 0.12,
+        "user": 0.16,
+        "system": 0.01
+      }
+    },
+    {
+      "round": 3,
+      "profile": "bson-string-256k",
+      "driver": "cpp-official",
+      "mode": "bson-string-256k",
+      "checksum": 524307000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 8.15,
+        "decode": 0.039
+      },
+      "bytes": 262163,
+      "peakRssBytes": 9699328,
+      "peakFootprintBytes": 3588480,
+      "pageReclaims": 1546,
+      "processSeconds": {
+        "real": 0.02,
+        "user": 0.01,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "bson-string-256k",
+      "driver": "gea-native",
+      "mode": "bson-string-256k",
+      "checksum": 524307000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 236,
+        "decode": 5042
+      },
+      "bytes": 262163,
+      "peakRssBytes": 26165248,
+      "peakFootprintBytes": 23970152,
+      "pageReclaims": 2774,
+      "processSeconds": {
+        "real": 5.29,
+        "user": 5.22,
+        "system": 0.04
+      }
+    },
+    {
+      "round": 3,
+      "profile": "bson-string-256k",
+      "driver": "nodejs-official",
+      "mode": "bson-string-256k",
+      "checksum": 524307000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 111.17137500000001,
+        "decode": 289.477209
+      },
+      "bytes": 262163,
+      "peakRssBytes": 198705152,
+      "peakFootprintBytes": 169300296,
+      "pageReclaims": 28758,
+      "processSeconds": {
+        "real": 0.47,
+        "user": 0.48,
+        "system": 0.04
+      }
+    },
+    {
+      "round": 3,
+      "profile": "bson-string-256k",
+      "driver": "rust-official",
+      "mode": "bson-string-256k",
+      "checksum": 524307000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 7.859,
+        "decode": 12.119541
+      },
+      "bytes": 262163,
+      "peakRssBytes": 8208384,
+      "peakFootprintBytes": 3211624,
+      "pageReclaims": 703,
+      "processSeconds": {
+        "real": 0.02,
+        "user": 0.02,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "bson-array-4096",
+      "driver": "gea-native",
+      "mode": "bson-array-4096",
+      "checksum": 43964000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 1013,
+        "decode": 248
+      },
+      "bytes": 39868,
+      "peakRssBytes": 27181056,
+      "peakFootprintBytes": 24953192,
+      "pageReclaims": 2836,
+      "processSeconds": {
+        "real": 1.27,
+        "user": 1.25,
+        "system": 0.01
+      }
+    },
+    {
+      "round": 3,
+      "profile": "bson-array-4096",
+      "driver": "nodejs-official",
+      "mode": "bson-array-4096",
+      "checksum": 43964000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 63.39191700000001,
+        "decode": 56.065124999999995
+      },
+      "bytes": 39868,
+      "peakRssBytes": 142721024,
+      "peakFootprintBytes": 103077960,
+      "pageReclaims": 8907,
+      "processSeconds": {
+        "real": 0.18,
+        "user": 0.22,
+        "system": 0.01
+      }
+    },
+    {
+      "round": 3,
+      "profile": "bson-array-4096",
+      "driver": "rust-official",
+      "mode": "bson-array-4096",
+      "checksum": 43964000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 46.435207999999996,
+        "decode": 120.612041
+      },
+      "bytes": 39868,
+      "peakRssBytes": 8241152,
+      "peakFootprintBytes": 3195240,
+      "pageReclaims": 705,
+      "processSeconds": {
+        "real": 0.17,
+        "user": 0.16,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "bson-array-4096",
+      "driver": "cpp-official",
+      "mode": "bson-array-4096",
+      "checksum": 43964000,
+      "operations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "milliseconds": {
+        "encode": 131.474,
+        "decode": 76.165
+      },
+      "bytes": 39868,
+      "peakRssBytes": 9273344,
+      "peakFootprintBytes": 3162496,
+      "pageReclaims": 1520,
+      "processSeconds": {
+        "real": 0.22,
+        "user": 0.21,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-1",
+      "driver": "nodejs-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 1,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 1074.8529170000002
+      },
+      "peakRssBytes": 104939520,
+      "peakFootprintBytes": 65313272,
+      "pageReclaims": 6600,
+      "processSeconds": {
+        "real": 1.19,
+        "user": 0.34,
+        "system": 0.08
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-1",
+      "driver": "rust-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 1,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 1101.570667
+      },
+      "peakRssBytes": 14450688,
+      "peakFootprintBytes": 7078344,
+      "pageReclaims": 1094,
+      "processSeconds": {
+        "real": 1.13,
+        "user": 0.08,
+        "system": 0.16
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-1",
+      "driver": "cpp-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 1,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 1038.663
+      },
+      "peakRssBytes": 10420224,
+      "peakFootprintBytes": 3834216,
+      "pageReclaims": 1683,
+      "processSeconds": {
+        "real": 1.52,
+        "user": 0.03,
+        "system": 0.06
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-1",
+      "driver": "gea-native",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 1,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 878
+      },
+      "peakRssBytes": 23871488,
+      "peakFootprintBytes": 21381432,
+      "pageReclaims": 2635,
+      "processSeconds": {
+        "real": 0.91,
+        "user": 0.07,
+        "system": 0.04
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-4",
+      "driver": "rust-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 4,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 410.18654100000003
+      },
+      "peakRssBytes": 14925824,
+      "peakFootprintBytes": 7569888,
+      "pageReclaims": 1127,
+      "processSeconds": {
+        "real": 0.41,
+        "user": 0.09,
+        "system": 0.16
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-4",
+      "driver": "cpp-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 4,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 391.428
+      },
+      "peakRssBytes": 10518528,
+      "peakFootprintBytes": 3948928,
+      "pageReclaims": 1703,
+      "processSeconds": {
+        "real": 0.52,
+        "user": 0.04,
+        "system": 0.07
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-4",
+      "driver": "gea-native",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 4,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 445
+      },
+      "peakRssBytes": 23953408,
+      "peakFootprintBytes": 21479736,
+      "pageReclaims": 2641,
+      "processSeconds": {
+        "real": 0.47,
+        "user": 0.09,
+        "system": 0.05
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-4",
+      "driver": "nodejs-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 4,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 475.9415
+      },
+      "peakRssBytes": 101384192,
+      "peakFootprintBytes": 61544616,
+      "pageReclaims": 6383,
+      "processSeconds": {
+        "real": 0.57,
+        "user": 0.3,
+        "system": 0.06
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-16",
+      "driver": "cpp-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 16,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 168.601
+      },
+      "peakRssBytes": 10780672,
+      "peakFootprintBytes": 4211072,
+      "pageReclaims": 1708,
+      "processSeconds": {
+        "real": 0.51,
+        "user": 0.04,
+        "system": 0.08
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-16",
+      "driver": "gea-native",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 16,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 179
+      },
+      "peakRssBytes": 24133632,
+      "peakFootprintBytes": 21659960,
+      "pageReclaims": 2652,
+      "processSeconds": {
+        "real": 0.2,
+        "user": 0.11,
+        "system": 0.04
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-16",
+      "driver": "nodejs-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 16,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 199.16108300000002
+      },
+      "peakRssBytes": 111329280,
+      "peakFootprintBytes": 73442232,
+      "pageReclaims": 6991,
+      "processSeconds": {
+        "real": 0.29,
+        "user": 0.29,
+        "system": 0.06
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-16",
+      "driver": "rust-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 16,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 176.9455
+      },
+      "peakRssBytes": 15548416,
+      "peakFootprintBytes": 8192480,
+      "pageReclaims": 1171,
+      "processSeconds": {
+        "real": 0.18,
+        "user": 0.1,
+        "system": 0.22
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-64",
+      "driver": "gea-native",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 64,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 221
+      },
+      "peakRssBytes": 24592384,
+      "peakFootprintBytes": 22135120,
+      "pageReclaims": 2682,
+      "processSeconds": {
+        "real": 0.24,
+        "user": 0.19,
+        "system": 0.03
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-64",
+      "driver": "nodejs-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 64,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 154.086417
+      },
+      "peakRssBytes": 121339904,
+      "peakFootprintBytes": 83682592,
+      "pageReclaims": 7605,
+      "processSeconds": {
+        "real": 0.25,
+        "user": 0.29,
+        "system": 0.05
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-64",
+      "driver": "rust-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 64,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 108.10987499999999
+      },
+      "peakRssBytes": 17137664,
+      "peakFootprintBytes": 9781728,
+      "pageReclaims": 1277,
+      "processSeconds": {
+        "real": 0.11,
+        "user": 0.11,
+        "system": 0.23
+      }
+    },
+    {
+      "round": 3,
+      "profile": "concurrent-pool-64",
+      "driver": "cpp-official",
+      "mode": "concurrent",
+      "iterations": 4000,
+      "poolSize": 64,
+      "concurrency": 64,
+      "milliseconds": {
+        "concurrentPing": 81.83
+      },
+      "peakRssBytes": 11780096,
+      "peakFootprintBytes": 5194088,
+      "pageReclaims": 1789,
+      "processSeconds": {
+        "real": 0.51,
+        "user": 0.05,
+        "system": 0.12
+      }
+    },
+    {
+      "round": 3,
+      "profile": "large",
+      "driver": "nodejs-official",
+      "mode": "large",
+      "iterations": 10,
+      "documentBytes": 262144,
+      "arrayElements": 4096,
+      "milliseconds": {
+        "largeInsert": 40.43458299999999,
+        "largeFind": 26.084125
+      },
+      "peakRssBytes": 102367232,
+      "peakFootprintBytes": 63183904,
+      "pageReclaims": 6446,
+      "processSeconds": {
+        "real": 0.15,
+        "user": 0.14,
+        "system": 0.02
+      }
+    },
+    {
+      "round": 3,
+      "profile": "large",
+      "driver": "rust-official",
+      "mode": "large",
+      "iterations": 10,
+      "documentBytes": 262144,
+      "arrayElements": 4096,
+      "milliseconds": {
+        "largeInsert": 31.751165999999998,
+        "largeFind": 17.65825
+      },
+      "peakRssBytes": 13664256,
+      "peakFootprintBytes": 5718400,
+      "pageReclaims": 1037,
+      "processSeconds": {
+        "real": 0.05,
+        "user": 0,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "large",
+      "driver": "cpp-official",
+      "mode": "large",
+      "iterations": 10,
+      "documentBytes": 262144,
+      "arrayElements": 4096,
+      "milliseconds": {
+        "largeInsert": 35.963,
+        "largeFind": 16.442
+      },
+      "peakRssBytes": 12222464,
+      "peakFootprintBytes": 5521792,
+      "pageReclaims": 1699,
+      "processSeconds": {
+        "real": 0.06,
+        "user": 0.01,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "large",
+      "driver": "gea-native",
+      "mode": "large",
+      "iterations": 10,
+      "documentBytes": 262144,
+      "arrayElements": 4096,
+      "milliseconds": {
+        "largeInsert": 55,
+        "largeFind": 68
+      },
+      "peakRssBytes": 29048832,
+      "peakFootprintBytes": 26509672,
+      "pageReclaims": 2951,
+      "processSeconds": {
+        "real": 0.13,
+        "user": 0.08,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "batch",
+      "driver": "rust-official",
+      "mode": "batch",
+      "iterations": 2000,
+      "batchSize": 100,
+      "milliseconds": {
+        "insertBatch": 20.754875,
+        "bulkUpdate": 6.7295
+      },
+      "peakRssBytes": 11730944,
+      "peakFootprintBytes": 4014464,
+      "pageReclaims": 919,
+      "processSeconds": {
+        "real": 0.03,
+        "user": 0,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "batch",
+      "driver": "cpp-official",
+      "mode": "batch",
+      "iterations": 2000,
+      "batchSize": 100,
+      "milliseconds": {
+        "insertBatch": 21.732,
+        "bulkUpdate": 7.99
+      },
+      "peakRssBytes": 10076160,
+      "peakFootprintBytes": 3342696,
+      "pageReclaims": 1569,
+      "processSeconds": {
+        "real": 0.06,
+        "user": 0.01,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "batch",
+      "driver": "gea-native",
+      "mode": "batch",
+      "iterations": 2000,
+      "batchSize": 100,
+      "milliseconds": {
+        "insertBatch": 48,
+        "bulkUpdate": 7
+      },
+      "peakRssBytes": 23707648,
+      "peakFootprintBytes": 21217616,
+      "pageReclaims": 2626,
+      "processSeconds": {
+        "real": 0.06,
+        "user": 0.03,
+        "system": 0
+      }
+    },
+    {
+      "round": 3,
+      "profile": "batch",
+      "driver": "nodejs-official",
+      "mode": "batch",
+      "iterations": 2000,
+      "batchSize": 100,
+      "milliseconds": {
+        "insertBatch": 30.794959000000006,
+        "bulkUpdate": 7.523083
+      },
+      "peakRssBytes": 90079232,
+      "peakFootprintBytes": 50452696,
+      "pageReclaims": 5698,
+      "processSeconds": {
+        "real": 0.12,
+        "user": 0.11,
+        "system": 0.01
+      }
+    }
+  ],
+  "summary": [
+    {
+      "profile": "bson-small",
+      "driver": "gea-native",
+      "milliseconds": {
+        "encode": 215,
+        "decode": 394
+      },
+      "phaseOperations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "phaseOperationsPerSecond": {
+        "encode": 232558.13953488372,
+        "decode": 126903.55329949239
+      },
+      "phaseMebibytesPerSecond": {
+        "encode": 74.07609806504361,
+        "decode": 40.42223625376745
+      },
+      "documentBytes": 334,
+      "logicalOperations": 100000,
+      "logicalOperationsPerSecond": 164203.61247947454,
+      "medianPeakRssBytes": 21954560,
+      "medianCpuSeconds": 0.61,
+      "throughputVsNode": 0.09627921510673233,
+      "rssVsNode": 0.21585051546391754
+    },
+    {
+      "profile": "bson-small",
+      "driver": "nodejs-official",
+      "milliseconds": {
+        "encode": 22.436999999999998,
+        "decode": 36.197041999999996
+      },
+      "phaseOperations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "phaseOperationsPerSecond": {
+        "encode": 2228461.915585863,
+        "decode": 1381328.341691567
+      },
+      "phaseMebibytesPerSecond": {
+        "encode": 709.8257825905592,
+        "decode": 439.99067890642493
+      },
+      "documentBytes": 334,
+      "logicalOperations": 100000,
+      "logicalOperationsPerSecond": 1705493.8835702306,
+      "medianPeakRssBytes": 101711872,
+      "medianCpuSeconds": 0.17,
+      "throughputVsNode": 1,
+      "rssVsNode": 1
+    },
+    {
+      "profile": "bson-small",
+      "driver": "rust-official",
+      "milliseconds": {
+        "encode": 23.423958000000002,
+        "decode": 47.349917
+      },
+      "phaseOperations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "phaseOperationsPerSecond": {
+        "encode": 2134566.6688780775,
+        "decode": 1055968.0600918478
+      },
+      "phaseMebibytesPerSecond": {
+        "encode": 679.9175905277995,
+        "decode": 336.35457236354557
+      },
+      "documentBytes": 334,
+      "logicalOperations": 100000,
+      "logicalOperationsPerSecond": 1412950.7533676797,
+      "medianPeakRssBytes": 7143424,
+      "medianCpuSeconds": 0.07,
+      "throughputVsNode": 0.8284701381689217,
+      "rssVsNode": 0.0702319587628866
+    },
+    {
+      "profile": "bson-small",
+      "driver": "cpp-official",
+      "milliseconds": {
+        "encode": 13.429,
+        "decode": 2.552
+      },
+      "phaseOperations": {
+        "encode": 50000,
+        "decode": 50000
+      },
+      "phaseOperationsPerSecond": {
+        "encode": 3723285.4270608383,
+        "decode": 19592476.48902821
+      },
+      "phaseMebibytesPerSecond": {
+        "encode": 1185.9677626021576,
+        "decode": 6240.737101874754
+      },
+      "documentBytes": 334,
+      "logicalOperations": 100000,
+      "logicalOperationsPerSecond": 6257430.698955009,
+      "medianPeakRssBytes": 8962048,
+      "medianCpuSeconds": 0.02,
+      "throughputVsNode": 3.668984544146173,
+      "rssVsNode": 0.08811211340206186
+    },
+    {
+      "profile": "bson-string-256k",
+      "driver": "gea-native",
+      "milliseconds": {
+        "encode": 236,
+        "decode": 5019
+      },
+      "phaseOperations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "phaseOperationsPerSecond": {
+        "encode": 4237.28813559322,
+        "decode": 199.24287706714486
+      },
+      "phaseMebibytesPerSecond": {
+        "encode": 1059.3988127627615,
+        "decode": 49.81432951026335
+      },
+      "documentBytes": 262163,
+      "logicalOperations": 2000,
+      "logicalOperationsPerSecond": 380.5899143672693,
+      "medianPeakRssBytes": 25755648,
+      "medianCpuSeconds": 5.25,
+      "throughputVsNode": 0.07624140513796385,
+      "rssVsNode": 0.12961741424802112
+    },
+    {
+      "profile": "bson-string-256k",
+      "driver": "nodejs-official",
+      "milliseconds": {
+        "encode": 111.17137500000001,
+        "decode": 289.477209
+      },
+      "phaseOperations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "phaseOperationsPerSecond": {
+        "encode": 8995.121271100586,
+        "decode": 3454.5033906278954
+      },
+      "phaseMebibytesPerSecond": {
+        "encode": 2248.9433076816017,
+        "decode": 863.6884426090058
+      },
+      "documentBytes": 262163,
+      "logicalOperations": 2000,
+      "logicalOperationsPerSecond": 4991.905824381997,
+      "medianPeakRssBytes": 198705152,
+      "medianCpuSeconds": 0.52,
+      "throughputVsNode": 1,
+      "rssVsNode": 1
+    },
+    {
+      "profile": "bson-string-256k",
+      "driver": "rust-official",
+      "milliseconds": {
+        "encode": 8.12625,
+        "decode": 12.555250000000001
+      },
+      "phaseOperations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "phaseOperationsPerSecond": {
+        "encode": 123057.99107829564,
+        "decode": 79647.95603432826
+      },
+      "phaseMebibytesPerSecond": {
+        "encode": 30766.727557238788,
+        "decode": 19913.432214572527
+      },
+      "documentBytes": 262163,
+      "logicalOperations": 2000,
+      "logicalOperationsPerSecond": 96704.78446921162,
+      "medianPeakRssBytes": 8519680,
+      "medianCpuSeconds": 0.02,
+      "throughputVsNode": 19.372317481807414,
+      "rssVsNode": 0.04287598944591029
+    },
+    {
+      "profile": "bson-string-256k",
+      "driver": "cpp-official",
+      "milliseconds": {
+        "encode": 8.008,
+        "decode": 0.039
+      },
+      "phaseOperations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "phaseOperationsPerSecond": {
+        "encode": 124875.1248751249,
+        "decode": 25641025.64102564
+      },
+      "phaseMebibytesPerSecond": {
+        "encode": 31221.0439325689,
+        "decode": 6410721.020820813
+      },
+      "documentBytes": 262163,
+      "logicalOperations": 2000,
+      "logicalOperationsPerSecond": 248539.82850751837,
+      "medianPeakRssBytes": 9699328,
+      "medianCpuSeconds": 0.01,
+      "throughputVsNode": 49.788565179570035,
+      "rssVsNode": 0.048812664907651716
+    },
+    {
+      "profile": "bson-array-4096",
+      "driver": "gea-native",
+      "milliseconds": {
+        "encode": 1013,
+        "decode": 251
+      },
+      "phaseOperations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "phaseOperationsPerSecond": {
+        "encode": 987.1668311944719,
+        "decode": 3984.06374501992
+      },
+      "phaseMebibytesPerSecond": {
+        "encode": 37.53315661054726,
+        "decode": 151.47843683858315
+      },
+      "documentBytes": 39868,
+      "logicalOperations": 2000,
+      "logicalOperationsPerSecond": 1582.2784810126582,
+      "medianPeakRssBytes": 27213824,
+      "medianCpuSeconds": 1.27,
+      "throughputVsNode": 0.09402999762658226,
+      "rssVsNode": 0.1906784525312823
+    },
+    {
+      "profile": "bson-array-4096",
+      "driver": "nodejs-official",
+      "milliseconds": {
+        "encode": 61.646167,
+        "decode": 57.20774999999999
+      },
+      "phaseOperations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "phaseOperationsPerSecond": {
+        "encode": 16221.60871737573,
+        "decode": 17480.149105671873
+      },
+      "phaseMebibytesPerSecond": {
+        "encode": 616.7632068103176,
+        "decode": 664.6142812203658
+      },
+      "documentBytes": 39868,
+      "logicalOperations": 2000,
+      "logicalOperationsPerSecond": 16827.37978252749,
+      "medianPeakRssBytes": 142721024,
+      "medianCpuSeconds": 0.23,
+      "throughputVsNode": 1,
+      "rssVsNode": 1
+    },
+    {
+      "profile": "bson-array-4096",
+      "driver": "rust-official",
+      "milliseconds": {
+        "encode": 46.435207999999996,
+        "decode": 122.013791
+      },
+      "phaseOperations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "phaseOperationsPerSecond": {
+        "encode": 21535.383237650192,
+        "decode": 8195.794850764041
+      },
+      "phaseMebibytesPerSecond": {
+        "encode": 818.7986935793284,
+        "decode": 311.61303435350493
+      },
+      "documentBytes": 39868,
+      "logicalOperations": 2000,
+      "logicalOperationsPerSecond": 11873.02988959881,
+      "medianPeakRssBytes": 8781824,
+      "medianCpuSeconds": 0.16,
+      "throughputVsNode": 0.705578054518448,
+      "rssVsNode": 0.06153139708414648
+    },
+    {
+      "profile": "bson-array-4096",
+      "driver": "cpp-official",
+      "milliseconds": {
+        "encode": 131.474,
+        "decode": 76.029
+      },
+      "phaseOperations": {
+        "encode": 1000,
+        "decode": 1000
+      },
+      "phaseOperationsPerSecond": {
+        "encode": 7606.066598719139,
+        "decode": 13152.875876310356
+      },
+      "phaseMebibytesPerSecond": {
+        "encode": 289.1909247948977,
+        "decode": 500.08664649652604
+      },
+      "documentBytes": 39868,
+      "logicalOperations": 2000,
+      "logicalOperationsPerSecond": 9638.41486629109,
+      "medianPeakRssBytes": 9273344,
+      "medianCpuSeconds": 0.21,
+      "throughputVsNode": 0.5727816802648636,
+      "rssVsNode": 0.06497531856273676
+    },
+    {
+      "profile": "concurrent-pool-1",
+      "driver": "gea-native",
+      "milliseconds": {
+        "concurrentPing": 932
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 4291.845493562232,
+      "medianPeakRssBytes": 23871488,
+      "medianCpuSeconds": 0.12,
+      "throughputVsNode": 1.1532756620171676,
+      "rssVsNode": 0.2317111959287532
+    },
+    {
+      "profile": "concurrent-pool-1",
+      "driver": "nodejs-official",
+      "milliseconds": {
+        "concurrentPing": 1074.8529170000002
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 3721.4394050902497,
+      "medianPeakRssBytes": 103022592,
+      "medianCpuSeconds": 0.41000000000000003,
+      "throughputVsNode": 1,
+      "rssVsNode": 1
+    },
+    {
+      "profile": "concurrent-pool-1",
+      "driver": "rust-official",
+      "milliseconds": {
+        "concurrentPing": 992.762166
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 4029.1624086730153,
+      "medianPeakRssBytes": 14499840,
+      "medianCpuSeconds": 0.22999999999999998,
+      "throughputVsNode": 1.0826892420072343,
+      "rssVsNode": 0.1407442748091603
+    },
+    {
+      "profile": "concurrent-pool-1",
+      "driver": "cpp-official",
+      "milliseconds": {
+        "concurrentPing": 1038.663
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 3851.1047375327703,
+      "medianPeakRssBytes": 10403840,
+      "medianCpuSeconds": 0.08,
+      "throughputVsNode": 1.0348427902024044,
+      "rssVsNode": 0.10098600508905853
+    },
+    {
+      "profile": "concurrent-pool-4",
+      "driver": "gea-native",
+      "milliseconds": {
+        "concurrentPing": 445
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 8988.76404494382,
+      "medianPeakRssBytes": 23953408,
+      "medianCpuSeconds": 0.14,
+      "throughputVsNode": 1.1067537460674157,
+      "rssVsNode": 0.2305993690851735
+    },
+    {
+      "profile": "concurrent-pool-4",
+      "driver": "nodejs-official",
+      "milliseconds": {
+        "concurrentPing": 492.50541699999997
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 8121.73808029405,
+      "medianPeakRssBytes": 103874560,
+      "medianCpuSeconds": 0.37,
+      "throughputVsNode": 1,
+      "rssVsNode": 1
+    },
+    {
+      "profile": "concurrent-pool-4",
+      "driver": "rust-official",
+      "milliseconds": {
+        "concurrentPing": 427.987209
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 9346.073704740087,
+      "medianPeakRssBytes": 14925824,
+      "medianCpuSeconds": 0.25,
+      "throughputVsNode": 1.1507479818164377,
+      "rssVsNode": 0.14369085173501578
+    },
+    {
+      "profile": "concurrent-pool-4",
+      "driver": "cpp-official",
+      "milliseconds": {
+        "concurrentPing": 425.483
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 9401.080654221203,
+      "medianPeakRssBytes": 10518528,
+      "medianCpuSeconds": 0.1,
+      "throughputVsNode": 1.1575207869644615,
+      "rssVsNode": 0.10126182965299685
+    },
+    {
+      "profile": "concurrent-pool-16",
+      "driver": "gea-native",
+      "milliseconds": {
+        "concurrentPing": 179
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 22346.368715083798,
+      "medianPeakRssBytes": 24150016,
+      "medianCpuSeconds": 0.15,
+      "throughputVsNode": 1.1126317486033521,
+      "rssVsNode": 0.21187293373580565
+    },
+    {
+      "profile": "concurrent-pool-16",
+      "driver": "nodejs-official",
+      "milliseconds": {
+        "concurrentPing": 199.16108300000002
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 20084.24507312003,
+      "medianPeakRssBytes": 113983488,
+      "medianCpuSeconds": 0.35,
+      "throughputVsNode": 1,
+      "rssVsNode": 1
+    },
+    {
+      "profile": "concurrent-pool-16",
+      "driver": "rust-official",
+      "milliseconds": {
+        "concurrentPing": 182.83033400000002
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 21878.207584524785,
+      "medianPeakRssBytes": 15532032,
+      "medianCpuSeconds": 0.33,
+      "throughputVsNode": 1.0893218791581927,
+      "rssVsNode": 0.13626563173781803
+    },
+    {
+      "profile": "concurrent-pool-16",
+      "driver": "cpp-official",
+      "milliseconds": {
+        "concurrentPing": 168.601
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 23724.65169245734,
+      "medianPeakRssBytes": 10829824,
+      "medianCpuSeconds": 0.13,
+      "throughputVsNode": 1.181256831216897,
+      "rssVsNode": 0.09501221791001868
+    },
+    {
+      "profile": "concurrent-pool-64",
+      "driver": "gea-native",
+      "milliseconds": {
+        "concurrentPing": 217
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 18433.179723502304,
+      "medianPeakRssBytes": 24608768,
+      "medianCpuSeconds": 0.22,
+      "throughputVsNode": 0.7060264976958526,
+      "rssVsNode": 0.20415930406415658
+    },
+    {
+      "profile": "concurrent-pool-64",
+      "driver": "nodejs-official",
+      "milliseconds": {
+        "concurrentPing": 153.20775
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 26108.339819624005,
+      "medianPeakRssBytes": 120537088,
+      "medianCpuSeconds": 0.33999999999999997,
+      "throughputVsNode": 1,
+      "rssVsNode": 1
+    },
+    {
+      "profile": "concurrent-pool-64",
+      "driver": "rust-official",
+      "milliseconds": {
+        "concurrentPing": 108.10987499999999
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 36999.395291133216,
+      "medianPeakRssBytes": 17170432,
+      "medianCpuSeconds": 0.34,
+      "throughputVsNode": 1.4171485259787788,
+      "rssVsNode": 0.1424493679488922
+    },
+    {
+      "profile": "concurrent-pool-64",
+      "driver": "cpp-official",
+      "milliseconds": {
+        "concurrentPing": 80.664
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 49588.416145988296,
+      "medianPeakRssBytes": 11812864,
+      "medianCpuSeconds": 0.18,
+      "throughputVsNode": 1.8993324159476348,
+      "rssVsNode": 0.09800190294957184
+    },
+    {
+      "profile": "large",
+      "driver": "gea-native",
+      "milliseconds": {
+        "largeInsert": 54,
+        "largeFind": 71
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 20,
+      "logicalOperationsPerSecond": 160,
+      "medianPeakRssBytes": 29655040,
+      "medianCpuSeconds": 0.08,
+      "throughputVsNode": 0.4996473360000001,
+      "rssVsNode": 0.28969270166453265
+    },
+    {
+      "profile": "large",
+      "driver": "nodejs-official",
+      "milliseconds": {
+        "largeInsert": 39.522834,
+        "largeFind": 22.93308300000001
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 20,
+      "logicalOperationsPerSecond": 320.2258642683926,
+      "medianPeakRssBytes": 102367232,
+      "medianCpuSeconds": 0.15000000000000002,
+      "throughputVsNode": 1,
+      "rssVsNode": 1
+    },
+    {
+      "profile": "large",
+      "driver": "rust-official",
+      "milliseconds": {
+        "largeInsert": 31.751165999999998,
+        "largeFind": 15.563125000000001
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 20,
+      "logicalOperationsPerSecond": 422.70526678715316,
+      "medianPeakRssBytes": 13647872,
+      "medianCpuSeconds": 0,
+      "throughputVsNode": 1.320022252896065,
+      "rssVsNode": 0.1333226632522407
+    },
+    {
+      "profile": "large",
+      "driver": "cpp-official",
+      "milliseconds": {
+        "largeInsert": 35.819,
+        "largeFind": 16.442
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 20,
+      "logicalOperationsPerSecond": 382.69455234304735,
+      "medianPeakRssBytes": 12271616,
+      "medianCpuSeconds": 0.01,
+      "throughputVsNode": 1.1950769598744764,
+      "rssVsNode": 0.11987836107554417
+    },
+    {
+      "profile": "batch",
+      "driver": "gea-native",
+      "milliseconds": {
+        "insertBatch": 48,
+        "bulkUpdate": 7
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 72727.27272727272,
+      "medianPeakRssBytes": 23855104,
+      "medianCpuSeconds": 0.03,
+      "throughputVsNode": 0.7784068363636361,
+      "rssVsNode": 0.26676438255771345
+    },
+    {
+      "profile": "batch",
+      "driver": "nodejs-official",
+      "milliseconds": {
+        "insertBatch": 33.662667,
+        "bulkUpdate": 9.149708999999987
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 93430.92754300768,
+      "medianPeakRssBytes": 89423872,
+      "medianCpuSeconds": 0.12,
+      "throughputVsNode": 1,
+      "rssVsNode": 1
+    },
+    {
+      "profile": "batch",
+      "driver": "rust-official",
+      "milliseconds": {
+        "insertBatch": 21.741625,
+        "bulkUpdate": 7.649667
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 136094.73173210624,
+      "medianPeakRssBytes": 11730944,
+      "medianCpuSeconds": 0,
+      "throughputVsNode": 1.4566347066335155,
+      "rssVsNode": 0.13118358373030414
+    },
+    {
+      "profile": "batch",
+      "driver": "cpp-official",
+      "milliseconds": {
+        "insertBatch": 21.732,
+        "bulkUpdate": 7.99
+      },
+      "phaseOperations": null,
+      "phaseOperationsPerSecond": null,
+      "phaseMebibytesPerSecond": null,
+      "documentBytes": null,
+      "logicalOperations": 4000,
+      "logicalOperationsPerSecond": 134580.44546127447,
+      "medianPeakRssBytes": 10043392,
+      "medianCpuSeconds": 0.01,
+      "throughputVsNode": 1.4404271583338937,
+      "rssVsNode": 0.11231220227189447
+    }
+  ]
+}

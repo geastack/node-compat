@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "skipLibCheck": true,
+    "types": [],
+    "paths": {
+      "buffer": ["../../runtime/node/buffer.ts"],
+      "node:buffer": ["../../runtime/node/buffer.ts"]
+    }
+  },
+  "files": [
+    "../../runtime/node/node-globals.ts",
+    "valid.ts",
+    "merged-member.ts"
+  ]
+}

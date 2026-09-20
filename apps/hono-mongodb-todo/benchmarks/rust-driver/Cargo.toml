@@ -1,0 +1,7 @@
+[package]
+name = "gea-mongodb-driver-benchmark"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+mongodb = { version = "3", features = ["sync"] }

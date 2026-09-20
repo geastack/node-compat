@@ -1,0 +1,48 @@
+{
+  "name": "@geastack/node-compat",
+  "version": "1.0.11",
+  "description": "The native Node.js runtime and compiler target for geatsc.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/geastack/node-compat.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "plugin",
+    "runtime",
+    "scripts/build.mjs",
+    "scripts/builtin-modules.mjs",
+    "scripts/path-display.mjs"
+  ],
+  "exports": {
+    ".": "./plugin/index.mjs",
+    "./build": "./scripts/build.mjs",
+    "./runtime/*": "./runtime/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@geastack/compiler": "^1.0.15"
+  },
+  "devDependencies": {
+    "@geastack/compiler": "^1.0.15"
+  },
+  "dependencies": {
+    "@types/node": "^22.15.3"
+  },
+  "peerDependenciesMeta": {
+    "@geastack/compiler": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "scripts": {
+    "test:package": "node --test scripts/test-package.mjs"
+  }
+}

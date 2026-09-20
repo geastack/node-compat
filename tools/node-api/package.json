@@ -1,0 +1,25 @@
+{
+  "name": "@geastack/node-api-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node generate-surface.mjs",
+    "docs:generate": "node update-docs-snapshot.mjs",
+    "check": "node generate-surface.mjs --check && node test-surface.mjs && node test-docs-snapshot.mjs && node test-declaration-compilation.mjs",
+    "check:imports": "node test-import-safe-facades.mjs",
+    "check:events": "node test-events-overlays.mjs",
+    "check:events-advanced": "node test-events-advanced.mjs",
+    "check:stream": "node test-stream-overlays.mjs",
+    "check:stream-adapters": "node test-stream-adapters.mjs",
+    "check:stream-submodules": "node test-stream-submodules.mjs",
+    "check:stream-web": "node test-stream-web.mjs",
+    "check:pilot": "node test-net-stub-pilot.mjs",
+    "check:net-overloads": "node test-net-connect-overloads.mjs",
+    "check:net-server": "node test-net-server-overloads.mjs",
+    "check:tcp": "node test-net-tcp-regression.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "5.9.3"
+  }
+}

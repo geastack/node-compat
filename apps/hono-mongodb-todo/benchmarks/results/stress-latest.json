@@ -1,0 +1,287 @@
+{
+  "metadata": {
+    "timestamp": "2026-09-05T03:20:55.973Z",
+    "host": "Apple M4 Max (16 logical cores)",
+    "platform": "darwin 25.5.0 arm64",
+    "totalMemoryBytes": 137438953472,
+    "mongodb": "8.0.29",
+    "iterations": 10000,
+    "warmup": 100,
+    "rounds": 3,
+    "timedCommands": 480000
+  },
+  "methodology": {
+    "workload": "sequential acknowledged insertOne, indexed findOne, updateOne, and deleteOne",
+    "transport": "one warmed pooled connection per driver process",
+    "memory": "macOS /usr/bin/time -l maximum resident set size; includes runtime, driver, linked libraries, BSON state, and preallocated benchmark documents",
+    "aggregation": "median throughput and peak RSS across rotated rounds; maximum RSS also retained"
+  },
+  "samples": [
+    {
+      "round": 1,
+      "driver": "gea-native",
+      "iterations": 10000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 2635,
+        "findOne": 3287,
+        "updateOne": 2772,
+        "deleteOne": 2732
+      },
+      "peakRssBytes": 74629120,
+      "processSeconds": {
+        "real": 11.6,
+        "user": 1.33,
+        "system": 0.69
+      },
+      "timedOperationsPerSecond": 3500.787677227376
+    },
+    {
+      "round": 1,
+      "driver": "nodejs-official",
+      "iterations": 10000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 2619.492333,
+        "findOne": 2768.044917,
+        "updateOne": 2945.3596670000006,
+        "deleteOne": 3033.044458999999
+      },
+      "peakRssBytes": 126877696,
+      "processSeconds": {
+        "real": 11.64,
+        "user": 1.89,
+        "system": 0.65
+      },
+      "timedOperationsPerSecond": 3519.286144169533
+    },
+    {
+      "round": 1,
+      "driver": "rust-official",
+      "iterations": 10000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 2605.215375,
+        "findOne": 2890.890916,
+        "updateOne": 2962.490792,
+        "deleteOne": 2698.018
+      },
+      "peakRssBytes": 27607040,
+      "processSeconds": {
+        "real": 11.3,
+        "user": 0.84,
+        "system": 1.52
+      },
+      "timedOperationsPerSecond": 3585.3168458729374
+    },
+    {
+      "round": 1,
+      "driver": "cpp-official",
+      "iterations": 10000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 2558.983,
+        "findOne": 2725.843,
+        "updateOne": 2952.86,
+        "deleteOne": 2726.371
+      },
+      "peakRssBytes": 15564800,
+      "processSeconds": {
+        "real": 11.13,
+        "user": 0.51,
+        "system": 0.8
+      },
+      "timedOperationsPerSecond": 3648.2845720338737
+    },
+    {
+      "round": 2,
+      "driver": "nodejs-official",
+      "iterations": 10000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 2746.352042,
+        "findOne": 3137.2177920000004,
+        "updateOne": 2810.3989999999994,
+        "deleteOne": 2828.857082999999
+      },
+      "peakRssBytes": 128008192,
+      "processSeconds": {
+        "real": 11.8,
+        "user": 1.92,
+        "system": 0.68
+      },
+      "timedOperationsPerSecond": 3471.3706766138594
+    },
+    {
+      "round": 2,
+      "driver": "rust-official",
+      "iterations": 10000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 2636.430458,
+        "findOne": 2674.958333,
+        "updateOne": 2808.234625,
+        "deleteOne": 2809.8518750000003
+      },
+      "peakRssBytes": 27508736,
+      "processSeconds": {
+        "real": 11.09,
+        "user": 0.8,
+        "system": 1.46
+      },
+      "timedOperationsPerSecond": 3659.82802787783
+    },
+    {
+      "round": 2,
+      "driver": "cpp-official",
+      "iterations": 10000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 2444.294,
+        "findOne": 2712.864,
+        "updateOne": 2594.11,
+        "deleteOne": 2622.819
+      },
+      "peakRssBytes": 15466496,
+      "processSeconds": {
+        "real": 10.52,
+        "user": 0.44,
+        "system": 0.68
+      },
+      "timedOperationsPerSecond": 3855.760993714435
+    },
+    {
+      "round": 2,
+      "driver": "gea-native",
+      "iterations": 10000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 2437,
+        "findOne": 3168,
+        "updateOne": 3122,
+        "deleteOne": 2585
+      },
+      "peakRssBytes": 74612736,
+      "processSeconds": {
+        "real": 11.48,
+        "user": 1.37,
+        "system": 0.71
+      },
+      "timedOperationsPerSecond": 3536.067892503536
+    },
+    {
+      "round": 3,
+      "driver": "rust-official",
+      "iterations": 10000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 2563.530917,
+        "findOne": 2826.1170829999996,
+        "updateOne": 2934.841459,
+        "deleteOne": 2685.2264999999998
+      },
+      "peakRssBytes": 27508736,
+      "processSeconds": {
+        "real": 11.17,
+        "user": 0.85,
+        "system": 1.52
+      },
+      "timedOperationsPerSecond": 3633.1545835477805
+    },
+    {
+      "round": 3,
+      "driver": "cpp-official",
+      "iterations": 10000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 2619.538,
+        "findOne": 2791.387,
+        "updateOne": 2794.498,
+        "deleteOne": 2663.911
+      },
+      "peakRssBytes": 15597568,
+      "processSeconds": {
+        "real": 11.04,
+        "user": 0.47,
+        "system": 0.76
+      },
+      "timedOperationsPerSecond": 3680.0782826252275
+    },
+    {
+      "round": 3,
+      "driver": "gea-native",
+      "iterations": 10000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 2591,
+        "findOne": 3328,
+        "updateOne": 3105,
+        "deleteOne": 2610
+      },
+      "peakRssBytes": 74612736,
+      "processSeconds": {
+        "real": 11.79,
+        "user": 1.47,
+        "system": 0.78
+      },
+      "timedOperationsPerSecond": 3438.1983840467597
+    },
+    {
+      "round": 3,
+      "driver": "nodejs-official",
+      "iterations": 10000,
+      "transport": "one warmed pooled connection",
+      "milliseconds": {
+        "insertOne": 2723.2558750000003,
+        "findOne": 3106.981875,
+        "updateOne": 2838.8735830000005,
+        "deleteOne": 2611.5111669999987
+      },
+      "peakRssBytes": 119734272,
+      "processSeconds": {
+        "real": 11.56,
+        "user": 1.84,
+        "system": 0.64
+      },
+      "timedOperationsPerSecond": 3545.9036059401865
+    }
+  ],
+  "summary": [
+    {
+      "driver": "gea-native",
+      "medianTimedOperationsPerSecond": 3500.787677227376,
+      "medianPeakRssBytes": 74612736,
+      "maximumPeakRssBytes": 74629120,
+      "medianProcessSeconds": 11.6,
+      "throughputVsNode": 0.9947436877297392,
+      "peakRssVsNode": 0.5880681818181818
+    },
+    {
+      "driver": "nodejs-official",
+      "medianTimedOperationsPerSecond": 3519.286144169533,
+      "medianPeakRssBytes": 126877696,
+      "maximumPeakRssBytes": 128008192,
+      "medianProcessSeconds": 11.64,
+      "throughputVsNode": 1,
+      "peakRssVsNode": 1
+    },
+    {
+      "driver": "rust-official",
+      "medianTimedOperationsPerSecond": 3633.1545835477805,
+      "medianPeakRssBytes": 27508736,
+      "maximumPeakRssBytes": 27607040,
+      "medianProcessSeconds": 11.17,
+      "throughputVsNode": 1.0323555501637443,
+      "peakRssVsNode": 0.21681301652892562
+    },
+    {
+      "driver": "cpp-official",
+      "medianTimedOperationsPerSecond": 3680.0782826252275,
+      "medianPeakRssBytes": 15564800,
+      "maximumPeakRssBytes": 15597568,
+      "medianProcessSeconds": 11.04,
+      "throughputVsNode": 1.0456888504852275,
+      "peakRssVsNode": 0.12267561983471074
+    }
+  ]
+}
