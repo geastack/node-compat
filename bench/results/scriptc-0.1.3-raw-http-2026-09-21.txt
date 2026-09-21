@@ -1,0 +1,19 @@
+round=1 scriptc-raw    workers=1 path=/     rps=  51215.65 p50=1.24ms   p99=1.33ms   rss_kib=2748
+round=1 scriptc-raw    workers=1 path=/json rps=  55655.71 p50=1.14ms   p99=1.24ms   rss_kib=2700
+round=2 scriptc-raw    workers=1 path=/     rps=  54415.81 p50=1.15ms   p99=1.33ms   rss_kib=2712
+round=2 scriptc-raw    workers=1 path=/json rps=  51433.00 p50=1.24ms   p99=1.32ms   rss_kib=2744
+round=3 scriptc-raw    workers=1 path=/     rps=  49196.54 p50=1.31ms   p99=1.39ms   rss_kib=2756
+round=3 scriptc-raw    workers=1 path=/json rps=  53257.63 p50=1.20ms   p99=1.29ms   rss_kib=2756
+round=1 scriptc-raw    workers=4 path=/     rps= 117981.99 p50=575.00us p99=1.15ms   rss_kib=9508
+round=1 scriptc-raw    workers=4 path=/json rps= 119653.14 p50=495.00us p99=1.00ms   rss_kib=9488
+round=2 scriptc-raw    workers=4 path=/     rps= 117942.50 p50=544.00us p99=1.14ms   rss_kib=9440
+round=2 scriptc-raw    workers=4 path=/json rps= 119773.62 p50=553.00us p99=1.12ms   rss_kib=9452
+round=3 scriptc-raw    workers=4 path=/     rps= 117385.31 p50=522.00us p99=1.09ms   rss_kib=9420
+round=3 scriptc-raw    workers=4 path=/json rps= 120365.55 p50=463.00us p99=0.94ms   rss_kib=9584
+round=1 gea-raw        workers=1 path=/     rps= 150651.44 p50=408.00us p99=823.00us rss_kib=7528
+round=1 gea-raw        workers=1 path=/json rps= 151881.52 p50=403.00us p99=824.00us rss_kib=7472
+round=2 gea-raw        workers=1 path=/     rps= 149238.18 p50=414.00us p99=833.00us rss_kib=7544
+round=2 gea-raw        workers=1 path=/json rps= 116566.34 p50=541.00us p99=654.00us rss_kib=7508
+round=3 gea-raw        workers=1 path=/     rps= 154102.99 p50=399.00us p99=806.00us rss_kib=7424
+round=3 gea-raw        workers=1 path=/json rps= 150469.17 p50=414.00us p99=828.00us rss_kib=7440
+DONE
