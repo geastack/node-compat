@@ -37,10 +37,17 @@ for (const body of [undefined, null, "", "hello"]) {
       body,
       headers === undefined ? undefined : { headers },
     );
-    assert.equal(
-      actual.headers.get("content-type"),
-      expected.headers.get("content-type"),
-    );
+    // Node spells the string-body default the WHATWG way,
+    // `text/plain;charset=UTF-8`. The shim spells it with a space, the way
+    // `@hono/node-server`'s own Response replacement does, because that
+    // package's wire is what a compiled Hono build is checked against --
+    // see the comment on the assignment in `globals.ts`. That one divergence
+    // is deliberate and pinned here; every other header must still agree with
+    // Node exactly, which is the whole point of comparing against it.
+    const expectedType = expected.headers
+      .get("content-type")
+      ?.replace(/^text\/plain;charset=UTF-8$/, "text/plain; charset=UTF-8");
+    assert.equal(actual.headers.get("content-type"), expectedType ?? null);
     assert.equal(await actual.text(), await expected.text());
   }
 }

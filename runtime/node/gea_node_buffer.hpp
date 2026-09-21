@@ -539,6 +539,15 @@ inline std::string toString(
   return gea::runtime::textcodec::decodeUtf8Buffer(data + begin, end - begin, false, true);
 }
 
+// ToString of a Buffer the program only holds boxed (`body + chunk` in a
+// 'data' listener, where Node types `chunk` as `any`): UTF-8, not the
+// comma-joined bytes a plain Uint8Array answers. Stated to the runtime against
+// the brand, and only where the runtime has the table to state it to.
+#ifdef GEA_HOST_VIEW_TO_STRING
+inline const bool bufferToStringRegistered =
+    gea::detail::registerHostViewToString(&detail::bufferBrand, +[](const View& view) { return toString(view); });
+#endif
+
 inline double writeSpan(const View& view, const std::string& text, std::size_t offset, std::size_t requested, const std::string& encoding) {
   if (detail::normalizeEncoding(encoding) == "utf8") {
     if (requested == 0) return 0;

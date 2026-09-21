@@ -36,8 +36,14 @@ test('Fastify bare resolution reaches the URL declarations used by light-my-requ
 })
 
 test('a transitive bare whatwg-url import selects its concrete global provider', () => {
-  const entry = resolve(root, 'vendored-sources/mongodb/src/connection_string.ts')
-  const connectionStringPackage = resolve(root, 'vendored-sources/mongodb-connection-string-url/src/index.ts')
+  // The real driver's `connection_string.ts` and `mongodb-connection-string-url`
+  // used to be reached through the checked-in `vendored-sources/` submodule.
+  // That submodule is gone (docs/ARCHITECTURE.md, "Compile-from-source"): the
+  // compiler now acquires typed sources on demand rather than from a tracked
+  // copy, so there is no always-available real file to point this test at.
+  // These fixtures reproduce the same transitive bare-import shape instead.
+  const entry = resolve(root, 'fixtures/reachable-globals/connection-string.ts')
+  const connectionStringPackage = resolve(root, 'fixtures/reachable-globals/mongodb-connection-string-url.ts')
   const reachable = runtimeRootsForReachableGlobalNeeds({
     entryFiles: [entry],
     moduleOverrides: new Map([

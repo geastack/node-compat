@@ -746,6 +746,11 @@ const flags = [
   `-I${runtimeDir}`,
   `-I${path.join(runtimeDir, 'node')}`,
   `-I${outDir}`,
+  // Escape hatch for one-off builds that need a flag the pipeline does not
+  // model -- `-g` for a profile or an allocation census, `-fsanitize=...` for
+  // a leak hunt. Whitespace-separated, appended last so it can override an
+  // earlier flag. Not for anything a build should depend on.
+  ...(process.env.GEA_CXX_EXTRA ? process.env.GEA_CXX_EXTRA.trim().split(/\s+/) : []),
   ...sources,
   ...(process.platform === 'linux' ? ['-lcrypto'] : []),
   '-o',

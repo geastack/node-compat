@@ -173,10 +173,23 @@ inline std::vector<gea::CallableObject<void(double)>>& exit_listeners() {
   return value;
 }
 
+// `listener` is taken by CONST REFERENCE and identified in place, not by
+// value. `CallableObject::operator==` compares `functionObjectIdentity()`,
+// which a plain copy never mints (see that method's header: "a copy mints
+// nothing"), so two independent copies of the same never-identified callable
+// mint two DIFFERENT identities and never compare equal. Taking `listener` by
+// value here would copy the caller's callable before minting anything, so the
+// identity minted on that local copy could never reach a later
+// `remove_listener` call on the caller's own variable. Calling `.identified()`
+// on the reference mutates the caller's object directly (`functionObject` is
+// `mutable`, exactly so a `const` identity read can cache), so a later
+// `remove_listener("exit", listener)` on that SAME variable copies the
+// already-shared identity instead of minting a fresh one, and the two
+// compare equal.
 template <typename Listener>
-inline Process on(const std::string& event, Listener listener) {
+inline Process on(const std::string& event, const Listener& listener) {
   if (event != "exit") throw gea::Value::box(gea::Value::Tag::String, "process event is not implemented");
-  exit_listeners().emplace_back(listener);
+  exit_listeners().emplace_back(listener.identified());
   return process;
 }
 

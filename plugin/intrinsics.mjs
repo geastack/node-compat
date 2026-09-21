@@ -337,6 +337,61 @@ export const intrinsics = {
     returnType: 'void',
     decl: 'void __gea_http_write(double connId, std::string data);'
   },
+  // Two pieces -- in practice the serialized header block and the first body
+  // chunk -- appended into the connection buffer with ONE flush.
+  //
+  // `emitPayload` used to call `__gea_http_write` with `head + body`, which
+  // built a third string holding a copy of both purely to satisfy the arity.
+  // Both parts are taken by reference, not by value: the header block is an
+  // lvalue field at the call site, so a by-value parameter would copy it and
+  // reintroduce the allocation this exists to remove.
+  __gea_http_write2: {
+    emit: '__gea_http_write2',
+    returnType: 'void',
+    decl: 'void __gea_http_write2(double connId, const std::string& head, const std::string& body);'
+  },
+  // The response header block, serialized into the connection's retained
+  // output buffer rather than into a string the (per-request) response object
+  // owns -- see `HttpConnectionBase::headBegin` in `runtime/gea_node.cpp`.
+  __gea_http_head_begin: {
+    emit: '__gea_http_head_begin',
+    returnType: 'void',
+    decl: 'void __gea_http_head_begin(double connId, double status, const std::string& message);'
+  },
+  __gea_http_head_field: {
+    emit: '__gea_http_head_field',
+    returnType: 'void',
+    decl: 'void __gea_http_head_field(double connId, const std::string& name, const std::string& value);'
+  },
+  // Header-block bytes already spelled by the caller: appended, not flushed.
+  __gea_http_head_raw: {
+    emit: '__gea_http_head_raw',
+    returnType: 'void',
+    decl: 'void __gea_http_head_raw(double connId, const std::string& text);'
+  },
+  __gea_http_head_end: {
+    emit: '__gea_http_head_end',
+    returnType: 'double',
+    decl: 'double __gea_http_head_end(double connId, double flags, double autoContentLength);'
+  },
+  // Body bytes by reference (`__gea_http_write` copies its by-value argument).
+  __gea_http_body: {
+    emit: '__gea_http_body',
+    returnType: 'void',
+    decl: 'void __gea_http_body(double connId, const std::string& data);'
+  },
+  // A string's UTF-8 length: the storage size, not a `Buffer.byteLength` call.
+  __gea_http_text_bytes: {
+    emit: '__gea_http_text_bytes',
+    returnType: 'double',
+    decl: 'double __gea_http_text_bytes(const std::string& text);'
+  },
+  // A whole chunked body -- size line, text, terminator -- appended in place.
+  __gea_http_final_chunk: {
+    emit: '__gea_http_final_chunk',
+    returnType: 'void',
+    decl: 'void __gea_http_final_chunk(double connId, const std::string& data);'
+  },
   // The byte-preserving sibling of `__gea_http_write`, for a `Uint8Array` or
   // `Buffer` response body. Same carrier `net_write` takes.
   __gea_http_write_bytes: {
@@ -369,6 +424,11 @@ export const intrinsics = {
     emit: '__gea_http_date',
     returnType: 'std::string',
     decl: 'const std::string& __gea_http_date();'
+  },
+  __gea_http_date_second: {
+    emit: '__gea_http_date_second',
+    returnType: 'double',
+    decl: 'double __gea_http_date_second();'
   },
   __gea_http_stop: {
     emit: '__gea_http_stop',

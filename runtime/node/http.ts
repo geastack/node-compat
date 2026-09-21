@@ -56,6 +56,29 @@ declare function __gea_http_serve(
 // `stop` runs the listener closer.
 /** @gea-host-inert */
 declare function __gea_http_write(connId: number, data: string): void
+// The header block, serialized piece by piece into the connection's retained
+// output buffer -- `commitHeaders` below says why. `head_end` answers a bit
+// pair: 1 = the body is chunked, 2 = the connection stays open.
+/** @gea-host-inert */
+declare function __gea_http_head_begin(connId: number, status: number, message: string): void
+/** @gea-host-inert */
+declare function __gea_http_head_field(connId: number, name: string, value: string): void
+/** @gea-host-inert */
+declare function __gea_http_head_end(connId: number, flags: number, autoContentLength: number): number
+// Body bytes, taken by reference by the reactor. `__gea_http_write` takes its
+// string by value, which copies an lvalue body just to form the argument.
+/** @gea-host-inert */
+declare function __gea_http_body(connId: number, data: string): void
+// A whole chunked body in one call: size line, text, terminator.
+/** @gea-host-inert */
+declare function __gea_http_final_chunk(connId: number, data: string): void
+// A string's length on the wire. Strings are UTF-8 in this runtime, so this is
+// the storage size -- one load. `Buffer.byteLength(text)` answers the same
+// number, but through `normalizeEncoding('utf8')`: a by-value string, a
+// `tolower` per character and a comparison chain, per response, to conclude
+// what the caller already knew. Measured at ~1% of a request.
+/** @gea-host-inert */
+declare function __gea_http_text_bytes(text: string): number
 // Octets rather than text, for a `Uint8Array`/`Buffer` body: a TypeScript
 // `string` cannot carry arbitrary bytes across this boundary intact. See the
 // definition in `runtime/gea_node.cpp` for why both calls exist.
@@ -71,8 +94,6 @@ declare function __gea_http_done(connId: number, keepAlive: boolean): void
 declare function __gea_http_destroy(connId: number): void
 /** @gea-host-inert */
 declare function __gea_http_peer(connId: number): string
-/** @gea-host-inert */
-declare function __gea_http_date(): string
 /** @gea-host-no-property-writes */
 declare function __gea_http_stop(): void
 
@@ -187,6 +208,26 @@ export const STATUS_CODES: { [code: string]: string } = {
   '509': 'Bandwidth Limit Exceeded',
   '510': 'Not Extended',
   '511': 'Network Authentication Required'
+}
+
+
+/**
+ * `name` lowercased, without allocating when it already is.
+ *
+ * Header lookup is by lowercase name, so every `setHeader`/`getHeader` ran
+ * `toLowerCase()` -- which allocates a fresh string AND goes through the
+ * runtime's `asciiCase`, calling libc's locale-aware `tolower` once per
+ * character. Well-behaved callers already pass lowercase (`'content-type'`),
+ * and so does Hono, so that work produced a byte-for-byte copy of its input.
+ * Scanning first is a few compares over a short string with no allocation;
+ * only a name that genuinely has an uppercase letter pays for the conversion.
+ */
+function lowerHeaderName(name: string): string {
+  for (let i = 0; i < name.length; i++) {
+    const c = name.charCodeAt(i)
+    if (c >= 65 && c <= 90) return name.toLowerCase()
+  }
+  return name
 }
 
 export function statusText(code: number): string {
@@ -390,7 +431,7 @@ export class IncomingMessage extends Readable {
     // splice -- for a flag the constructor already knows.
     this.complete = true
     if (body.length > 0) this.push(body)
-    this.push(null)
+    this.pushEnd()
   }
 
   // Typed as `net.Socket` (the real Node return type for `IncomingMessage.socket`), not the
@@ -447,7 +488,7 @@ export class IncomingMessage extends Readable {
       headers = {}
       const raw = this.rawHeaders
       for (let i = 0; i + 1 < raw.length; i += 2) {
-        const lower = raw[i].toLowerCase()
+        const lower = lowerHeaderName(raw[i])
         const value = raw[i + 1]
         if (!headers.hasOwnProperty(lower)) {
           headers[lower] = value
@@ -572,17 +613,23 @@ export class ServerResponse extends Writable {
   private keepAliveRequested_: boolean
   private headersCommitted_: boolean // header block serialized (writeHead / first write)
   private headWritten_: boolean // header bytes handed to the reactor
-  private pendingHead_: string
   private chunked_: boolean
   private suppressBody_: boolean // HEAD / 1xx / 204 / 304
   private keepAliveFinal_: boolean
   private firstHeaderPresent_: boolean
   private firstHeaderName_: string
   private firstHeaderValue_: string
-  private firstHeaderLine_: string
+  // The header's name AS THE CALLER SPELLED IT -- not a prebuilt
+  // `'Name: value\r\n'` line. Storing the assembled line meant a concat, and
+  // so an allocation, for every header of every response; nothing ever read
+  // the line back, it was only appended to the block and shuffled on removal.
+  // Keeping the raw name lets the serializer append name, ': ', value and the
+  // CRLF as four pieces, three of which are strings that already exist and
+  // two of which are literals.
+  private firstHeaderRawName_: string
   private extraHeaderNames_: string[] | undefined
   private extraHeaderValues_: string[] | undefined
-  private extraHeaderLines_: string[] | undefined
+  private extraHeaderRawNames_: string[] | undefined
 
   constructor(connId: number, isHead: boolean, keepAliveRequested: boolean, http10: boolean, request: IncomingMessage) {
     super()
@@ -597,17 +644,16 @@ export class ServerResponse extends Writable {
     this.finished = false
     this.headersCommitted_ = false
     this.headWritten_ = false
-    this.pendingHead_ = ''
     this.chunked_ = false
     this.suppressBody_ = false
     this.keepAliveFinal_ = keepAliveRequested
     this.firstHeaderPresent_ = false
     this.firstHeaderName_ = ''
     this.firstHeaderValue_ = ''
-    this.firstHeaderLine_ = ''
+    this.firstHeaderRawName_ = ''
     this.extraHeaderNames_ = undefined
     this.extraHeaderValues_ = undefined
-    this.extraHeaderLines_ = undefined
+    this.extraHeaderRawNames_ = undefined
   }
 
   get socket(): NetSocket {
@@ -637,12 +683,12 @@ export class ServerResponse extends Writable {
   private removeHeaderAt(index: number): void {
     const names = this.extraHeaderNames_
     const values = this.extraHeaderValues_
-    const lines = this.extraHeaderLines_
+    const lines = this.extraHeaderRawNames_
     if (index === 0) {
       if (names !== undefined && values !== undefined && lines !== undefined && names.length > 0) {
         this.firstHeaderName_ = names[0]
         this.firstHeaderValue_ = values[0]
-        this.firstHeaderLine_ = lines[0]
+        this.firstHeaderRawName_ = lines[0]
         names.splice(0, 1)
         values.splice(0, 1)
         lines.splice(0, 1)
@@ -650,7 +696,7 @@ export class ServerResponse extends Writable {
         this.firstHeaderPresent_ = false
         this.firstHeaderName_ = ''
         this.firstHeaderValue_ = ''
-        this.firstHeaderLine_ = ''
+        this.firstHeaderRawName_ = ''
       }
       return
     }
@@ -671,18 +717,18 @@ export class ServerResponse extends Writable {
 
   // Typed fast path used by writeHead / end / the serializer.
   private setHeaderString(name: string, value: string): void {
-    const lower = name.toLowerCase()
+    const lower = lowerHeaderName(name)
     const index = this.indexOfHeader(lower)
     if (index >= 0) {
       const names = this.extraHeaderNames_
       const values = this.extraHeaderValues_
-      const lines = this.extraHeaderLines_
+      const lines = this.extraHeaderRawNames_
       if (index === 0) {
         this.firstHeaderValue_ = value
-        this.firstHeaderLine_ = name + ': ' + value + '\r\n'
+        this.firstHeaderRawName_ = name
       } else if (names !== undefined && values !== undefined && lines !== undefined) {
         values[index - 1] = value
-        lines[index - 1] = name + ': ' + value + '\r\n'
+        lines[index - 1] = name
       }
       if (names !== undefined && values !== undefined && lines !== undefined) {
         for (let i = names.length - 1; i >= 0; i--) {
@@ -699,33 +745,32 @@ export class ServerResponse extends Writable {
   }
 
   private appendHeaderString(name: string, value: string): void {
-    const lower = name.toLowerCase()
+    const lower = lowerHeaderName(name)
     this.appendHeaderNormalized(name, lower, value)
   }
 
   private appendHeaderNormalized(name: string, lower: string, value: string): void {
-    const line = name + ': ' + value + '\r\n'
     if (!this.firstHeaderPresent_) {
       this.firstHeaderPresent_ = true
       this.firstHeaderName_ = lower
       this.firstHeaderValue_ = value
-      this.firstHeaderLine_ = line
+      this.firstHeaderRawName_ = name
       return
     }
     let names = this.extraHeaderNames_
     let values = this.extraHeaderValues_
-    let lines = this.extraHeaderLines_
+    let lines = this.extraHeaderRawNames_
     if (names === undefined || values === undefined || lines === undefined) {
       names = []
       values = []
       lines = []
       this.extraHeaderNames_ = names
       this.extraHeaderValues_ = values
-      this.extraHeaderLines_ = lines
+      this.extraHeaderRawNames_ = lines
     }
     names.push(lower)
     values.push(value)
-    lines.push(line)
+    lines.push(name)
   }
 
   // Node-compatible surface: accepts a string, number, or array of strings.
@@ -739,7 +784,7 @@ export class ServerResponse extends Writable {
       // `value[i]` otherwise still carries the whole union's carrier even
       // inside this `Array.isArray` guard.
       const values: readonly string[] = value
-      this.removeAllOfHeader(name.toLowerCase())
+      this.removeAllOfHeader(lowerHeaderName(name))
       for (let i = 0; i < values.length; i++) this.appendHeaderString(name, String(values[i]))
       return this
     }
@@ -762,7 +807,7 @@ export class ServerResponse extends Writable {
   // Multi-value headers come back joined with ", " (deviation: Node returns
   // the array that was set).
   getHeader(name: string): string {
-    const lower = name.toLowerCase()
+    const lower = lowerHeaderName(name)
     let out = ''
     if (this.firstHeaderPresent_ && this.firstHeaderName_ === lower) out = this.firstHeaderValue_
     const names = this.extraHeaderNames_
@@ -775,11 +820,11 @@ export class ServerResponse extends Writable {
   }
 
   hasHeader(name: string): boolean {
-    return this.indexOfHeader(name.toLowerCase()) >= 0
+    return this.indexOfHeader(lowerHeaderName(name)) >= 0
   }
 
   removeHeader(name: string): void {
-    this.removeAllOfHeader(name.toLowerCase())
+    this.removeAllOfHeader(lowerHeaderName(name))
   }
 
   getHeaderNames(): string[] {
@@ -823,111 +868,67 @@ export class ServerResponse extends Writable {
   // auto-computed framing header last. autoContentLength >= 0 is the
   // single-shot end() fast path; -1 means streaming (chunked on 1.1,
   // close-delimited on 1.0).
+  //
+  // SERIALIZED BY THE REACTOR, INTO THE CONNECTION'S OWN BUFFER. This used to
+  // assemble the block in a `pendingHead_` string field and hand it over with
+  // the first body bytes. A `ServerResponse` is a new object per request, so
+  // that field started empty every time and regrew through 15, 30, 60, 120 and
+  // 240 bytes -- four allocations and four copies per response, measured with
+  // `GEA_ALLOC_CENSUS=2`, for bytes whose only destination was the connection
+  // buffer. That buffer is retained across responses, so appending there costs
+  // the memcpy and nothing else. The block is not flushed by being written:
+  // it leaves with the first body bytes, as Node's `_header` does.
+  //
+  // The framing decision moved with it. It reads four header names
+  // (content-length, transfer-encoding, date, connection), and the reactor
+  // sees every name go past on its way into the buffer, so the scan this
+  // method used to run over the stored headers first is gone rather than
+  // duplicated. `headEnd` answers the two facts still needed here.
   private commitHeaders(autoContentLength: number): void {
     if (this.headersCommitted_) return
-    this.headersCommitted_ = true
-    const noBody = this.isHead_ || this.statusCode === 204 || this.statusCode === 304 || (this.statusCode >= 100 && this.statusCode < 200)
-    let hasContentLength = false
-    let hasTransferEncoding = false
-    let hasDate = false
-    let connection = ''
-    if (this.firstHeaderPresent_) {
-      if (this.firstHeaderName_ === 'content-length') hasContentLength = true
-      else if (this.firstHeaderName_ === 'transfer-encoding') hasTransferEncoding = true
-      else if (this.firstHeaderName_ === 'date') hasDate = true
-      else if (this.firstHeaderName_ === 'connection') connection = this.firstHeaderValue_
+    this.beginHead()
+    if (this.firstHeaderPresent_) __gea_http_head_field(this.connId_, this.firstHeaderRawName_, this.firstHeaderValue_)
+    const lines = this.extraHeaderRawNames_
+    const extraValues = this.extraHeaderValues_
+    if (lines !== undefined && extraValues !== undefined) {
+      for (let i = 0; i < lines.length; i++) __gea_http_head_field(this.connId_, lines[i], extraValues[i])
     }
-    const names = this.extraHeaderNames_
-    const values = this.extraHeaderValues_
-    for (let i = 0; names !== undefined && values !== undefined && i < names.length; i++) {
-      const name = names[i]
-      if (name === 'content-length') hasContentLength = true
-      else if (name === 'transfer-encoding') hasTransferEncoding = true
-      else if (name === 'date') hasDate = true
-      else if (name === 'connection') connection = values[i]
-    }
-    let framing = ''
-    let closeDelimited = false
-    if (noBody) {
-      this.suppressBody_ = true
-    } else if (hasContentLength || hasTransferEncoding) {
-      // App-controlled framing — serialize as-is.
-    } else if (autoContentLength >= 0) {
-      framing = 'Content-Length: ' + String(autoContentLength) + '\r\n'
-    } else if (this.http10_) {
-      closeDelimited = true // HTTP/1.0 cannot chunk: body runs to connection close
-    } else {
-      this.chunked_ = true
-      framing = 'Transfer-Encoding: chunked\r\n'
-    }
-    let keepAlive = this.keepAliveRequested_
-    if (connection === 'close' || (connection !== '' && connection.toLowerCase() === 'close')) keepAlive = false
-    if (closeDelimited) keepAlive = false
-    this.keepAliveFinal_ = keepAlive
-
-    const message = this.statusMessage === '' ? statusText(this.statusCode) : this.statusMessage
-    const status = String(this.statusCode)
-    const firstLine = this.firstHeaderPresent_ ? this.firstHeaderLine_ : ''
-    const lines = this.extraHeaderLines_
-    let datePrefix = ''
-    let date = ''
-    let dateSuffix = ''
-    if (this.sendDate && !hasDate) {
-      datePrefix = 'Date: '
-      date = __gea_http_date()
-      dateSuffix = '\r\n'
-    }
-    let connectionPrefix = ''
-    let connectionValue = ''
-    let connectionSuffix = ''
-    let keepAliveLine = ''
-    if (connection === '') {
-      connectionPrefix = 'Connection: '
-      connectionValue = keepAlive ? 'keep-alive' : 'close'
-      connectionSuffix = '\r\n'
-      if (keepAlive) keepAliveLine = 'Keep-Alive: timeout=5\r\n'
-    }
-    // The overwhelmingly common zero/one-header response is one flat string
-    // expression. The compiler lowers it to one sized concat, so growing the
-    // status line through header/date/connection appends does not repeatedly
-    // reallocate the same response buffer.
-    if (lines === undefined) {
-      this.pendingHead_ =
-        'HTTP/1.1 ' +
-        status +
-        ' ' +
-        message +
-        '\r\n' +
-        firstLine +
-        datePrefix +
-        date +
-        dateSuffix +
-        connectionPrefix +
-        connectionValue +
-        connectionSuffix +
-        keepAliveLine +
-        framing +
-        '\r\n'
-      return
-    }
-    this.pendingHead_ = 'HTTP/1.1 ' + status + ' ' + message + '\r\n' + firstLine
-    for (const line of lines) this.pendingHead_ += line
-    this.pendingHead_ += datePrefix + date + dateSuffix
-    this.pendingHead_ += connectionPrefix + connectionValue + connectionSuffix + keepAliveLine
-    this.pendingHead_ += framing
-    this.pendingHead_ += '\r\n'
+    this.endHead(autoContentLength)
   }
 
-  // Hand bytes to the reactor, prefixing the serialized header block on the
-  // first write so head+first-chunk go out as ONE buffer append.
+  private beginHead(): void {
+    this.headersCommitted_ = true
+    const code = this.statusCode
+    const message = this.statusMessage === '' ? statusText(code) : this.statusMessage
+    __gea_http_head_begin(this.connId_, code, message)
+  }
+
+  private endHead(autoContentLength: number): void {
+    const code = this.statusCode
+    const noBody = this.isHead_ || code === 204 || code === 304 || (code >= 100 && code < 200)
+    if (noBody) this.suppressBody_ = true
+    // Bit values are `kHead*` in `runtime/gea_node.cpp`.
+    let flags = 0
+    if (noBody) flags += 1
+    if (this.http10_) flags += 2
+    if (this.keepAliveRequested_) flags += 4
+    if (this.sendDate) flags += 8
+    const framing = __gea_http_head_end(this.connId_, flags, autoContentLength)
+    this.chunked_ = framing === 1 || framing === 3
+    this.keepAliveFinal_ = framing >= 2
+  }
+
+  // Hand bytes to the reactor. The header block is already in the connection
+  // buffer (`commitHeaders`), so the first write releases it along with these
+  // bytes in one flush; an empty first write still has to reach the reactor
+  // for that reason.
   private emitPayload(data: string): void {
     if (!this.headWritten_) {
       this.headWritten_ = true
-      __gea_http_write(this.connId_, this.pendingHead_ + data)
-      this.pendingHead_ = ''
+      __gea_http_body(this.connId_, data)
       return
     }
-    if (data.length > 0) __gea_http_write(this.connId_, data)
+    if (data.length > 0) __gea_http_body(this.connId_, data)
   }
 
   // The same hand-off for a body that is OCTETS. `prefix` and `suffix` are the
@@ -938,15 +939,44 @@ export class ServerResponse extends Writable {
   private emitPayloadBytes(prefix: string, data: Uint8Array, suffix: string): void {
     if (!this.headWritten_) {
       this.headWritten_ = true
-      __gea_http_write(this.connId_, this.pendingHead_ + prefix)
-      this.pendingHead_ = ''
-    } else if (prefix.length > 0) __gea_http_write(this.connId_, prefix)
+      __gea_http_body(this.connId_, prefix)
+    } else if (prefix.length > 0) __gea_http_body(this.connId_, prefix)
     if (data.length > 0) __gea_http_write_bytes(this.connId_, data)
-    if (suffix.length > 0) __gea_http_write(this.connId_, suffix)
+    if (suffix.length > 0) __gea_http_body(this.connId_, suffix)
   }
 
   writeHead(status: number, headers: OutgoingHttpHeaders = {}): ServerResponse {
     this.statusCode = status
+    if (!this.headersCommitted_ && !this.firstHeaderPresent_) {
+      // Nothing was staged with `setHeader`, so there is nothing for these
+      // entries to replace or be merged with, and Node does not store them
+      // either: `writeHead(200, { 'x-a': '1' })` followed by
+      // `getHeader('x-a')` answers `undefined` there too. They go straight
+      // into the header block instead of through the staged-header fields --
+      // which for each entry meant a lowercased copy of the name, a linear
+      // search for it, and three field stores, all to be read back once by
+      // the serializer a few lines later.
+      this.beginHead()
+      for (const key in headers) {
+        const value = headers[key]
+        // The string arm first, and handed over as it is: almost every header
+        // value is one, and `String(value)` on the whole union selects an arm
+        // and then copies the text out of it to build a string it already was.
+        if (typeof value === 'string') __gea_http_head_field(this.connId_, key, value)
+        else if (value === undefined) continue
+        else if (Array.isArray(value)) {
+          // Same narrowing local as `setHeader`: `value[i]` on the mixed
+          // array/primitive union has no manifest recipe.
+          const values: readonly string[] = value
+          for (let i = 0; i < values.length; i++) __gea_http_head_field(this.connId_, key, String(values[i]))
+        } else {
+          const text = String(value)
+          __gea_http_head_field(this.connId_, key, text)
+        }
+      }
+      this.endHead(-1)
+      return this
+    }
     // Route every entry through setHeader (not the string-only fast path)
     // so number/array values (Content-Length, repeated headers) get the same
     // stringify-and-expand treatment setHeader/appendHeader already give them.
@@ -999,7 +1029,7 @@ export class ServerResponse extends Writable {
     this.commitHeaders(-1)
     if (typeof chunk === 'string') {
       let payload = ''
-      const chunkLength = Buffer.byteLength(chunk)
+      const chunkLength = __gea_http_text_bytes(chunk)
       if (chunkLength > 0 && !this.suppressBody_) {
         payload = this.chunked_ ? chunkLength.toString(16) + '\r\n' + chunk + '\r\n' : chunk
       }
@@ -1019,17 +1049,20 @@ export class ServerResponse extends Writable {
     this.writable = false
     this.writableEnded = true
     if (typeof chunk === 'string') {
-      const chunkLength = Buffer.byteLength(chunk)
+      // Bound ONCE. `chunk` is carried as a union, and every read of it inside
+      // this guard selects the string arm and copies the text out again -- one
+      // allocation per mention for any body past the inline-string size.
+      const text: string = chunk
+      const chunkLength = __gea_http_text_bytes(text)
       this.commitHeaders(chunkLength)
-      let payload = ''
-      if (!this.suppressBody_) {
-        if (this.chunked_) {
-          payload = chunkLength > 0 ? chunkLength.toString(16) + '\r\n' + chunk + '\r\n0\r\n\r\n' : '0\r\n\r\n'
-        } else if (chunkLength > 0) {
-          payload = chunk
-        }
-      }
-      this.emitPayload(payload)
+      if (this.suppressBody_) this.emitPayload('')
+      else if (this.chunked_) {
+        // Size line, text and terminator are appended by the reactor in place.
+        // Joining them here first built one more string holding a copy of the
+        // whole body, to feed a buffer that takes the pieces directly.
+        this.headWritten_ = true
+        __gea_http_final_chunk(this.connId_, text)
+      } else this.emitPayload(text)
     } else {
       const byteLength = chunk.byteLength
       this.commitHeaders(byteLength)

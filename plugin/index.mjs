@@ -34,6 +34,19 @@ import { resolveBuiltinModules } from '../scripts/builtin-modules.mjs'
  */
 const runtimeHeader = '#include "gea_node.hpp"'
 
+/**
+ * The same header, as a bare file name.
+ *
+ * `hostPreambles` takes preamble LINES, so it wants the whole directive above.
+ * `nativeIncludes` takes a header NAME and the compiler writes the directive
+ * around it (`hostIncludesOf` in `targets/cpp/translation-unit.ts`, exactly as
+ * the Apple plugin's `gea/apple/native_bridge.h` is spelled). Passing the
+ * directive there produced `#include "#include "gea_node.hpp""` and broke every
+ * program that named a namespace-root native type -- `apps/net-server-overloads`
+ * among them. Two fields, two spellings; they are not interchangeable.
+ */
+const runtimeHeaderName = 'gea_node.hpp'
+
 // Buffer's byte storage is Uint8Array's, but its method declarations belong
 // to node:buffer. Resolve those declarations so ordinary Uint8Arrays retain
 // their own prototype behavior.
@@ -57,7 +70,12 @@ const bufferMethods = [
 // Anchor that coverage to Buffer's own declaration; claiming Uint8Array's
 // method globally would incorrectly give every ordinary byte view Node's API.
 const compilerRequire = createRequire(import.meta.resolve('@geastack/compiler/plugin'))
-const nodeModuleDeclarations = compilerRequire.resolve('@types/node/module.d.ts')
+// `@types/node` is THIS package's dependency, so it is resolved from here. It
+// used to be reached through the compiler's require, which names the same file
+// only while npm dedupes the two into one copy; with the compiler linked from a
+// checkout they are two physical files, the program loads this package's copy,
+// and `require` no longer matches the canonical declaration set.
+const nodeModuleDeclarations = createRequire(import.meta.url).resolve('@types/node/module.d.ts')
 const bufferMethodBinding = (member) => ({
   protocol: 'node:Buffer',
   member,
@@ -535,11 +553,11 @@ export function geatscNodePlugin() {
           ]
         ]),
         nativeIncludes: new Map([
-          ...[...namespaceRootTypes.values()].map((type) => [type, runtimeHeader]),
-          [processCarrier, runtimeHeader],
-          [processHrTimeCarrier, runtimeHeader],
-          [processVersionsCarrier, runtimeHeader],
-          [processWriteStreamCarrier, runtimeHeader]
+          ...[...namespaceRootTypes.values()].map((type) => [type, runtimeHeaderName]),
+          [processCarrier, runtimeHeaderName],
+          [processHrTimeCarrier, runtimeHeaderName],
+          [processVersionsCarrier, runtimeHeaderName],
+          [processWriteStreamCarrier, runtimeHeaderName]
         ]),
         hostPreambles: hostPreambles()
       }

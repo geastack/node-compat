@@ -43,8 +43,8 @@ const code = String.raw`
 #include <iostream>
 gea::TypedArray<std::uint8_t> bytes(const std::string& hex) {
   const auto source = gea::node::buffer::from(hex, "hex");
-  gea::TypedArray<std::uint8_t> result(source.size());
-  std::copy(source.begin(), source.end(), result.data());
+  gea::TypedArray<std::uint8_t> result(source->size());
+  std::copy(source->data(), source->data() + source->size(), result.data());
   return result;
 }
 std::string hex(const std::vector<std::uint8_t>& source) {

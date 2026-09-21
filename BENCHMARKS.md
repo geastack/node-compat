@@ -4,14 +4,18 @@ The same TypeScript HTTP servers, compiled to native binaries by geatsc through
 node-compat, measured against Node.js and against C++ and Rust servers that
 answer the same routes with the same bytes on the wire. Every number below
 comes from one run on one idle machine with one harness; the raw `wrk` output
-for every sample is in `bench/results/http-box-2026-09-20-clean4.json` and
-`bench/results/http-box-2026-09-20-clean4-startup.json`.
+for every sample is in `bench/results/http-box-2026-09-21-npm-1.0.16.json` and
+`bench/results/http-box-2026-09-21-npm-1.0.16-startup.json`.
 
-The gea binaries in this run were emitted by `@geastack/compiler@1.0.15` and
-`@geastack/node-compat@1.0.11` **installed from the npm registry**, not from a
-local checkout: `npm ci` against the committed lockfile, zero symlinks in
-`node_modules/@geastack`. What is measured here is what a reader gets by
-installing the published packages.
+**Provenance.** The gea binaries in this run were built from the registry:
+`npm ci` installed `@geastack/compiler@1.0.16` and
+`@geastack/node-compat@1.0.12` with no symlink under `node_modules/@geastack`,
+and the runtime and plugin the build read are byte-identical to the published
+node-compat tarball. The previous releases (`@geastack/compiler@1.0.15`,
+`@geastack/node-compat@1.0.11`) reproduce the previous run
+(`http-box-2026-09-20-clean4.json`: gea-raw 100k single, 239k at four
+workers). `http-box-2026-09-21.json` is the same day's pre-release run of this
+code from a checkout and agrees with this one.
 
 ## What is measured
 
@@ -28,7 +32,7 @@ Two applications, each compiled by geatsc and each also run under Node:
   `IncomingMessage`/`ServerResponse` implementation over the C++ reactor.
 
 Controls answering the identical raw routes with byte-identical responses,
-validated by the harness before any sample is taken (48 wire-contract checks,
+validated by the harness before any sample is taken (72 wire-contract checks,
 202 bytes for `/` and 206 for `/json`):
 
 - **cpp-epoll**: a hand-rolled single-file epoll server
@@ -48,11 +52,11 @@ harness checks.
 
 - Dedicated benchmark host: 8 logical CPUs, Intel(R) Xeon(R) CPU E3-1231 v3 @ 3.40GHz, Linux, otherwise idle.
 - Node v24.21.0 (Krypton, the current LTS) for the Node rows. geatsc binaries built with `g++ -O2
-  -std=c++20` from the shared `compiler/dist`.
+  -std=c++20` by the registry compiler named under Provenance.
 - Harness: `bench/http-matrix.py`. A single-worker server is pinned to CPU 0,
   a four-worker server to CPUs 0-3, and `wrk` always to CPUs 4-7 with
   `--latency -t4 -c64`, keep-alive, 8-second samples after a 2-second warmup.
-  Two interleaved rounds per server, worker count and route.
+  Three interleaved rounds per server, worker count and route.
 - **Why four workers and not eight.** This host has eight logical CPUs but
   only **four physical cores**, with hyperthread siblings paired as 0-1, 2-3,
   4-5 and 6-7. Pinning the server to 0-3 and `wrk` to 4-7 gives each two
@@ -86,14 +90,14 @@ harness checks.
 
 | Server | Single `/` | Single `/json` | Single RSS MiB | Single PSS MiB | Single startup ms | 4 workers `/` | 4 workers `/json` | 4 workers RSS MiB | 4 workers PSS MiB | 4 workers startup ms |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| **hono-gea** | **51,951** | **39,759** | 9.5 | 6.6 | 7 | **126,677** | **104,700** | 33.1 | 8.8 | 7 |
-| hono-node | 17,533 | 15,948 | 109.5 | 106.1 | 89 | 40,899 | 37,490 | 454.9 | 258.6 | 166 |
-| **gea-raw** | **100,490** | **100,640** | 6.2 | 3.3 | 6 | **238,716** | **238,965** | 19.1 | 5.1 | 6 |
-| node-raw | 35,342 | 35,429 | 85.0 | 81.7 | 70 | 77,370 | 77,245 | 380.0 | 185.9 | 145 |
-| cpp-drogon | 116,983 | 117,337 | 12.9 | 7.5 | 11 | 243,122 | 242,264 | 13.1 | 7.6 | 11 |
-| rust-axum | 115,514 | 118,402 | 4.5 | 2.8 | 6 | 223,606 | 227,142 | 5.4 | 3.4 | 6 |
-| rust-hyper | 143,343 | 145,456 | 3.6 | 1.8 | 6 | 263,697 | 270,416 | 4.2 | 2.2 | 6 |
-| cpp-epoll | 198,146 | 201,414 | 3.8 | 1.0 | 6 | 364,753 | 364,522 | 10.8 | 1.9 | 6 |
+| **hono-gea** | **60,802** | **48,242** | 11.1 | 7.5 | 7 | **139,551** | **115,693** | 36.8 | 9.4 | 7 |
+| hono-node | 17,101 | 15,759 | 108.5 | 105.1 | 85 | 40,885 | 37,678 | 455.2 | 259.1 | 166 |
+| **gea-raw** | **153,188** | **154,956** | 7.4 | 3.8 | 6 | **301,147** | **304,376** | 22.2 | 5.2 | 6 |
+| node-raw | 35,214 | 35,224 | 89.1 | 85.8 | 71 | 77,168 | 77,999 | 380.3 | 186.1 | 137 |
+| cpp-drogon | 110,374 | 109,917 | 12.9 | 7.5 | 11 | 242,493 | 241,906 | 13.1 | 7.7 | 11 |
+| rust-axum | 118,672 | 122,102 | 4.5 | 2.8 | 6 | 217,092 | 222,754 | 5.2 | 3.3 | 6 |
+| rust-hyper | 143,427 | 146,405 | 3.6 | 1.9 | 6 | 271,436 | 276,252 | 4.4 | 2.4 | 6 |
+| cpp-epoll | 199,155 | 200,411 | 3.8 | 1.0 | 6 | 365,733 | 365,547 | 10.7 | 1.9 | 6 |
 
 Requests per second are the mean over rounds. Memory is the peak over the
 run. Startup is the mean of five launches.
@@ -104,14 +108,14 @@ run. Startup is the mean of five launches.
 
 | Server | Single p50 | Single p99 | 4 workers p50 | 4 workers p99 |
 | --- | ---: | ---: | ---: | ---: |
-| hono-gea | 1.17 ms | 1.27 ms | 495 µs | 1.31 ms |
-| hono-node | 3.52 ms | 4.02 ms | 1.52 ms | 2.12 ms |
-| gea-raw | 662 µs | 781 µs | 263 µs | 581 µs |
-| node-raw | 1.78 ms | 1.99 ms | 806 µs | 1.12 ms |
-| cpp-drogon | 541 µs | 629 µs | 258 µs | 570 µs |
-| rust-axum | 577 µs | 621 µs | 286 µs | 496 µs |
-| rust-hyper | 438 µs | 481 µs | 238 µs | 411 µs |
-| cpp-epoll | 305 µs | 636 µs | 85 µs | 186 µs |
+| hono-gea | 1.06 ms | 2.11 ms | 502 µs | 1.24 ms |
+| hono-node | 3.69 ms | 6.71 ms | 1.66 ms | 3.63 ms |
+| gea-raw | 398 µs | 811 µs | 173 µs | 533 µs |
+| node-raw | 1.85 ms | 2.14 ms | 796 µs | 1.70 ms |
+| cpp-drogon | 588 µs | 696 µs | 275 µs | 610 µs |
+| rust-axum | 585 µs | 617 µs | 291 µs | 494 µs |
+| rust-hyper | 454 µs | 492 µs | 224 µs | 388 µs |
+| cpp-epoll | 300 µs | 612 µs | 85 µs | 184 µs |
 
 ### Ratios
 
@@ -119,70 +123,103 @@ Four workers, `GET /` — server and load generator on disjoint physical cores.
 
 | Comparison | Ratio |
 | --- | ---: |
-| gea-raw vs node-raw | 3.09× |
-| gea-raw vs rust-axum | 1.07× |
-| gea-raw vs cpp-drogon | 0.98× |
-| gea-raw vs rust-hyper | 0.91× |
-| gea-raw vs cpp-epoll (hand-rolled ceiling) | 0.65× |
-| hono-gea vs hono-node | 3.10× |
-| hono-gea vs node-raw (framework vs bare Node) | 1.64× |
-| hono-gea memory vs hono-node (PSS) | 1/29 |
+| gea-raw vs node-raw | 3.90× |
+| gea-raw vs rust-axum | 1.39× |
+| gea-raw vs cpp-drogon | 1.24× |
+| gea-raw vs rust-hyper | 1.11× |
+| gea-raw vs cpp-epoll (hand-rolled ceiling) | 0.82× |
+| hono-gea vs hono-node | 3.41× |
+| hono-gea vs node-raw (framework vs bare Node) | 1.81× |
+| hono-gea memory vs hono-node (PSS) | 1/28 |
 | gea-raw memory vs node-raw (PSS) | 1/36 |
 
-Single worker, `GET /`: gea-raw 100k vs node-raw 35k (2.84×), axum 116k
-(0.87×), Drogon 117k (0.86×), hyper 143k (0.70×), epoll 198k (0.51×).
-hono-gea 52k vs hono-node 18k (2.96×). **The single-worker cell has a wide
-error bar — see the instability note — and the ratios against the compiled
-controls should not be quoted from it.**
+Single worker, `GET /`: gea-raw 153k vs node-raw 35k (4.35×), axum 119k
+(1.29×), Drogon 110k (1.39×), hyper 143k (1.07×), epoll 199k (0.77×).
+hono-gea 61k vs hono-node 17k (3.56×).
+
+**How firm the hyper comparison is.** Three rounds, two routes, six samples
+per cell. At four workers the two distributions do not touch: gea-raw's six
+samples span 292.2k-310.6k and rust-hyper's 264.3k-282.5k, so gea-raw's worst
+sample is above hyper's best. That held in all three runs of this code taken
+on 2026-09-21. At one worker this run does not overlap either -- gea-raw
+152.4k-157.8k, hyper 140.1k-148.2k -- but the single-core cell is the noisy
+one on this host: the two pre-release runs the same day had gea-raw anywhere
+from 121k to 158k and hyper from 128k to 151k with identical binaries, and in
+one of them hyper led on the mean. Read the single-worker cell as "level with
+hyper or slightly ahead, clear of axum and Drogon", not as a settled win. The
+measure that is not noisy is user-mode instructions per request (`perf stat
+-e instructions:u` on the pinned server divided by `wrk`'s request count):
+gea-raw 9,401, rust-hyper 12,054, cpp-epoll 2,531, and hono-gea 33,558. The
+raw servers all spend the same ~14.7k kernel instructions per request on one
+`recv` and one `send`, which is about two thirds of the request, so a 22%
+userland advantage shows up as single digits of throughput; two back-to-back
+instruction runs of the same gea-raw binary measured 160k and 145k requests
+per second with the same instruction count, which is the size of the host's
+own swing.
 
 ## Reading the result
 
-- **The compiled `node:http` app sits with the compiled-language servers.**
-  At four workers it passes axum by 7%, is level with Drogon within 2%, trails
-  hyper by 9%, and reaches 65% of a hand-written epoll loop that does no HTTP
-  framing. It is 3.09× Node running the same file, at a thirty-sixth of the
-  memory, and starts in 6 ms against 145 ms.
-- **A compiled framework beats bare Node.** hono-gea serves 127k requests per
-  second against raw `node:http`'s 77k — 1.64× — while Hono on Node manages
+- **The compiled `node:http` app leads the framework servers.** At four
+  workers it passes hyper by 11%, Drogon by 24% and axum by 39%, and reaches
+  82% of a hand-written epoll loop that does no HTTP parsing. It is 3.90× Node
+  running the same file, at a thirty-sixth of the memory, and starts in 6 ms
+  against 137 ms.
+- **What `@geastack/node-compat@1.0.12` and `@geastack/compiler@1.0.16`
+  changed (239k → 301k at four workers, 100k → 153k at one).** The response head is
+  no longer built as a JavaScript string. `writeHead`/`setHeader`/`end` now
+  stream status line, fields and framing straight into the connection's
+  retained output buffer through `__gea_http_head_begin/field/end`; the
+  framing decision (Content-Length, chunked, close-delimited, no-body), the
+  `Date` line and the `Connection`/`Keep-Alive` tail are made natively, with
+  the common tail cached per second; `end(text)` on a chunked response writes
+  size line, payload and terminator in one append. Allocations per request
+  fell from 23 to 15 and user-mode instructions from 10,657 to 9,401. The wire
+  bytes are unchanged — the harness's 72 wire-contract checks and
+  `bench/raw-http-correctness.py` (Node parity for plain, JSON, query, long
+  URL, POST and pipelined requests) both pass. Hono's native adapter writes
+  its head through the same path, which is where its 127k → 140k comes from.
+- **What else is in these releases.** None of it is on the `GET` hot path, and
+  the throughput above is the same with and without it, but it is what makes
+  the release correct rather than only fast. The compiler no longer emits
+  class hierarchies nothing names: a subclass whose base is an earlier class
+  in the same file or a built-in is pruned like any other unreached
+  declaration, so a program that imports only `node:process` stopped carrying
+  node-compat's WHATWG stream classes (3,764 → 379 emitted C++ lines for that
+  fixture; neither server here contains them any more). A `Buffer` held in an
+  `any` answers `length`, `byteLength`, indexing and string concatenation
+  natively (`body += chunk` in a `data` handler used to abort), and a
+  `Readable` constructed paused no longer marks `'end'` as emitted before
+  anyone listens, so an empty-body `POST` answers. `apps/http-parity` is
+  byte-for-byte with Node on all 38 of its requests.
+- **A compiled framework beats bare Node.** hono-gea serves 139k requests per
+  second against raw `node:http`'s 77k — 1.81× — while Hono on Node manages
   41k. The whole Hono stack compiled is faster than Node running no framework
   at all.
-- **Hono compiled is 3.1× Hono on Node** at both worker counts. The
+- **Hono compiled is 3.4× Hono on Node** at four workers and 3.6× at one. The
   framework's own per-request work (Context, Response, Headers, router) is the
   entire remaining gap between the Hono row and the raw row. Nothing in Hono
-  or `@hono/node-server` was modified.
-- **Memory is the widest honest margin.** At four workers the gea fleet holds
-  19.1 MB RSS / 5.1 MB PSS to serve 239k requests per second; the Node cluster
-  holds 380 MB / 186 MB to serve 77k. PSS divides pages shared through fork by
-  their sharer count, so the 1/36 figure is the one that survives scrutiny.
-- **Startup is the least noisy margin.** 6-7 ms against 70-166 ms, and the gea
+  was modified.
+- **Memory.** At four workers the gea fleet holds 22.2 MB RSS / 5.2 MB PSS to
+  serve 301k requests per second; the Node cluster holds 380 MB / 186 MB to
+  serve 77k. PSS divides pages shared through fork by their sharer count, so
+  the 1/36 figure is the one that survives scrutiny. The Rust servers are
+  smaller still (hyper 2.4 MB PSS).
+- **Startup is the least noisy margin.** 6-7 ms against 71-166 ms, and the gea
   figure does not grow with worker count while Node's roughly doubles from one
   worker to four.
-- **Latency.** At four workers gea-raw's p50 is 263 µs against Drogon's 258 µs
-  and hyper's 238 µs; its p99 of 581 µs sits between Drogon's 570 µs and
-  axum's 496 µs. Node's raw p99 is 1.12 ms and Hono-on-Node's 2.12 ms. The
-  epoll control is in another class at 85 µs p50.
-- **Where the remaining gap to hyper is.** Both servers are at the syscall
-  floor — one read and one write per request, epoll batched around 32 events
-  per wait — so the difference is entirely user-space. A perf profile of
-  gea-raw is flat, with no symbol above 4%, and roughly 16% of CPU in
-  `std::string` operations and `gea::node::alloc`. The host boundary passes
-  method, url, httpVersion, rawHead and body as five `std::string` values per
-  request, which `IncomingMessage` then copies again into its fields; hyper
-  never materialises those, keeping headers as slices into the read buffer.
-  That is the cost to remove, and it is a packaging problem in the node-compat
-  layer rather than anything about the reactor.
-- **The single-worker cell is unstable, and the instability is per process.**
-  Six freshly launched gea-raw processes measured 111.9k, 111.8k, 109.6k,
-  87.7k, 106.5k and 116.0k on `GET /`. Two samples taken from the *same*
-  process agree within 1-3%, so a process is fast or slow for its whole life
-  rather than sample to sample — a 34% spread across processes. Launching
-  under `setarch -R` to disable address-space randomisation collapses that
-  spread to 8% (98.1k-106.1k), which identifies heap layout as the cause: the
-  hot per-request allocations sometimes land in colliding cache sets. The
-  controls do not show this — six rust-hyper processes spanned 140.8k-148.1k,
-  a 5% spread. It is the same root cause as the throughput gap; an
-  allocation-light hot path would not be layout-sensitive. Averaging over four
-  worker processes is why the four-worker cell is stable to 1-3%.
+- **Latency.** At four workers gea-raw's p50 is 173 µs against hyper's 224 µs
+  and Drogon's 275 µs, but its p99 of 533 µs is behind hyper's 388 µs and
+  axum's 494 µs. At one worker its p50 (398 µs) is the best of the framework
+  servers and its p99 (811 µs) is the worst of them -- hyper holds 492 µs --
+  so the tail, not the median, is the open item. The epoll control is in
+  another class at 85 µs p50.
+- **Where the remaining distance to the epoll ceiling is.** Every server here
+  is at the syscall floor — one read and one write per request — so the
+  difference is entirely user-space, and a perf profile of gea-raw is flat
+  with no symbol above 1.5%. What is left is the general `node:http` object
+  model the control does not have: an `IncomingMessage` and a
+  `ServerResponse` per request, a header dictionary for `writeHead`, and the
+  five request strings crossing the host boundary.
 
 ## Reproducing
 
@@ -194,8 +231,9 @@ Requirements: Node.js and the repository's npm dependencies, Python 3, `wrk`,
 `util-linux`, a C++20 compiler, Rust and Cargo, and for Drogon its
 development libraries (Drogon, Trantor, jsoncpp, OpenSSL, zlib, uuid).
 
-The compiler can come from the registry or from a checkout. This run used the
-registry, which is the path a reader can reproduce without building anything:
+The compiler can come from the registry or from a checkout. The registry path
+needs no compiler build, and is the install this document's gea servers were
+built from:
 
 ```sh
 npm ci                                                  # @geastack/compiler + @geastack/node-compat from npm
@@ -223,11 +261,11 @@ node scripts/build.mjs apps/raw-http-hello/server.ts    # -> apps/raw-http-hello
 CXX=g++ bash bench/goal-http-build.sh
 ```
 
-Throughput, latency and memory, two rounds, then the separate startup pass:
+Throughput, latency and memory, three rounds, then the separate startup pass:
 
 ```sh
 python3 bench/http-matrix.py --output bench/results/http-local.json \
-  --rounds 2 --duration 8s --workers 1 4 --gea-dist dist --server-cpus 0-3
+  --rounds 3 --duration 8s --workers 1 4 --gea-dist dist --server-cpus 0-3
 python3 bench/http-matrix.py --output bench/results/http-local-startup.json \
   --rounds 5 --workers 1 4 --gea-dist dist --server-cpus 0-3 --startup-only
 python3 bench/summarize-http-matrix.py bench/results/http-local.json \

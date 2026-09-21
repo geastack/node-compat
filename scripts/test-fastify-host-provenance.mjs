@@ -7,6 +7,8 @@ import { geatscNodePlugin } from '../plugin/index.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 const compilerRequire = createRequire(import.meta.resolve('@geastack/compiler/plugin'))
+// `@types/node` is this package's own dependency; see plugin/index.mjs.
+const packageRequire = createRequire(import.meta.url)
 const ts = compilerRequire('typescript')
 const compilerRoot = dirname(compilerRequire.resolve('@geastack/compiler/package.json'))
 const { createCommonJsWrapperIdentity } = await import(
@@ -77,7 +79,7 @@ test('Node host claims authenticate Require and Buffer by checker declaration id
   const commonJs = host.commonJsGlobals.get('require')
   const bufferFile = resolve(root, 'runtime/node/buffer-types.ts')
   const wrapperFile = resolve(root, 'runtime/node/commonjs-wrapper.d.ts')
-  const nodeModuleFile = compilerRequire.resolve('@types/node/module.d.ts')
+  const nodeModuleFile = packageRequire.resolve('@types/node/module.d.ts')
 
   assert.deepEqual(commonJs, {
     global: 'require',
@@ -98,7 +100,7 @@ test('Node host claims authenticate Require and Buffer by checker declaration id
 test('the checker admits only the canonical Require wrapper declaration set', () => {
   const host = capabilities()
   const wrapperFile = resolve(root, 'runtime/node/commonjs-wrapper.d.ts')
-  const nodeModuleFile = compilerRequire.resolve('@types/node/module.d.ts')
+  const nodeModuleFile = packageRequire.resolve('@types/node/module.d.ts')
   const fixture = resolve(root, 'apps/fastify-hello/fastify-require-provenance.fixture.ts')
   const program = sourceProgram(
     fixture,

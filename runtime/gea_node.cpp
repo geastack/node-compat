@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <charconv>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -31,7 +32,9 @@
 #include <vector>
 
 #include <arpa/inet.h>
+#include <dlfcn.h>
 #include <errno.h>
+#include <execinfo.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -407,6 +410,144 @@ inline thread_local void *g_free[kClassCount];
 inline thread_local char *g_bump[kClassCount];
 inline thread_local char *g_bump_end[kClassCount];
 
+/**
+ * Per-size-class allocation census, printed at exit under `GEA_ALLOC_CENSUS=1`.
+ *
+ * The pool makes each allocation cheap -- a free-list pop is two loads and a
+ * store -- so when `allocate` shows up in a profile it is saying the request
+ * path allocates OFTEN, not slowly. A profile cannot say how many times or in
+ * what sizes, and that is exactly what decides whether the answer is a faster
+ * allocator or fewer objects. Counting is off unless asked for, and the
+ * counters are thread-local, so the measured path pays one predictable branch.
+ */
+inline void installAllocCensusExit();
+
+inline int allocCensusLevel() {
+  static const int level = [] {
+    const char *value = std::getenv("GEA_ALLOC_CENSUS");
+    const int n = value == nullptr ? 0 : value[0] - '0';
+    if (n >= 1) installAllocCensusExit();
+    return n >= 1 && n <= 2 ? n : 0;
+  }();
+  return level;
+}
+
+inline bool allocCensusEnabled() { return allocCensusLevel() >= 1; }
+
+/**
+ * Caller census (`GEA_ALLOC_CENSUS=2`): which call sites allocate, not just
+ * how big. A size histogram says "18 blocks of <=32B per request" without
+ * saying whether that is one std::string per header or eighteen short-lived
+ * runtime objects, and those two findings point at opposite fixes. Frames are
+ * captured with backtrace() and bucketed by the whole 4-frame prefix, so two
+ * paths reaching the same leaf stay distinguishable. Reported as
+ * binary-relative offsets, which addr2line resolves against the executable.
+ */
+inline constexpr std::size_t kCallerFrames = 4;
+inline constexpr std::size_t kCallerSlots = 4096;
+
+struct CallerSite {
+  void *frames[kCallerFrames];
+  std::uint64_t count;
+};
+inline thread_local CallerSite g_callers[kCallerSlots];
+inline thread_local std::uint64_t g_callers_lost;
+
+inline void recordCallerSite() {
+  void *raw[kCallerFrames + 3];
+  const int depth = ::backtrace(raw, static_cast<int>(kCallerFrames + 3));
+  // Frame 0 is backtrace itself; 1 is allocate (or the operator new it was
+  // inlined into). Start at 2 so the first recorded frame is request-path code.
+  const int first = depth > 2 ? 2 : depth;
+  std::uint64_t hash = 1469598103934665603ull;
+  void *frames[kCallerFrames] = {};
+  for (std::size_t i = 0; i < kCallerFrames; ++i) {
+    const int index = first + static_cast<int>(i);
+    frames[i] = index < depth ? raw[index] : nullptr;
+    hash = (hash ^ reinterpret_cast<std::uintptr_t>(frames[i])) * 1099511628211ull;
+  }
+  std::size_t slot = static_cast<std::size_t>(hash) & (kCallerSlots - 1);
+  for (std::size_t probe = 0; probe < 64; ++probe) {
+    CallerSite &site = g_callers[slot];
+    if (site.count == 0) {
+      for (std::size_t i = 0; i < kCallerFrames; ++i) site.frames[i] = frames[i];
+      site.count = 1;
+      return;
+    }
+    bool same = true;
+    for (std::size_t i = 0; i < kCallerFrames; ++i)
+      if (site.frames[i] != frames[i]) { same = false; break; }
+    if (same) { ++site.count; return; }
+    slot = (slot + 1) & (kCallerSlots - 1);
+  }
+  ++g_callers_lost;
+}
+
+inline void reportCallerCensus() {
+  if (allocCensusLevel() < 2) return;
+  Dl_info info;
+  std::uintptr_t base = 0;
+  if (::dladdr(reinterpret_cast<void *>(&reportCallerCensus), &info) && info.dli_fbase)
+    base = reinterpret_cast<std::uintptr_t>(info.dli_fbase);
+  std::vector<const CallerSite *> sites;
+  for (std::size_t i = 0; i < kCallerSlots; ++i)
+    if (g_callers[i].count != 0) sites.push_back(&g_callers[i]);
+  std::sort(sites.begin(), sites.end(),
+            [](const CallerSite *a, const CallerSite *b) { return a->count > b->count; });
+  std::fprintf(stderr, "gea-alloc-callers: sites=%zu lost=%llu base=0x%llx\n", sites.size(),
+               static_cast<unsigned long long>(g_callers_lost),
+               static_cast<unsigned long long>(base));
+  const std::size_t shown = sites.size() < 30 ? sites.size() : 30;
+  for (std::size_t i = 0; i < shown; ++i) {
+    std::fprintf(stderr, "  %8llu", static_cast<unsigned long long>(sites[i]->count));
+    for (std::size_t f = 0; f < kCallerFrames; ++f) {
+      if (sites[i]->frames[f] == nullptr) break;
+      std::fprintf(stderr, " %llx",
+                   static_cast<unsigned long long>(
+                       reinterpret_cast<std::uintptr_t>(sites[i]->frames[f]) - base));
+    }
+    std::fputc('\n', stderr);
+  }
+}
+
+inline thread_local std::uint64_t g_census[kClassCount + 1];
+inline thread_local std::uint64_t g_census_large;
+
+inline void reportAllocCensus();
+
+/**
+ * Make the census survive how a server actually stops.
+ *
+ * A benchmark harness ends the server with SIGTERM, whose default action
+ * terminates the process without running `atexit`, so a report registered
+ * there alone would never print. Installed only when the census is enabled,
+ * so the ordinary signal behaviour is untouched.
+ */
+inline void installAllocCensusExit() {
+  ::atexit(reportAllocCensus);
+  struct Handler {
+    static void onSignal(int) { std::exit(0); }
+  };
+  ::signal(SIGTERM, &Handler::onSignal);
+  ::signal(SIGINT, &Handler::onSignal);
+}
+
+inline void reportAllocCensus() {
+  if (!allocCensusEnabled()) return;
+  std::uint64_t total = 0;
+  for (std::size_t klass = 1; klass <= kClassCount; ++klass) total += g_census[klass];
+  total += g_census_large;
+  std::fprintf(stderr, "gea-alloc-census: total=%llu\n", static_cast<unsigned long long>(total));
+  for (std::size_t klass = 1; klass <= kClassCount; ++klass) {
+    if (g_census[klass] == 0) continue;
+    std::fprintf(stderr, "  <=%zuB %llu\n", klass * kGranule,
+                 static_cast<unsigned long long>(g_census[klass]));
+  }
+  if (g_census_large != 0)
+    std::fprintf(stderr, "  large %llu\n", static_cast<unsigned long long>(g_census_large));
+  reportCallerCensus();
+}
+
 inline bool poolDisabled() {
 #ifdef __APPLE__
   // Apple's prebuilt libc++.dylib has INTERNALIZED free() calls (e.g. inside
@@ -472,6 +613,11 @@ inline void storeFreeLink(void *block, void *next) noexcept { std::memcpy(block,
 
 inline void *allocate(std::size_t size) noexcept {
   const std::size_t klass = (size + kGranule - 1) / kGranule;  // 1-based class index
+  if (allocCensusEnabled()) {
+    if (klass >= 1 && klass <= kClassCount) ++g_census[klass];
+    else ++g_census_large;
+    if (allocCensusLevel() >= 2) recordCallerSite();
+  }
   if (klass >= 1 && klass <= kClassCount && !poolDisabled()) {
     void *&head = g_free[klass - 1];
     if (head) {
@@ -1814,11 +1960,49 @@ inline bool net_ip_in_subnet(const std::string &address, double addressFamily, c
 // ---------------------------------------------------------------------------
 class HttpConnectionBase : public IoWatcher {
 public:
-  virtual void enqueueResponseBytes(std::string data) = 0;
+  virtual void enqueueResponseBytes(std::string_view data) = 0;
+  /** Both parts appended, then ONE flush. Two `enqueueResponseBytes` calls
+   *  would flush twice and so could cost a second `send` for a write issued
+   *  outside the reactor pass. */
+  virtual void enqueueResponseParts(std::string_view head, std::string_view body) = 0;
+  /**
+   * The response header block, serialized straight into the connection's own
+   * retained output buffer instead of into a string the response object owns.
+   *
+   * A `ServerResponse` is a fresh object per request, so a header block built
+   * in one of its fields starts from an empty `std::string` every time and
+   * regrows through 15 -> 30 -> 60 -> 120 -> 240 bytes: four allocations and
+   * four copies per response, for bytes whose only destination is this buffer.
+   * The buffer here is warm -- `flush()` clears it and keeps its capacity --
+   * so the same appends cost nothing but the memcpy.
+   *
+   * `headBegin` writes the status line, `headField` one `Name: value` line,
+   * and `headEnd` the lines Node computes itself (Date, Connection,
+   * Keep-Alive, the framing header) plus the blank line. Nothing is flushed:
+   * the block leaves with the first body bytes, exactly as Node holds
+   * `_header` until the first write. `headEnd` answers the two facts the
+   * caller still needs -- see `kHeadChunked` / `kHeadKeepAlive`.
+   */
+  virtual void headBegin(int status, std::string_view message) = 0;
+  virtual void headField(std::string_view name, std::string_view value) = 0;
+  virtual int headEnd(int flags, double autoContentLength) = 0;
+  /** Header-block bytes the caller has already spelled; appended, not flushed. */
+  virtual void headRaw(std::string_view text) = 0;
+  /** A whole chunked body in one piece: size line, bytes, terminator; one flush. */
+  virtual void enqueueFinalChunk(std::string_view data) = 0;
   virtual void responseComplete(bool keepAlive) = 0;
   virtual void hardDestroy() = 0;
   virtual std::string peerName() const = 0;
 };
+
+// `headEnd` inputs. The response object knows these; the reactor does not.
+inline constexpr int kHeadNoBody = 1;        // HEAD, 1xx, 204, 304: no framing header, no body
+inline constexpr int kHeadHttp10 = 2;        // cannot chunk: an unframed body runs to connection close
+inline constexpr int kHeadKeepAliveAsked = 4;
+inline constexpr int kHeadSendDate = 8;
+// `headEnd` outputs.
+inline constexpr int kHeadChunked = 1;
+inline constexpr int kHeadKeepAlive = 2;
 
 inline std::unordered_map<std::uint64_t, HttpConnectionBase *> &connectionRegistry() {
   static std::unordered_map<std::uint64_t, HttpConnectionBase *> map;
@@ -1860,19 +2044,43 @@ inline std::function<void()> &listenerCloser() {
 }
 
 // RFC 7231 IMF-fixdate for the Date response header, cached per second.
+struct HttpDateCache {
+  std::string text;
+  time_t second = 0;
+};
+
+inline HttpDateCache &httpDateCache() {
+  static HttpDateCache cache;
+  return cache;
+}
+
 inline const std::string &cachedHttpDate() {
-  static std::string cached;
-  static time_t cachedSecond = 0;
+  HttpDateCache &cache = httpDateCache();
   const time_t now = ::time(nullptr);
-  if (now != cachedSecond) {
-    cachedSecond = now;
+  if (now != cache.second) {
+    cache.second = now;
     tm parts{};
     ::gmtime_r(&now, &parts);
     char buffer[64];
     const std::size_t n = ::strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S GMT", &parts);
-    cached.assign(buffer, n);
+    cache.text.assign(buffer, n);
   }
-  return cached;
+  return cache.text;
+}
+
+/**
+ * Which second the cached date belongs to.
+ *
+ * `cachedHttpDate` reformats once a second, but its RESULT crosses the host
+ * boundary by value, and twenty-nine characters is past what any std::string
+ * keeps inline -- so reading the date cost an allocation and a free on every
+ * single response, for a string that changes once a second. Handing out the
+ * second lets the caller keep the whole `Date: ...` line it already built and
+ * rebuild it only when this number changes.
+ */
+inline time_t cachedHttpDateSecond() {
+  cachedHttpDate();
+  return httpDateCache().second;
 }
 
 inline bool asciiEqualsIgnoreCase(std::string_view a, const char *b) {
@@ -1958,14 +2166,150 @@ public:
 
   // ---- ops reachable from TypeScript through the registry ----
 
-  void enqueueResponseBytes(std::string data) override {
-    if (outbuf_.empty() && outsent_ == 0) {
-      outbuf_ = std::move(data);  // common case: steal the freshly built response buffer
-    } else {
-      outbuf_ += data;
-    }
+  void enqueueResponseBytes(std::string_view data) override {
+    // Append into the retained buffer. `flush()` clears it but keeps its
+    // capacity, so in steady state this is a memcpy into warm storage and the
+    // connection allocates nothing per response.
+    //
+    // This deliberately replaces an earlier `outbuf_ = std::move(data)` fast
+    // path taken when the buffer was empty. Stealing the caller's string saved
+    // the memcpy, but it DISCARDED the warm capacity every single response --
+    // the buffer `flush()` had just cleared for reuse was freed and replaced
+    // by a fresh allocation, so the saving was paid for with an allocate/free
+    // pair per response. A few hundred bytes of memcpy is cheaper than that.
+    headMark_ = std::string::npos;
+    outbuf_.append(data);
     // Streaming writes issued outside the reactor pass (async handlers,
     // timers) flush eagerly; writes during dispatch batch into the pass flush.
+    if (!processing_) flushAndMaybeClose();
+  }
+
+  void enqueueResponseParts(std::string_view head, std::string_view body) override {
+    headMark_ = std::string::npos;
+    outbuf_.append(head);
+    outbuf_.append(body);
+    if (!processing_) flushAndMaybeClose();
+  }
+
+  void headBegin(int status, std::string_view message) override {
+    headMark_ = outbuf_.size();
+    headHasContentLength_ = false;
+    headHasTransferEncoding_ = false;
+    headHasDate_ = false;
+    headHasConnection_ = false;
+    headConnectionClose_ = false;
+    if (status == 200 && message == "OK") {
+      outbuf_.append("HTTP/1.1 200 OK\r\n");
+      return;
+    }
+    outbuf_.append("HTTP/1.1 ");
+    char digits[16];
+    const auto converted = std::to_chars(digits, digits + sizeof(digits), status);
+    outbuf_.append(digits, static_cast<std::size_t>(converted.ptr - digits));
+    outbuf_.push_back(' ');
+    outbuf_.append(message);
+    outbuf_.append("\r\n");
+  }
+
+  void headField(std::string_view name, std::string_view value) override {
+    // The four names the framing decision reads. Length first: almost every
+    // header an application sets fails all four on that alone.
+    switch (name.size()) {
+      case 4:
+        if (asciiEqualsIgnoreCase(name, "date")) headHasDate_ = true;
+        break;
+      case 10:
+        if (asciiEqualsIgnoreCase(name, "connection")) {
+          headHasConnection_ = true;
+          if (asciiEqualsIgnoreCase(value, "close")) headConnectionClose_ = true;
+        }
+        break;
+      case 14:
+        if (asciiEqualsIgnoreCase(name, "content-length")) headHasContentLength_ = true;
+        break;
+      case 17:
+        if (asciiEqualsIgnoreCase(name, "transfer-encoding")) headHasTransferEncoding_ = true;
+        break;
+      default:
+        break;
+    }
+    outbuf_.append(name);
+    outbuf_.append(": ");
+    outbuf_.append(value);
+    outbuf_.append("\r\n");
+  }
+
+  void headRaw(std::string_view text) override {
+    if (headMark_ == std::string::npos) headMark_ = outbuf_.size();
+    outbuf_.append(text);
+  }
+
+  int headEnd(int flags, double autoContentLength) override {
+    const bool noBody = (flags & kHeadNoBody) != 0;
+    bool chunked = false;
+    bool closeDelimited = false;
+    bool writeContentLength = false;
+    if (noBody || headHasContentLength_ || headHasTransferEncoding_) {
+      // No body, or the application framed it itself: serialize as given.
+    } else if (autoContentLength >= 0) {
+      writeContentLength = true;
+    } else if ((flags & kHeadHttp10) != 0) {
+      closeDelimited = true;
+    } else {
+      chunked = true;
+    }
+    bool keepAlive = (flags & kHeadKeepAliveAsked) != 0;
+    if (headConnectionClose_ || closeDelimited) keepAlive = false;
+    // The overwhelmingly common tail -- Date, keep-alive, chunked -- is the
+    // same bytes for every response in a given second, so it is assembled once
+    // per second and appended as one piece instead of as seven.
+    if (chunked && keepAlive && !headHasConnection_ && !headHasDate_ && (flags & kHeadSendDate) != 0) {
+      static thread_local time_t tailSecond = 0;
+      static thread_local std::string tail;
+      const std::string &date = cachedHttpDate();
+      const time_t second = httpDateCache().second;
+      if (second != tailSecond || tail.empty()) {
+        tailSecond = second;
+        tail.assign("Date: ");
+        tail.append(date);
+        tail.append("\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\nTransfer-Encoding: chunked\r\n\r\n");
+      }
+      outbuf_.append(tail);
+      return kHeadChunked | kHeadKeepAlive;
+    }
+    if ((flags & kHeadSendDate) != 0 && !headHasDate_) {
+      outbuf_.append("Date: ");
+      outbuf_.append(cachedHttpDate());
+      outbuf_.append("\r\n");
+    }
+    if (!headHasConnection_) {
+      if (keepAlive) outbuf_.append("Connection: keep-alive\r\nKeep-Alive: timeout=5\r\n");
+      else outbuf_.append("Connection: close\r\n");
+    }
+    if (writeContentLength) {
+      outbuf_.append("Content-Length: ");
+      char digits[24];
+      const auto converted = std::to_chars(digits, digits + sizeof(digits), static_cast<std::uint64_t>(autoContentLength));
+      outbuf_.append(digits, static_cast<std::size_t>(converted.ptr - digits));
+      outbuf_.append("\r\n");
+    } else if (chunked) {
+      outbuf_.append("Transfer-Encoding: chunked\r\n");
+    }
+    outbuf_.append("\r\n");
+    return (chunked ? kHeadChunked : 0) | (keepAlive ? kHeadKeepAlive : 0);
+  }
+
+  void enqueueFinalChunk(std::string_view data) override {
+    headMark_ = std::string::npos;
+    if (!data.empty()) {
+      char digits[24];
+      const auto converted = std::to_chars(digits, digits + sizeof(digits), data.size(), 16);
+      outbuf_.append(digits, static_cast<std::size_t>(converted.ptr - digits));
+      outbuf_.append("\r\n");
+      outbuf_.append(data);
+      outbuf_.append("\r\n");
+    }
+    outbuf_.append("0\r\n\r\n");
     if (!processing_) flushAndMaybeClose();
   }
 
@@ -2003,6 +2347,14 @@ private:
 
   static constexpr std::size_t kMaxHeadBytes = 16384;              // Node --max-http-header-size default
   static constexpr std::size_t kMaxBodyBytes = 64 * 1024 * 1024;   // hard cap; Node itself is unbounded
+  // How much output capacity one connection may retain between responses.
+  // Above this, `flush()` releases it rather than pinning it for the life of
+  // a keep-alive connection that sent one large body.
+  static constexpr std::size_t kMaxRetainedOutBuf = 64 * 1024;
+  // The same cap on the way in. `inbuf_` is consumed with `erase(0, n)`, which
+  // never shrinks, so without this a keep-alive connection that once carried a
+  // large upload pins that much for the rest of its life -- per connection.
+  static constexpr std::size_t kMaxRetainedInBuf = 64 * 1024;
 
   bool readAvailable() {
     char buffer[65536];
@@ -2039,6 +2391,11 @@ private:
         const std::size_t headEnd = inbuf_.find("\r\n\r\n");
         if (headEnd == std::string::npos) {
           if (inbuf_.size() > kMaxHeadBytes) sendErrorAndClose(431, "Request Header Fields Too Large");
+          // Everything buffered has been consumed and the next request has not
+          // begun: the one moment releasing capacity costs nothing. Gated on
+          // EMPTY so the steady state -- a warm buffer sized for ordinary
+          // requests -- keeps its storage and allocates nothing per request.
+          if (inbuf_.empty() && inbuf_.capacity() > kMaxRetainedInBuf) inbuf_.shrink_to_fit();
           return;
         }
         if (headEnd + 4 > kMaxHeadBytes) {
@@ -2255,6 +2612,10 @@ private:
     body_.clear();
     if (handlerThrew) {
       if (busy_) {
+        // A header block the handler committed but never released (it threw
+        // between `writeHead` and the first body write) is still sitting at
+        // the tail of the buffer. It was never the response; the 500 is.
+        if (headMark_ != std::string::npos && headMark_ >= outsent_ && headMark_ <= outbuf_.size()) outbuf_.resize(headMark_);
         enqueueResponseBytes(
             "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
         busy_ = false;
@@ -2275,6 +2636,11 @@ private:
       return false;
     }
     outbuf_.clear();
+    headMark_ = std::string::npos;
+    // `clear()` keeps capacity, which is the point -- the next response reuses
+    // it. Cap what a connection may hold onto so a single large body does not
+    // pin that much per connection for the rest of its life.
+    if (outbuf_.capacity() > kMaxRetainedOutBuf) outbuf_.shrink_to_fit();
     outsent_ = 0;
     return true;
   }
@@ -2302,6 +2668,15 @@ private:
   bool peerClosed_ = false;   // read side saw EOF
   bool processing_ = false;   // inside the reactor's processInput pass
   bool firstRequest_ = true;
+
+  // The header block being serialized by `headBegin`/`headField`/`headEnd`.
+  // `headMark_` is where it starts in `outbuf_` until body bytes release it.
+  std::size_t headMark_ = std::string::npos;
+  bool headHasContentLength_ = false;
+  bool headHasTransferEncoding_ = false;
+  bool headHasDate_ = false;
+  bool headHasConnection_ = false;
+  bool headConnectionClose_ = false;
 
   // Current request being parsed.
   std::string method_;
@@ -2848,7 +3223,63 @@ inline void __gea_http_serve(double port, OnRequest &&onRequest) {
 // every request.
 
 inline void __gea_http_write(double connId, std::string data) {
-  if (auto *conn = gea::node::findConnection(connId)) conn->enqueueResponseBytes(std::move(data));
+  if (auto *conn = gea::node::findConnection(connId)) conn->enqueueResponseBytes(data);
+}
+
+// The same enqueue for a response delivered as two pieces -- in practice the
+// serialized header block and the first body chunk.
+//
+// `ServerResponse.emitPayload` used to hand those over as `head + body`, which
+// built a third string holding a copy of both just so the boundary could take
+// one argument. Both parts are appended into the connection's own buffer here
+// instead, so that intermediate string is never built. Taking each part by
+// reference matters as much as the arity: by value, `head` is an lvalue at the
+// call site and would be copied to form the argument, reintroducing the
+// allocation this removes.
+inline void __gea_http_write2(double connId, const std::string &head, const std::string &body) {
+  auto *conn = gea::node::findConnection(connId);
+  if (!conn) return;
+  conn->enqueueResponseParts(head, body);
+}
+
+// The header block, serialized into the connection buffer piece by piece --
+// see `HttpConnectionBase::headBegin`. Every string crosses by reference: by
+// value, a field read at the call site would be copied to form the argument.
+inline void __gea_http_head_begin(double connId, double status, const std::string &message) {
+  if (auto *conn = gea::node::findConnection(connId)) conn->headBegin(static_cast<int>(status), message);
+}
+
+inline void __gea_http_head_field(double connId, const std::string &name, const std::string &value) {
+  if (auto *conn = gea::node::findConnection(connId)) conn->headField(name, value);
+}
+
+inline void __gea_http_head_raw(double connId, const std::string &text) {
+  if (auto *conn = gea::node::findConnection(connId)) conn->headRaw(text);
+}
+
+inline double __gea_http_head_end(double connId, double flags, double autoContentLength) {
+  auto *conn = gea::node::findConnection(connId);
+  // A dead connection frames nothing; "not chunked, not kept alive" keeps the
+  // caller from building chunk framing for bytes that have nowhere to go.
+  return conn ? static_cast<double>(conn->headEnd(static_cast<int>(flags), autoContentLength)) : 0.0;
+}
+
+// Body bytes by reference. `__gea_http_write` takes its string BY VALUE, so an
+// lvalue body is copied to form the argument before it is copied again into
+// the connection buffer.
+inline void __gea_http_body(double connId, const std::string &data) {
+  if (auto *conn = gea::node::findConnection(connId)) conn->enqueueResponseBytes(data);
+}
+
+// A string is UTF-8 here, so its length on the wire is its size.
+inline double __gea_http_text_bytes(const std::string &text) { return static_cast<double>(text.size()); }
+
+// `end(text)` on a chunked response: size line, text, and terminator appended
+// in place. The caller used to build `hex + CRLF + text + CRLF + "0" CRLF CRLF`
+// as one string first -- an allocation and a full copy of the body, to feed a
+// buffer that could have taken the four pieces directly.
+inline void __gea_http_final_chunk(double connId, const std::string &data) {
+  if (auto *conn = gea::node::findConnection(connId)) conn->enqueueFinalChunk(data);
 }
 
 // The same enqueue, reached with OCTETS instead of text.
@@ -2871,7 +3302,13 @@ inline void __gea_http_write_bytes(double connId, const gea::TypedArray<std::uin
   if (!conn) return;
   const auto *bytes = data.data();
   if (!bytes) return;
-  conn->enqueueResponseBytes(std::string(reinterpret_cast<const char *>(bytes), data.size()));
+  // A view, not a string. This used to copy the whole body into a temporary
+  // `std::string` purely to match the old owning parameter -- an allocation
+  // and a full copy of every byte response, on top of the copy into the
+  // connection buffer that follows. `enqueueResponseBytes` takes a
+  // `string_view` now, so the bytes go straight from the TypedArray's own
+  // storage into the buffer. This is hono's response path.
+  conn->enqueueResponseBytes(std::string_view(reinterpret_cast<const char *>(bytes), data.size()));
 }
 
 // The inbound mirror of `__gea_http_write_bytes`: the reactor hands a request
@@ -2896,6 +3333,8 @@ inline std::string __gea_http_peer(double connId) {
 }
 
 inline const std::string &__gea_http_date() { return gea::node::cachedHttpDate(); }
+
+inline double __gea_http_date_second() { return static_cast<double>(gea::node::cachedHttpDateSecond()); }
 
 inline void __gea_http_stop() {
   if (gea::node::listenerCloser()) gea::node::listenerCloser()();

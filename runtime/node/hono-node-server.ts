@@ -36,6 +36,14 @@ declare function __gea_http_serve(
 /** @gea-host-inert */
 declare function __gea_http_write(connId: number, data: string): void
 /** @gea-host-inert */
+declare function __gea_http_head_begin(connId: number, status: number, message: string): void
+/** @gea-host-inert */
+declare function __gea_http_head_raw(connId: number, text: string): void
+/** @gea-host-inert */
+declare function __gea_http_body(connId: number, data: string): void
+/** @gea-host-inert */
+declare function __gea_http_text_bytes(text: string): number
+/** @gea-host-inert */
 declare function __gea_http_body_bytes(body: string): Buffer
 /** @gea-host-no-property-writes */
 declare function __gea_http_done(connId: number, keepAlive: boolean): void
@@ -115,14 +123,30 @@ function respond(connId: number, keepAliveRequested: boolean, isHead: boolean, r
   const connection = headers.get('connection')
   const keepAlive = keepAliveRequested && (connection === null || connection.toLowerCase() !== 'close')
   const message = response.statusText === '' ? statusText(status) : response.statusText
-  let head = 'HTTP/1.1 ' + String(status) + ' ' + message + '\r\n' + Headers.wireLinesOf(headers)
+  // Written piece by piece into the connection's retained output buffer, in
+  // the same wire order as before. This used to be one `head` string grown by
+  // `+=` and then `head + body` -- a fresh buffer regrown per response, and a
+  // second one holding a copy of both -- handed to a by-value parameter that
+  // copied it a third time. Nothing is flushed until the body call.
+  __gea_http_head_begin(connId, status, message)
+  const lines = Headers.wireLinesOf(headers)
+  __gea_http_head_raw(connId, lines)
   if (!noBody && !headers.has('content-length') && !headers.has('transfer-encoding')) {
-    head += 'Content-Length: ' + String(Buffer.byteLength(body)) + '\r\n'
+    const length = String(__gea_http_text_bytes(body))
+    __gea_http_head_raw(connId, 'Content-Length: ')
+    __gea_http_head_raw(connId, length)
+    __gea_http_head_raw(connId, '\r\n')
   }
-  if (!headers.has('date')) head += 'Date: ' + __gea_http_date() + '\r\n'
-  if (connection === null) head += keepAlive ? 'Connection: keep-alive\r\nKeep-Alive: timeout=5\r\n' : 'Connection: close\r\n'
-  head += '\r\n'
-  __gea_http_write(connId, noBody ? head : head + body)
+  if (!headers.has('date')) {
+    const date = __gea_http_date()
+    __gea_http_head_raw(connId, 'Date: ')
+    __gea_http_head_raw(connId, date)
+    __gea_http_head_raw(connId, '\r\n')
+  }
+  if (connection === null) __gea_http_head_raw(connId, keepAlive ? 'Connection: keep-alive\r\nKeep-Alive: timeout=5\r\n\r\n' : 'Connection: close\r\n\r\n')
+  else __gea_http_head_raw(connId, '\r\n')
+  if (noBody) __gea_http_body(connId, '')
+  else __gea_http_body(connId, body)
   __gea_http_done(connId, keepAlive)
 }
 

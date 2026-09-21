@@ -318,9 +318,7 @@ export class Readable extends Stream {
   push(chunk: unknown, _encoding: BufferEncoding = 'utf8'): boolean {
     if (this.destroyed || this.endPending_) return false
     if (chunk === null) {
-      this.endPending_ = true
-      if (this.hasAnyListeners()) this.emit('readable')
-      this.maybeEmitEnd()
+      this.pushEnd()
       return false
     }
     this.pendingChunks().push(chunk)
@@ -328,6 +326,24 @@ export class Readable extends Stream {
     if (this.hasAnyListeners()) this.emit('readable')
     if (!this.paused_) this.drainFlowing()
     return this.pendingLength_ < this.readableHighWaterMark
+  }
+
+  // `push(null)`, for a subclass that knows it is ending the stream. `push`
+  // takes `unknown`, so its argument is boxed at the call site and unboxed
+  // again here to be compared with `null` -- per call, which for
+  // `http.IncomingMessage` is per request. Same effect, no carrier.
+  protected pushEnd(): void {
+    if (this.destroyed || this.endPending_) return
+    this.endPending_ = true
+    if (this.hasAnyListeners()) this.emit('readable')
+    // 'end' belongs to consumption, not to the producer finishing: Node emits
+    // it once the stream is flowing or has been read to exhaustion. Emitting it
+    // here while still paused marked an EMPTY stream ended before anyone could
+    // listen -- a POST with `Content-Length: 0` ends inside the constructor, so
+    // the handler's `req.on('end', ...)` never fired and the request hung. A
+    // stream with data never showed it, because pending chunks hold 'end' back
+    // until `resume()`/`read()` drains them, which is the same rule.
+    if (!this.paused_) this.maybeEmitEnd()
   }
 
   unshift(chunk: unknown, _encoding: BufferEncoding = 'utf8'): void {

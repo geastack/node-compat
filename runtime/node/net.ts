@@ -4,7 +4,7 @@
 
 import { Buffer, BufferEncoding } from './buffer'
 import { EventEmitter, EventHandler, Listener } from './events'
-import { Writable } from './stream'
+import { Duplex, Writable } from './stream'
 import { nodeNotImplemented } from './not-implemented'
 import {
   clearTimeout as cancelNodeTimer,
@@ -322,7 +322,7 @@ export class ReactorSocket {
 
 export class Socket extends EventEmitter {
   private nativeId_: number
-  private pipeTarget_: Writable | null
+  private pipeTarget_: Writable | Duplex | null
   private timeoutHandle_: Timeout | null
   private closeEmitted_: boolean
   private constructorNoDelay_: boolean
@@ -647,7 +647,22 @@ export class Socket extends EventEmitter {
     return this
   }
 
-  pipe<T extends Writable>(destination: T): T {
+  // Both writable bases, not just `Writable`. TypeScript has one base class,
+  // so `Duplex extends Readable` re-declares the whole writable side rather
+  // than inheriting it -- which means its `writeQueue_` and `Writable`'s are
+  // two SEPARATE private declarations, and the two classes are not assignable
+  // to one another however identical they look. `T extends Writable` therefore
+  // rejected every `Duplex`/`Transform`, the most ordinary destination there
+  // is: `socket.pipe(new EchoCollector(socket))` in
+  // `apps/hono-mongodb-todo/tests/net-runtime-probe.ts` did not type-check.
+  //
+  // The structural spelling -- `pipe<T>` plus a cast to `PipeDestination`, the
+  // way `Readable.pipe` writes it -- does not lower: no runtime conversion is
+  // installed from a class-ref to a native-record-ref, so a reached
+  // `Socket.pipe` refuses in certify. Naming the two concrete classes keeps
+  // both arms class-refs, and they are exhaustive here because this runtime
+  // has exactly these two writable implementations.
+  pipe<T extends Writable | Duplex>(destination: T): T {
     this.pipeTarget_ = destination
     return destination
   }
