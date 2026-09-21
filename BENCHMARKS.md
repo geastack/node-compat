@@ -237,8 +237,12 @@ built from:
 
 ```sh
 npm ci                                                  # @geastack/compiler + @geastack/node-compat from npm
+npm ci --prefix apps/hono-hello                         # hono + @hono/node-server (no workspaces: the root install does not reach it)
 CXX=g++ bash bench/goal-http-build.sh                   # gea servers + C++ and Rust controls
 ```
+
+This sequence was run in a fresh clone on the benchmark host. Without the
+second install the Hono build stops at `Cannot find module 'hono'`.
 
 `goal-http-build.sh` resolves the compiler through
 `require.resolve('@geastack/compiler/package.json')`, so it picks up the
@@ -256,6 +260,7 @@ script emit the servers. The gea servers are emitted by the one
 
 ```sh
 cd /path/to/geastack/compiler && npm run build && cd ../node-compat
+npm ci --prefix apps/hono-hello                         # needed on this path too
 node scripts/build.mjs apps/hono-hello/server.ts        # -> apps/hono-hello/dist/server
 node scripts/build.mjs apps/raw-http-hello/server.ts    # -> apps/raw-http-hello/dist/server
 CXX=g++ bash bench/goal-http-build.sh
