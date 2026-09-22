@@ -219,8 +219,8 @@ Measured on the idle benchmark box; the full history with numbers is in
    304-313k req/s at 1.72 MB, `-O2 -flto` 304-308k at 1.64 MB, `-Os -flto`
    307-320k at 1.05 MB, `-O3` level with `-O2` at +5% size. clang 18, Hono:
    `-O2 -flto` 141-144k at 7.27 MB, `-Os -flto` 150-152k at 5.04 MB — more
-   instructions per request (35,991 vs 33,060) but fewer cycles (28,605 vs
-   33,925): the hot path is instruction-cache bound and smaller code wins.
+   instructions per request (35,966 vs 33,540) but fewer cycles (31,662 vs
+   37,454): the hot path is instruction-cache bound and smaller code wins.
    g++ 13: `-O2` 290k, `-O3 -flto` 292k (inside the noise), `-Os` −25% at
    1.65 MB; and g++ is 4-10% behind clang on the same emitted source.
    Stripped, and `-lcrypto` only when `node:crypto` is reached (0.45 MB of PSS

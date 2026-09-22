@@ -191,23 +191,26 @@ quoted a single-worker lead; it was the bimodality, not the server.
 
 The measure that does not move with the weather is user-mode instructions per
 request (`perf stat -e instructions:u` on the pinned server divided by `wrk`'s
-request count), with cycles alongside because `-Os` trades one for the other:
+request count), with cycles alongside because `-Os` trades one for the other.
+Re-taken 2026-09-22 on the compiler 1.0.17 binaries, two rounds each, mean
+shown (`bench/results/insn-2026-09-22-compiler-1.0.17.txt`; the instruction
+counts agree to ±0.1% between rounds, the cycle counts to ±5%):
 
 | Server | user instructions / request | user cycles / request | kernel instructions / request |
 | --- | ---: | ---: | ---: |
-| cpp-epoll | 2,533 | 1,562 | 16,478 |
-| gea-raw | 10,607 | 7,208 | 14,585 |
-| rust-hyper | 12,043 | 8,728 | 15,542 |
-| scriptc-raw | 13,808 | 9,414 | 61,338 |
-| hono-gea | 36,498 | 30,688 | 15,815 |
+| cpp-epoll | 2,532 | 1,530 | 16,435 |
+| gea-raw | 10,464 | 6,572 | 14,602 |
+| rust-hyper | 12,057 | 7,931 | 15,574 |
+| scriptc-raw | 13,769 | 9,352 | 61,694 |
+| hono-gea | 35,966 | 31,662 | 15,919 |
 
 The raw servers all spend the same ~15k kernel instructions per request on one
-`recv` and one `send`, about two thirds of the request, which is why a 12%
+`recv` and one `send`, about two thirds of the request, which is why a 13%
 userland advantage shows up as single digits of throughput. scriptc's binary
 spends 4× that in the kernel — it is a syscall-count difference, not a
-codegen one, and it is most of its gap. gea-raw at `-O2` executed 9,027
-instructions in 7,343 cycles; at `-Os` it executes 10,607 in 7,208, and Hono
-went from 33,060 instructions in 33,925 cycles to 36,498 in 30,688: fewer
+codegen one, and it is most of its gap. gea-raw at `-O2` executes 9,218
+instructions in 7,222 cycles; at `-Os` it executes 10,464 in 6,572, and Hono
+goes from 33,540 instructions in 37,454 cycles to 35,966 in 31,662: fewer
 cycles for more instructions is the instruction cache talking.
 
 ## Compiler and flags

@@ -1,0 +1,17 @@
+ROUND 1
+gea-raw-Os  rps=167536  user: 10463 insn 6649 cyc | kernel: 14597 insn 15303 cyc  (per req)
+gea-raw-O2  rps=152300  user: 9222 insn 7410 cyc | kernel: 14636 insn 16342 cyc  (per req)
+hono-gea-Os rps=64508  user: 35969 insn 31698 cyc | kernel: 15924 insn 25630 cyc  (per req)
+hono-gea-O2 rps=54177  user: 33534 insn 38527 cyc | kernel: 15949 insn 30208 cyc  (per req)
+rust-hyper  rps=149512  user: 12056 insn 7804 cyc | kernel: 15561 insn 16827 cyc  (per req)
+cpp-epoll   rps=207834  user: 2532 insn 1548 cyc | kernel: 16428 insn 16105 cyc  (per req)
+scriptc-raw rps=53895  user: 13765 insn 9487 cyc | kernel: 61823 insn 57089 cyc  (per req)
+ROUND 2
+gea-raw-Os  rps=167645  user: 10464 insn 6495 cyc | kernel: 14606 insn 15231 cyc  (per req)
+gea-raw-O2  rps=159538  user: 9213 insn 7034 cyc | kernel: 14641 insn 15705 cyc  (per req)
+hono-gea-Os rps=65111  user: 35962 insn 31625 cyc | kernel: 15914 insn 24952 cyc  (per req)
+hono-gea-O2 rps=58354  user: 33546 insn 36381 cyc | kernel: 15951 insn 27752 cyc  (per req)
+rust-hyper  rps=148197  user: 12058 insn 8057 cyc | kernel: 15587 insn 16791 cyc  (per req)
+cpp-epoll   rps=207223  user: 2531 insn 1511 cyc | kernel: 16441 insn 16068 cyc  (per req)
+scriptc-raw rps=55795  user: 13773 insn 9217 cyc | kernel: 61564 insn 56242 cyc  (per req)
+INSNDONE
