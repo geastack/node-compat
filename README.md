@@ -1,13 +1,12 @@
 # node-compat
 
-Compile **real** Node.js HTTP apps — the actual `node:http` API, the actual
-`hono` npm library — to native macOS/Linux binaries with
-[geatsc](https://github.com/geastack/compiler), and prove the result behaves exactly
-like Node.
+Compiles Node.js HTTP apps — using the `node:http` API and the `hono` npm
+library — to native macOS/Linux binaries with
+[geatsc](https://github.com/geastack/compiler), and checks the result against
+Node.
 
-This is not a reimplementation or a look-alike. The same TypeScript file runs
-under Node and compiles to a native binary, and a raw-socket test battery
-compares the two **byte-for-byte**.
+The same TypeScript file runs under Node and compiles to a native binary. A
+raw-socket test battery compares the two byte-for-byte.
 
 ## Headline results
 
@@ -40,12 +39,11 @@ compares the two **byte-for-byte**.
   | axum, 8 threads    | 219,927       | 223,387       | 214 us / 1.45 ms  | 6 MB     |
   | node, 8 workers    | 124,762       | 124,638       | 370 us / 3.34 ms  | 685 MB   |
 
-  Single-threaded that is **92% of axum** (the idiomatic Rust framework doing
-  the same full protocol flow) and **3.0x Node**, in 6 MB against Node's
-  91 MB. Across eight workers it is **2.1x Node** and ahead of axum. The
-  eight-worker servers share CPUs with the load generator, so those rows are
-  host-limited rather than a ceiling. Full measured history in
-  [BENCHMARKS.md](BENCHMARKS.md).
+  Single-threaded, that is 92% of axum (a Rust framework doing the same full
+  protocol flow) and 3.0x Node, using 6 MB against Node's 91 MB. Across eight
+  workers it is 2.1x Node and ahead of axum. The eight-worker servers share
+  CPUs with the load generator, so those rows are host-limited rather than a
+  ceiling. Full measured history in [BENCHMARKS.md](BENCHMARKS.md).
 
 ## npm package
 
@@ -147,12 +145,11 @@ Every figure above and its history is in [BENCHMARKS.md](BENCHMARKS.md).
 
 ## Known deviations from Node
 
-All deliberate, all documented where they live
-([runtime/node/http.ts](runtime/node/http.ts) header):
+These are intentional. The header of
+[runtime/node/http.ts](runtime/node/http.ts) documents each one.
 
-- A throwing request handler is isolated to a 500 + connection close. Real
-  Node kills the process (`uncaughtException`); we consider surviving it a
-  feature.
+- A throwing request handler is isolated to a 500 + connection close. Node
+  kills the process on the same error (`uncaughtException`).
 - Request/response listeners compile to native closures with no JS function
   identity, so `removeListener(name, fn)` on req/res cannot match a specific
   listener — use `removeAllListeners(name)`.
