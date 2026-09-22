@@ -30,12 +30,11 @@ and verifying a complete write/read/close exchange.
 
 `check` also generates a type-only import probe for every inventoried export and
 compiles it through geatsc with the pinned `@types/node` declaration root kept
-separate from executable builtin shims. This proves that all canonical Node 24
-modules and all 1,960 exports participate in the compiler's real type-checking
+separate from executable builtin shims. This checks that all canonical Node 24
+modules and all 1,960 exports are part of the compiler's type-checking
 program. This includes the `export =` object surfaces of `node:constants`,
 `node:process`, and the other CommonJS-shaped builtins. The inventory contains
-119 actual Node globals; quoted ambient module symbols are intentionally not
-misclassified as globals.
+119 Node globals; quoted ambient module symbols are not counted as globals.
 
 `docs:generate` pins the official Node 24.13.0 `all.json` API input, records its
 URL, byte count, and SHA-256 digest, and emits a compact metadata snapshot with
@@ -43,8 +42,8 @@ stability, lifecycle, source, and structured platform-mention evidence. The
 normal `check` validates that all 57 declaration modules map to an official
 documentation source.
 
-The inventory is a runtime implementation contract, not an application
-capability manifest or a reachability proof. The generated compatibility ledger
+The inventory describes what the runtime implements, not what an application
+uses. The generated compatibility ledger
 joins it with registered implementation overlays, rejects unknown public
 registrations, records supported overlay signatures, and classifies every
 runtime export and member as conformant, partial, stubbed, or plugin-owned.

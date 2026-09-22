@@ -25,17 +25,17 @@ raw-socket test battery compares the two byte-for-byte.
   1 MB payloads), `Expect: 100-continue`, keep-alive + pipelining ordering,
   HTTP/1.0 close-delimited semantics, HEAD/1xx/204/304 framing, implicit
   Content-Length vs `writeHead`→chunked, streaming writes, async handlers,
-  real timers, statusMessage, set-cookie arrays, the header API surface,
+  timers, statusMessage, set-cookie arrays, the header API surface,
   events, and Node-identical 400/431 error responses to malformed input.
 - **Throughput** (8-core Xeon E3-1231 v3, `wrk`, 2 rounds x 8 s, against Node
   v24.18.0, measured 2026-09-19):
 
   | server             | `GET /` req/s | `/json` req/s | p50 / p99         | peak RSS |
   | ------------------ | ------------- | ------------- | ----------------- | -------- |
-  | **gea, 1 worker**  | **110,624**   | **110,312**   | 594 us / 1.11 ms  | 6 MB     |
+  | gea, 1 worker      | 110,624       | 110,312       | 594 us / 1.11 ms  | 6 MB     |
   | axum, 1 thread     | 119,798       | 126,280       | 549 us / 605 us   | 5 MB     |
   | node, 1 worker     | 37,342        | 37,954        | 1.70 ms / 2.07 ms | 91 MB    |
-  | **gea, 8 workers** | **265,183**   | **265,624**   | 123 us / 4.30 ms  | 35 MB    |
+  | gea, 8 workers     | 265,183       | 265,624       | 123 us / 4.30 ms  | 35 MB    |
   | axum, 8 threads    | 219,927       | 223,387       | 214 us / 1.45 ms  | 6 MB     |
   | node, 8 workers    | 124,762       | 124,638       | 370 us / 3.34 ms  | 685 MB   |
 
@@ -100,7 +100,7 @@ erased so the library's hot path monomorphizes to fully typed C++ (see
   (150-152k vs 141-144k), at binaries about a third smaller (1.05 MB / 5.04 MB
   against 1.64 MB / 7.27 MB) and less memory — Hono runs more instructions at
   `-Os` but fewer cycles, so its hot path is instruction-cache bound.
-  `-O3` buys nothing on either compiler. g++ 13 is the other way round (`-Os`
+  `-O3` gives no gain on either compiler. g++ 13 is the other way round (`-Os`
   costs 25%) and is 4-10% behind clang on the same emitted source, so the
   published numbers are clang's. `GEA_OPT_LEVEL` overrides the level,
   `GEA_LTO=0` drops the LTO.
@@ -122,8 +122,8 @@ Every figure above and its history is in [BENCHMARKS.md](BENCHMARKS.md).
   small intrinsic surface. Response serialization matches Node byte-for-byte;
   hot-path listener storage is fully typed (native `std::function` slots — no
   dynamic-value boxing).
-- **[apps/http-parity/](apps/http-parity)** — the proof of completeness: one
-  app file, two runtimes, byte-diffed responses.
+- **[apps/http-parity/](apps/http-parity)** — the parity test: one app file,
+  two runtimes, byte-diffed responses.
 - **[apps/cluster-hello/](apps/cluster-hello)** — the `node:cluster` parity
   probe: the same file forks workers under Node and natively; workers that
   die are replaced, workers told to leave are not, SIGTERM to the primary
@@ -133,7 +133,7 @@ Every figure above and its history is in [BENCHMARKS.md](BENCHMARKS.md).
   multi-threaded) under `rust-server/`.
 - **[apps/hono-hello/](apps/hono-hello)** — Hono's full default router stack
   served natively over the `node:http` bridge; the build compiles Hono from its
-  typed source, giving the monomorphized zero-boxing variant. Its parity test covers JSON and multipart
+  typed source, so its hot path is monomorphized with no boxed values. Its parity test covers JSON and multipart
   POST bodies as well as GET routing.
 - **[apps/hono-mongodb-todo/](apps/hono-mongodb-todo)** — the full-stack Gea
   frontend, Hono server, and native MongoDB application, including driver
@@ -161,12 +161,12 @@ These are intentional. The header of
 - Bodies are byte-preserving strings, not Buffers; chunk trailers are parsed
   and discarded; `res.req` is not provided.
 - `node:cluster` ([runtime/node/cluster.ts](runtime/node/cluster.ts)) forks
-  real worker processes (a re-exec of the binary; `isPrimary`/`isWorker`,
+  worker processes (a re-exec of the binary; `isPrimary`/`isWorker`,
   `fork(env)`, `worker.id/process.pid`, `kill`/`disconnect`, `'online'`,
   `'exit'` with Node's `(code, signal)` null encoding, `exitedAfterDisconnect`,
   `cluster.disconnect()`) and connections are distributed by the kernel through
   SO_REUSEPORT listeners — Node's `SCHED_NONE`; `schedulingPolicy` is
-  accepted and ignored. There is **no IPC channel**: `worker.send` /
+  accepted and ignored. There is no IPC channel: `worker.send` /
   `process.send` throw, `'message'` never fires, `'listening'` is not emitted,
   and `'online'` is emitted by the primary right after the fork. A worker
   exits when the primary dies (a liveness pipe closes), like Node's
@@ -176,7 +176,7 @@ These are intentional. The header of
 
 ## Status
 
-- `node:http` server surface: **complete and parity-proven** (see above).
+- `node:http` server surface: complete; the parity battery passes (see above).
 - `node:cluster`: forking, replacement, signals and orderly shutdown proven
   natively against Node's output with `apps/cluster-hello` (0 refusals; the
   66 boxed carriers are EventEmitter's deliberate `any[]` argument boundary).
@@ -187,7 +187,7 @@ These are intentional. The header of
   build's router is monomorphized (`SmartRouter`, `RegExpRouter`
   and `TrieRouter`, with `std::tuple` route storage and no boxed handlers at
   rest).
-- MongoDB todo: compiles and runs against a real local MongoDB server through
+- MongoDB todo: compiles and runs against a local MongoDB server through
   BSON OP_MSG and a reusable native TCP pool. The supported Gea entry covers
   the app's direct-host CRUD surface; authentication, TLS, cluster topology,
   retry layers, and multi-batch cursors remain outside that surface.
@@ -195,14 +195,14 @@ These are intentional. The header of
   (tuple monomorphization + the hono router/Result/entries shapes, byte-
   diffed vs node) and [apps/mapkeys-test](apps/mapkeys-test)
   (Object.keys/values/entries over dictionary storages).
-- fastify: blocked on ~20 emitter codegen bugs; the `new Function` wall is
-  already broken (a bounded runtime evaluator covers find-my-way's generated
-  code — see `apps/newfn-test`).
+- fastify: blocked on about 20 emitter codegen bugs. `new Function` is
+  supported: a bounded runtime evaluator covers find-my-way's generated code
+  (see `apps/newfn-test`).
 
 ## License
 
-Apache-2.0 (see `LICENSE`). Use it, change it, ship closed-source products on
-it, no strings attached. The only GeaStack code under a different license is
+Apache-2.0 (see `LICENSE`). You can ship closed-source products
+built on it. The only GeaStack code under a different license is
 the embedded board support (`targets` and `@geastack/chips`, GPL-3.0-only):
 shipping closed-source firmware through those needs a commercial license.
 Contact [contact@geastack.com](mailto:contact@geastack.com) for commercial terms, support and hosted builds.

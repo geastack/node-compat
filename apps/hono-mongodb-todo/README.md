@@ -74,8 +74,7 @@ npm run build:native:hono-mongodb
 
 The first mode isolates the Hono source-compilation path. The second is the
 complete native application path. It compiles the MongoDB fork's supported Gea
-surface and official BSON implementation instead of hiding persistence behind
-app-level casts or a substitute database client. The
+surface and the official BSON implementation. The
 `mongodb-connection-string-url` override preserves generic map and URL search
 parameter types that the published JavaScript has erased.
 
@@ -87,15 +86,15 @@ remote host when comparing write throughput so network latency is identical.
 
 The native build resolves the application's unchanged `import "mongodb"` to
 the fork's typed Gea entry. That entry, vendored BSON, Hono, the app, and the
-node-compat runtime are compiled into one native executable. It sends real
-BSON-bearing OP_MSG commands to MongoDB through a client-owned native TCP pool;
+node-compat runtime are compiled into one native executable. It sends
+BSON OP_MSG commands to MongoDB through a client-owned native TCP pool;
 there is no Node process or database sidecar in the runtime path.
 
 The Gea entry implements the direct single-host API used here: client
 connection and close, database commands, sorted first-batch finds, and
-acknowledged single-document insert, find, update, and delete operations. It is
-not the complete official driver's topology, authentication, TLS, retry,
-session, or cursor surface.
+acknowledged single-document insert, find, update, and delete operations. It
+does not include the official driver's topology, authentication, TLS, retry,
+session, or cursor features.
 
 Each `MongoClient` eagerly opens one socket and reuses it across sequential
 commands. `maxPoolSize` defaults to four and is clamped between one and 64.

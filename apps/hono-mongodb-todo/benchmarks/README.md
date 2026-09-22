@@ -4,11 +4,8 @@ This suite compares the compiled Gea MongoDB surface with the official Node.js,
 Rust, and C++ drivers against the same local MongoDB server. It times sequential,
 acknowledged `insertOne`, indexed `findOne`, `updateOne`, and `deleteOne` phases.
 
-The complete workload definition, timing boundary, formulas, driver-order
-rotation, published result analysis, and interpretation limits are documented
-in this file. The native
-driver architecture and supported API are documented in
-the app README.
+The native driver architecture and supported API are documented in the app
+README.
 
 The timed region excludes client construction, connection setup, collection
 cleanup, document allocation, and warmup. Every implementation uses the same
@@ -80,9 +77,8 @@ full-stack CRUD checker after load.
 
 The tracked seven-round run measured 3,709 combined operations per second for
 Gea: 1.07× the official Node.js driver, effectively tied with Rust, and 4.5%
-behind C++ on the measured Apple M4 Max. Those numbers describe this warmed,
-single-connection, sequential workload; they are not a feature-completeness or
-production-scaling claim.
+behind C++ on the measured Apple M4 Max. These numbers apply only to this
+warmed, single-connection, sequential workload.
 
 The tracked endurance run completed 480,000 timed MongoDB commands. Gea used
 71.2 MiB peak RSS versus Node's 121.0 MiB while sustaining 0.99× Node's
@@ -95,9 +91,8 @@ aggregate, record a roughly 1,100× per-document reduction in the former
 large-string decode cliff, and expose the remaining string-validation and
 numeric-key encoding costs. The raw samples for each run are in `results/`.
 
-The September 2026 remote Linux run expands that evidence with full Hono
+The September 2026 remote Linux run adds full Hono
 single- and eight-worker comparisons, MongoDB concurrency and pool-size
 matrices, and identical BSON-only workloads under Gea, Node, and Rust. Full
-Hono sustained 1.64–1.90× Node's throughput with much lower PSS, while the
-isolated BSON workloads showed the remaining CPU deficit clearly: Gea was
-4.8–10.0× slower than Node.
+Hono sustained 1.64–1.90× Node's throughput with much lower PSS, while in the
+isolated BSON workloads Gea was 4.8–10.0× slower than Node.
