@@ -17,6 +17,20 @@ stripped, no `libcrypto`. Raw server 1,822,696 bytes; Hono server 5,472,424
 bytes. The C++ and Rust controls and the scriptc binaries were built on the
 same host.
 
+**Re-measured 2026-09-22 with `@geastack/compiler@1.0.17` and
+`@geastack/node-compat@1.0.15`** (`http-box-2026-09-22-typed-listeners.json`
+and its `-startup` file, same pinned protocol, hono-gea and gea-raw only):
+raw server 1,048,424 bytes (−42%: function facts register at the sites that
+mint a function object instead of a static initializer beside every thunk,
+and the typed `request`/`connection` listeners via `@gea-exact-arms` drop
+every http/net/events/stream class to keys-only reflection), Hono server
+5,042,344 bytes. Throughput is unchanged within noise — gea-raw 315,255 /
+319,656 at four workers and 161,619 / 162,299 at one, hono-gea 151,309 /
+125,566 at four and 65,381 / 52,699 at one — and PSS is lower: gea-raw
+3.7 MB (four workers) / 2.3 MB (one), hono-gea 7.1 MB / 5.0 MB. Startup is
+the same 6 / 7 ms. The table below is still the 1.0.16 / 1.0.14 run, because
+the controls were measured in it.
+
 **What changed since the 2026-09-21 run** (`http-box-2026-09-21-npm-1.0.16.json`,
 still in the repository): nothing in the runtime or the emitted C++. That run
 said its binaries were built with `g++`; they were built with `clang++ 18`

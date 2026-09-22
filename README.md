@@ -99,7 +99,8 @@ erased so the library's hot path monomorphizes to fully typed C++ (see
   bench host (clang 18, four pinned workers): `-Os -flto` is level with
   `-O2 -flto` on the raw HTTP server (316k vs 313k req/s) and 5% faster on the
   compiled Hono app (150k vs 144k, +10% at one worker), at 30% smaller
-  binaries (1.82 MB / 5.47 MB) and less memory — Hono runs more instructions
+  binaries (1.82 MB / 5.47 MB then; 1.05 MB / 5.04 MB since compiler 1.0.17
+  registers function facts at mint sites) and less memory — Hono runs more instructions
   at `-Os` but fewer cycles, so its hot path is instruction-cache bound.
   `-O3` buys nothing on either compiler. g++ 13 is the other way round (`-Os`
   costs 25%) and is 4-10% behind clang on the same emitted source, so the

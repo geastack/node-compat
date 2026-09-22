@@ -218,7 +218,8 @@ Measured on the idle benchmark box; the full history with numbers is in
    workers, 2026-09-22). clang 18, raw server: `-O2` 290-308k req/s at
    2.71 MB, `-O2 -flto` 310-314k at 2.61 MB, `-Os -flto` 312-320k at 1.82 MB,
    `-O3` level with `-O2` at +5% size. clang 18, Hono: `-O2 -flto` 144k at
-   7.80 MB, `-Os -flto` 150k at 5.47 MB (+10% at one worker) — more
+   7.80 MB, `-Os -flto` 150k at 5.47 MB (+10% at one worker; the same
+   builds are 1.05 MB / 5.04 MB since compiler 1.0.17, see BENCHMARKS.md) — more
    instructions per request (35,991 vs 33,060) but fewer cycles (28,605 vs
    33,925): the hot path is instruction-cache bound and smaller code wins.
    g++ 13: `-O2` 290k, `-O3 -flto` 292k (inside the noise), `-Os` −25% at
