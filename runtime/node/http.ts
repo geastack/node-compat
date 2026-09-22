@@ -1100,6 +1100,9 @@ export class ServerResponse extends Writable {
 }
 
 export type RequestListener = (req: IncomingMessage, res: ServerResponse) => void
+export type ConnectionListener = (socket: NetSocket) => void
+/** What `Server`'s registration methods accept: the two natively dispatched listener shapes, or Node's generic one. */
+type ServerListener = EventHandler | RequestListener | ConnectionListener
 
 /**
  * `node:http`'s server-construction options -- deliberately EMPTY.
@@ -1148,26 +1151,134 @@ export class Server extends EventEmitter {
   // Node's actual `IncomingMessage.socket: net.Socket`, and letting a
   // `TLSSocket` cast type-check) -- so `req.socket` passed to
   // `emit('connection', ...)` needs the same widened type.
-  override on(name: 'request', fn: (req: IncomingMessage, res: ServerResponse) => void): this
-  override on(name: 'connection', fn: (socket: NetSocket) => void): this
+  //
+  // `request` and `connection` listeners are NOT handed to the generic emitter.
+  // Its storage is `Listener` -- `(...args: unknown[])` -- so a request
+  // listener stored there is called with `req`/`res` BOXED, and a boxed class
+  // instance is what makes the compiler emit the per-class reflection hooks
+  // (`gea_readPrototypeProperty`/`gea_ownFieldKeys`/...) for `IncomingMessage`,
+  // `ServerResponse`, `Socket` and, through their bases and siblings, for
+  // fourteen of the sixteen classes in a raw server: ~315 KB of hooks that
+  // pin every method body, for a program that performs zero dynamic property
+  // operations. Measured on `raw-http-hello`, 2026-09-22. So the two typed
+  // names keep their listeners in typed arrays and `listen()` dispatches them
+  // natively; every other name goes to the base as before.
+  //
+  // The implementation parameter is the union of the three listener shapes,
+  // and `@gea-exact-arms` (on `addServerListener`) is what makes the `as`
+  // casts below a projection of the arm the caller's overload named rather
+  // than a dispatch that ADAPTS every arm into the target -- the adapter for
+  // the generic arm would box `req`/`res` to feed it, which is the exact cost
+  // this avoids. The contract that buys: a listener whose static type is the
+  // generic `EventHandler` registered under `'request'`/`'connection'` throws
+  // a `TypeError` at registration instead of running boxed. Write the
+  // listener with its parameters typed (or let the overload's contextual type
+  // do it) and it lands in the typed arm.
+  override on(name: 'request', fn: RequestListener): this
+  override on(name: 'connection', fn: ConnectionListener): this
   override on(name: 'upgrade', fn: (req: IncomingMessage, socket: Duplex, head: Buffer) => void): this
   override on(name: 'clientError', fn: (error: Error, socket: NetSocket) => void): this
   override on(name: EventName, fn: EventHandler): this
-  override on(name: EventName, fn: EventHandler): this {
-    return super.on(name, fn)
+  override on(name: EventName, fn: ServerListener): this {
+    return this.addServerListener(name, fn, false, false)
   }
 
-  override once(name: 'request', fn: (req: IncomingMessage, res: ServerResponse) => void): this
-  override once(name: 'connection', fn: (socket: NetSocket) => void): this
+  override addListener(name: 'request', fn: RequestListener): this
+  override addListener(name: 'connection', fn: ConnectionListener): this
+  override addListener(name: EventName, fn: EventHandler): this
+  override addListener(name: EventName, fn: ServerListener): this {
+    return this.addServerListener(name, fn, false, false)
+  }
+
+  override prependListener(name: 'request', fn: RequestListener): this
+  override prependListener(name: 'connection', fn: ConnectionListener): this
+  override prependListener(name: EventName, fn: EventHandler): this
+  override prependListener(name: EventName, fn: ServerListener): this {
+    return this.addServerListener(name, fn, false, true)
+  }
+
+  override once(name: 'request', fn: RequestListener): this
+  override once(name: 'connection', fn: ConnectionListener): this
   override once(name: 'upgrade', fn: (req: IncomingMessage, socket: Duplex, head: Buffer) => void): this
   override once(name: 'clientError', fn: (error: Error, socket: NetSocket) => void): this
   override once(name: EventName, fn: EventHandler): this
-  override once(name: EventName, fn: EventHandler): this {
-    return super.once(name, fn)
+  override once(name: EventName, fn: ServerListener): this {
+    return this.addServerListener(name, fn, true, false)
+  }
+
+  override prependOnceListener(name: 'request', fn: RequestListener): this
+  override prependOnceListener(name: 'connection', fn: ConnectionListener): this
+  override prependOnceListener(name: EventName, fn: EventHandler): this
+  override prependOnceListener(name: EventName, fn: ServerListener): this {
+    return this.addServerListener(name, fn, true, true)
+  }
+
+  /** @gea-exact-arms */
+  private addServerListener(name: EventName, fn: ServerListener, once: boolean, prepend: boolean): this {
+    if (name === 'request') {
+      const listener = fn as RequestListener
+      if (prepend) {
+        this.requestListeners_.unshift(listener)
+        this.requestOnce_.unshift(once)
+      } else {
+        this.requestListeners_.push(listener)
+        this.requestOnce_.push(once)
+      }
+      return this
+    }
+    if (name === 'connection') {
+      const listener = fn as ConnectionListener
+      if (prepend) {
+        this.connectionListeners_.unshift(listener)
+        this.connectionOnce_.unshift(once)
+      } else {
+        this.connectionListeners_.push(listener)
+        this.connectionOnce_.push(once)
+      }
+      return this
+    }
+    const generic = fn as EventHandler
+    if (once) return prepend ? super.prependOnceListener(name, generic) : super.once(name, generic)
+    return prepend ? super.prependListener(name, generic) : super.on(name, generic)
+  }
+
+  // `removeListener`/`off` are NOT overridden: the base declares their
+  // listener as `unknown`, and an override taking the typed union has no
+  // dispatch slot the base's callers could enter (measured: two emission
+  // refusals, "needs dynamic dispatch, which this unit emitted no member
+  // for", 2026-09-22). A typed `request`/`connection` listener is therefore
+  // removable only through `removeAllListeners`; a server that unregisters a
+  // single request listener is not a shape any consumer of this module has.
+  override removeAllListeners(name: EventName | undefined = undefined): this {
+    if (name === undefined || name === 'request') {
+      this.requestListeners_.length = 0
+      this.requestOnce_.length = 0
+    }
+    if (name === undefined || name === 'connection') {
+      this.connectionListeners_.length = 0
+      this.connectionOnce_.length = 0
+    }
+    return super.removeAllListeners(name)
+  }
+
+  // The typed arrays count toward `listenerCount` -- `@hono/node-server`
+  // and Node's own `_http_server` both gate work on it -- but only by name:
+  // matching a specific `listener` would compare a typed callable against
+  // `unknown`, which boxes it, and the base's answer already covers every
+  // listener the base holds.
+  override listenerCount(name: EventName, listener?: unknown): number {
+    const base = super.listenerCount(name, listener)
+    if (listener !== undefined) return base
+    if (name === 'request') return base + this.requestListeners_.length + 1
+    if (name === 'connection') return base + this.connectionListeners_.length
+    return base
   }
 
   listening: boolean
   private requestListeners_: RequestListener[]
+  private requestOnce_: boolean[]
+  private connectionListeners_: ConnectionListener[]
+  private connectionOnce_: boolean[]
   private requestListener_: RequestListener
   private port_: number
 
@@ -1176,6 +1287,9 @@ export class Server extends EventEmitter {
     this.listening = false
     this.requestListener_ = requestListener
     this.requestListeners_ = []
+    this.requestOnce_ = []
+    this.connectionListeners_ = []
+    this.connectionOnce_ = []
     this.port_ = 0
   }
 
@@ -1199,36 +1313,45 @@ export class Server extends EventEmitter {
     this.listening = true
     if (done !== undefined) done()
     this.emit('listening')
-    // Drain `on('request', ...)`-registered listeners (stored boxed by the
-    // generic emitter — a cold startup path) into typed adapters so the
-    // per-request dispatch below never boxes. The primary path — the
-    // createServer(listener) constructor argument — is typed end-to-end.
-    const boxedExtras = this.listeners('request')
-    for (let i = 0; i < boxedExtras.length; i++) {
-      const boxedFn = boxedExtras[i]
-      this.requestListeners_.push((rq: IncomingMessage, rs: ServerResponse) => {
-        boxedFn(rq, rs)
-      })
-    }
     // Capture into locals: the dispatch closure must not capture `this` (the
-    // reactor stores it by value; shared_from_this would dangle).
+    // reactor stores it by value; shared_from_this would dangle). The arrays
+    // are captured by reference, so listeners registered after `listen()` are
+    // still seen. Every listener below is called through its own typed
+    // carrier -- nothing here boxes `req`, `res` or the socket.
     const listener = this.requestListener_
     const extraListeners = this.requestListeners_
-    const self = this
+    const extraOnce = this.requestOnce_
+    const connectionListeners = this.connectionListeners_
+    const connectionOnce = this.connectionOnce_
     __gea_http_serve(
       port,
       (connId: number, flags: number, method: string, url: string, httpVersion: string, rawHead: string, body: string): void => {
         const keepAlive = (flags & FLAG_KEEP_ALIVE) !== 0
         const req = new IncomingMessage(connId, method, url, httpVersion, rawHead, body)
         const res = new ServerResponse(connId, method === 'HEAD', keepAlive, httpVersion === 'HTTP/1.0', req)
-        // Gate the connection emit on listener presence: its ARGUMENT boxes at
-        // the call site (building the socket's object bridge).
-        if ((flags & FLAG_FIRST_ON_CONNECTION) !== 0 && self.listenerCount('connection') > 0) {
-          self.emit('connection', req.socket)
+        if ((flags & FLAG_FIRST_ON_CONNECTION) !== 0 && connectionListeners.length > 0) {
+          // `req.socket` is built lazily (its object bridge is the cost the
+          // old listener-count gate existed to avoid); read once, here, only
+          // when someone listens.
+          const socket = req.socket
+          for (let i = 0; i < connectionListeners.length; i++) {
+            const onConnection = connectionListeners[i]
+            if (connectionOnce[i]) {
+              connectionListeners.splice(i, 1)
+              connectionOnce.splice(i, 1)
+              i--
+            }
+            onConnection(socket)
+          }
         }
         listener(req, res)
         for (let i = 0; i < extraListeners.length; i++) {
           const extra = extraListeners[i]
+          if (extraOnce[i]) {
+            extraListeners.splice(i, 1)
+            extraOnce.splice(i, 1)
+            i--
+          }
           extra(req, res)
         }
         // Body delivery no longer needs an explicit post-dispatch nudge here: `req` pushed its
@@ -1286,6 +1409,13 @@ export function get(
 // Node's `createServer(options, listener)` form as well as `createServer(listener)`:
 // `@hono/node-server` always passes its `serverOptions` first. No option is
 // honored yet, so the options object is only skipped.
+//
+// `@gea-exact-arms`: the `as RequestListener` below is reached only on the
+// one-argument form, where the first argument IS the listener, so it is a
+// projection of that arm -- not a dispatch whose options-record arm would
+// need an adapter into a callable (there is none) and whose generic
+// fallbacks would box `req`/`res` (see `Server`'s registration methods).
+/** @gea-exact-arms */
 export function createServer(optionsOrListener: ServerOptions | RequestListener, requestListener?: RequestListener): Server {
   if (requestListener !== undefined) return new Server(requestListener)
   return new Server(optionsOrListener as RequestListener)
