@@ -95,8 +95,9 @@ erased so the library's hot path monomorphizes to fully typed C++ (see
 
 - `--debug` builds at `-O0 -g` for lldb. Optimized builds default to `-O2`,
   overridable with `GEA_OPT_LEVEL`, and are stripped; `-O3` measured *slower*
-  on server workloads (icache pressure), and `-flto` bought 2-3% at one worker
-  and nothing at four for 25 s more link time, so neither is the default.
+  on server workloads (icache pressure), and `-O3 -flto` bought 2-3% at one worker
+  and 0.6% at four (inside the noise) for 25 s more link time, so neither is
+  the default.
 - Binaries link with hidden visibility and dead-stripping
   (`-fvisibility=hidden`, `-Wl,-dead_strip` / `--gc-sections`). `-Os` produces
   a 39% smaller binary at 25% lower throughput on the raw HTTP server, so

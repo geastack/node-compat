@@ -14,6 +14,7 @@ import re
 import signal
 import socket
 import subprocess
+import sys
 import time
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -245,6 +246,14 @@ artifacts = [
     'apps/raw-http-hello/cpp-server/server.cpp',
     'apps/raw-http-hello/drogon-server/main.cc',
     'apps/raw-http-hello/rust-server/Cargo.lock', 'bench/http-matrix.py']
+# An unpinned multi-worker server shares CPUs with wrk and the host saturates;
+# the ranking inverts and the gea rows read high (hono-gea 165k against 139k
+# pinned, measured 2026-09-22 by exactly this omission). Say so on stderr so a
+# result file from an unpinned run cannot pass for a comparison.
+if args.server_cpus is None and any(workers > 1 for workers in args.workers):
+    print('http-matrix: --server-cpus not given; multi-worker servers will share CPUs with wrk. '
+          'Not comparable with pinned runs (see BENCHMARKS.md).', file=sys.stderr)
+
 result = {'utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
           'settings': vars(args), 'server_cpus': {'1': '0', 'multi': args.server_cpus or '0-7'},
           'load_cpus': '4-7', 'connections': 64, 'load_threads': 4,

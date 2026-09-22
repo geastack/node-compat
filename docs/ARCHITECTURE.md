@@ -213,8 +213,8 @@ Measured on the idle benchmark box; the full history with numbers is in
    boundary, typed header maps, typed listeners. Boxing was never one big
    cost; it was death by make_shared: each box allocates bridge closures.
 2. **`-O2`, not `-Os`, not `-O3`, not LTO** — +40% over `-Os`; `-O3` measured ~15%
-   *slower* than `-O2` (icache bloat); `-O3 -flto` +2-3% at one worker, level
-   at four, +25 s link (2026-09-22). Stripped, and `-lcrypto` only when
+   *slower* than `-O2` (icache bloat); `-O3 -flto` +2-3% at one worker, +0.6%
+   at four (292k vs 290k pinned, inside the noise), +25 s link (2026-09-22). Stripped, and `-lcrypto` only when
    `node:crypto` is reached. Always measure.
 3. **Pool allocator** — +31%; a server's steady state allocates the same few
    sizes forever, and recycling beats even a good general malloc.
