@@ -213,31 +213,36 @@ cycles for more instructions is the instruction cache talking.
 ## Compiler and flags
 
 The C++ compiler and its flags are part of the result, so they were measured
-(same emitted source, same host, four pinned workers, 2026-09-22; `-O2` rows
-are 4 samples, the rest 3-6). `bench/results/cxx-*.json`,
-`clang-flags-*.json` and `http-box-2026-09-22-dist-Os*.json` on the bench
-host hold the raw runs; the summary:
+(same emitted source, same host, four pinned workers, 3 rounds x 8 s). The
+clang rows were re-taken on 2026-09-22 with `@geastack/compiler@1.0.17`
+(`bench/results/http-box-2026-09-22-flags-{O2,O3,Os,O2-lto}.json`; the
+`-Os -flto` row is the `typed-listeners` run above) so that every size on
+this page comes from one compiler. The g++ rows are from the earlier build
+of the same day (`bench/results/cxx-*.json` on the bench host, compiler
+1.0.16, 4-6 samples); their binaries were 1.5x larger across the board, like
+the clang ones, so only their throughput is listed.
 
 | Build | Raw server 4w `/` | Raw binary | Hono 4w `/` | Hono binary |
 | --- | ---: | ---: | ---: | ---: |
-| clang 18 `-O2` | 290-308k | 2.71 MB | 136-140k | 8.03 MB |
-| clang 18 `-O3` | 290-309k | 2.86 MB | | |
-| clang 18 `-Os` | 281-302k | 1.93 MB | 142-145k | 5.71 MB |
-| clang 18 `-O2 -flto` | 310-316k | 2.61 MB | 143-144k | 7.80 MB |
-| clang 18 `-O3 -flto` | 305-313k | 2.84 MB | | |
-| **clang 18 `-Os -flto`** (default) | **312-320k** | **1.82 MB** | **148-151k** | **5.47 MB** |
-| g++ 13 `-O2` | 287-291k | 2.70 MB | 131-132k | 8.29 MB |
-| g++ 13 `-O3 -flto` | 292k | 2.68 MB | | |
-| g++ 13 `-Os` | 103-110k (1w) | 1.65 MB | | |
+| clang 18 `-O2` | 304-313k | 1.72 MB | 139-142k | 7.51 MB |
+| clang 18 `-O3` | 307-311k | 1.81 MB | 140-143k | 8.00 MB |
+| clang 18 `-Os` | 306-314k | 1.13 MB | 141k | 5.32 MB |
+| clang 18 `-O2 -flto` | 304-308k | 1.64 MB | 141-144k | 7.27 MB |
+| **clang 18 `-Os -flto`** (default) | **307-320k** | **1.05 MB** | **150-152k** | **5.04 MB** |
+| g++ 13 `-O2` | 287-291k | | 131-132k | |
+| g++ 13 `-O3 -flto` | 292k | | | |
+| g++ 13 `-Os` | 103-110k (1w) | | | |
 
-Three things fall out. LTO is worth 3% on clang at no size cost. `-O3` buys
-nothing on either compiler. And the level answer is compiler-specific:
-under clang `-Os -flto` is both the fastest and the smallest build — level
-on the raw server, 5% ahead on Hono (10% at one worker) — while under g++
-`-Os` costs 25%. `scripts/build.mjs` therefore defaults to `-Os -flto` with
-clang and `-O2 -flto` with g++; `GEA_OPT_LEVEL` and `GEA_LTO=0` override.
-g++ 13 is 4-10% behind clang 18 on the same emitted source, which is why the
-reproduce path below no longer sets `CXX=g++`.
+Three things fall out. `-O3` buys nothing on either compiler. On the raw
+server every clang build lands inside the same round-to-round spread, so the
+flags are chosen on size and on Hono. And the level answer is
+compiler-specific: under clang `-Os -flto` is both the smallest build and the
+fastest one on Hono, 5-7% ahead of the other flag sets at four workers with a
+binary about a third smaller than `-O2 -flto` — while under g++ `-Os` costs
+25%. `scripts/build.mjs` therefore defaults to `-Os -flto` with clang and
+`-O2 -flto` with g++; `GEA_OPT_LEVEL` and `GEA_LTO=0` override. g++ 13 is
+4-10% behind clang 18 on the same emitted source, which is why the reproduce
+path below no longer sets `CXX=g++`.
 
 Two other build facts, measured because they were assumed: stripping the
 binary changes nothing that runs (`.symtab`/`.strtab` sit outside every
