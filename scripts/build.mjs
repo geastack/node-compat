@@ -723,10 +723,20 @@ const runtimeDir = path.join(repo, 'runtime')
 // dispatch a direct inlinable call rather than a boxed one. Compiling it here
 // as well would define every reactor symbol twice.
 const sources = emittedUnits.filter((unit) => unit.fileName.endsWith('.cpp')).map((unit) => path.join(outDir, unit.fileName))
+// OpenSSL is linked only when the program reaches node:crypto. The plugin
+// includes gea_node_crypto.hpp into a unit exactly when a gea::node::crypto::
+// spelling is emitted, so the include line is the reachability answer; an
+// unconditional -lcrypto mapped a 4.5 MB library into every server that never
+// hashed anything. macOS uses CommonCrypto and needs no library either way.
+const needsCrypto = emittedUnits.some((unit) => unit.source.includes('#include "gea_node_crypto.hpp"'))
 const flags = [
   '-std=c++20',
   optimize ? (process.env.GEA_OPT_LEVEL ?? '-O2') : '-O0',
   ...(!optimize ? ['-g'] : []),
+  // Symbols are for a profile, and a profile builds with -O0 -g above. An
+  // optimized binary ships stripped: on the raw server the symbol table was
+  // 1.16 MB of a 3.87 MB file.
+  ...(optimize ? (process.platform === 'darwin' ? ['-Wl,-S,-x'] : ['-s']) : []),
   // Size: the unit is one whole program, so nothing outside it may bind to
   // its symbols. Hidden visibility says so to the compiler and lets the
   // linker drop every function and constant the program never reaches
@@ -752,7 +762,7 @@ const flags = [
   // earlier flag. Not for anything a build should depend on.
   ...(process.env.GEA_CXX_EXTRA ? process.env.GEA_CXX_EXTRA.trim().split(/\s+/) : []),
   ...sources,
-  ...(process.platform === 'linux' ? ['-lcrypto'] : []),
+  ...(process.platform === 'linux' && needsCrypto ? ['-lcrypto'] : []),
   '-o',
   exePath
 ]

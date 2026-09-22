@@ -93,13 +93,15 @@ under `node_modules/.cache/geatsc/sources`, restoring the generics `tsc`
 erased so the library's hot path monomorphizes to fully typed C++ (see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
 
-- `--debug` builds at `-O0` for lldb. Optimized builds default to `-O2`,
-  overridable with `GEA_OPT_LEVEL`; `-O3` measured *slower* on server
-  workloads (icache pressure).
+- `--debug` builds at `-O0 -g` for lldb. Optimized builds default to `-O2`,
+  overridable with `GEA_OPT_LEVEL`, and are stripped; `-O3` measured *slower*
+  on server workloads (icache pressure), and `-flto` bought 2-3% at one worker
+  and nothing at four for 25 s more link time, so neither is the default.
 - Binaries link with hidden visibility and dead-stripping
   (`-fvisibility=hidden`, `-Wl,-dead_strip` / `--gc-sections`). `-Os` produces
-  a considerably smaller binary at comparable throughput, but `-O2` stays the
-  default until the hono and MongoDB applications are measured under it too.
+  a 39% smaller binary at 25% lower throughput on the raw HTTP server, so
+  `-O2` stays the default. OpenSSL is linked only when the program reaches
+  `node:crypto`; a server that never hashes anything maps no `libcrypto`.
 
 Every figure above and its history is in [BENCHMARKS.md](BENCHMARKS.md).
 

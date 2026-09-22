@@ -52,7 +52,10 @@ harness checks.
 
 - Dedicated benchmark host: 8 logical CPUs, Intel(R) Xeon(R) CPU E3-1231 v3 @ 3.40GHz, Linux, otherwise idle.
 - Node v24.21.0 (Krypton, the current LTS) for the Node rows. geatsc binaries built with `g++ -O2
-  -std=c++20` by the registry compiler named under Provenance.
+  -std=c++20` by the registry compiler named under Provenance. The raw
+  server binary was 3.87 MB unstripped in this run; the build has since
+  stripped it (2.71 MB) and stopped linking `libcrypto` into programs that
+  never reach `node:crypto`, neither of which changes what runs.
 - Harness: `bench/http-matrix.py`. A single-worker server is pinned to CPU 0,
   a four-worker server to CPUs 0-3, and `wrk` always to CPUs 4-7 with
   `--latency -t4 -c64`, keep-alive, 8-second samples after a 2-second warmup.
