@@ -20,7 +20,7 @@ compares the two **byte-for-byte**.
   2.94-million-request HTTP stress run kept the native server at 22.4 MiB peak
   RSS versus Node's 296.8 MiB maximum observed sample. See
   [the application documentation](apps/hono-mongodb-todo/README.md).
-- **Correctness:** 36/36 scenarios byte-identical to Node v24
+- **Correctness:** 38/38 scenarios byte-identical to Node v24
   ([apps/http-parity](apps/http-parity)) — request header parsing with Node's
   exact joining rules, content-length + chunked bodies (extensions, trailers,
   1 MB payloads), `Expect: 100-continue`, keep-alive + pipelining ordering,

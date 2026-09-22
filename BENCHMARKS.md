@@ -72,6 +72,27 @@ validated by the harness before any sample is taken (72 wire-contract checks,
   reusePort: true })` (`bench/scriptc-cluster.sh`); the plain build cannot
   share the port (the second instance dies with `EADDRINUSE`). Its one-worker
   row is the unmodified file. It passes the same wire-contract checks.
+  Against the `apps/http-parity` battery (38 raw-socket cases, Node v24 on
+  the original file as the oracle) it passes 21 (2026-09-22,
+  `bench/results/parity-scriptc-0.1.3-2026-09-22.txt`; gea 38/38 on compiler
+  1.0.17, `parity-gea-1.0.17-2026-09-22.txt`). scriptc refuses the file as
+  written with 11 errors (`parity-scriptc-0.1.3-as-written-errors-2026-09-22.txt`:
+  no lowering for `res.on('finish')`, `setHeader(string[])`, `appendHeader`,
+  `socket.remotePort`; the `any`-typed `'data'` chunk needs `--dynamic`;
+  `string | string[] | undefined` header values cannot be concatenated; three
+  strict-null errors), so its binary is `apps/http-parity/server.scriptc.ts`
+  — type-level rewrites plus those three routes removed; Node on the variant
+  vs Node on the original passes 35/38, exactly the removed routes
+  (`bench/parity-node-variant.sh`). Its LLVM backend refused
+  `req.httpVersion` and fell back to the C backend. The 14 real differences:
+  HEAD responses carry a body (chunked, or Content-Length plus bytes); 204
+  gets `Transfer-Encoding: chunked` and a terminating chunk; HTTP/1.0
+  responses are chunked and `Connection: keep-alive` is honored; no `100
+  Continue` is ever sent; duplicate request headers keep the last value
+  instead of joining; `Transfer-Encoding: gzip`, a space in a header name and
+  a 20 KB header are served as 200 (Node: 400/400/431); the 400s it does send
+  add `Content-Length: 0`; and `String(undefined)` of an unmatched named
+  capture group is `''`.
 
 Routes: `GET /` returns `text/plain`, `GET /json` returns
 `{"hello":"world"}`. Hono additionally serves `/missing` as a 404, which the

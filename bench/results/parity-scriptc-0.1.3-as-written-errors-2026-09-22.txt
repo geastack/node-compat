@@ -1,0 +1,109 @@
+scriptc coverage /home/ubuntu/scriptc-try/parity.ts
+
+  statements analyzed   106
+  compile statically    95  (89%)
+
+  runs with --dynamic   2 sites (embeds a JS engine, ~620KB — static stays the default)
+      ×2  the '+' operator on 'any'-typed values runs in the embedded dynamic engine, which this build does not include                                       SC2011
+
+  blockers:
+      ×4  string conversions of unions with object arms (narrow first: check a discriminant field, or compare with '!== undefined'/'!== null' for unit arms)  SC1090
+      ×2  'ServerResponse.appendHeader' is typed by @types/node but has no scriptc lowering yet                                                               SC2020
+      ×1  'res.on("finish", ...)' is part of the standard library types but has no scriptc lowering yet                                                       SC2020
+      ×1  'setHeader with a 'string[]' value' is part of the standard library types but has no scriptc lowering yet                                           SC2020
+      ×1  'Socket.remotePort' is typed by @types/node but has no scriptc lowering yet                                                                         SC2020
+COVDONE
+/home/ubuntu/scriptc-try/parity.ts:20:14 - error SC2011: the '+' operator on 'any'-typed values runs in the embedded dynamic engine, which this build does not include
+
+  19 |     req.on('data', (chunk) => {
+  20 |       body = body + chunk
+     |              ^~~~~~~~~~~~
+  21 |     })
+
+  hint: build with --dynamic to run 'any'-typed code in the embedded engine (adds ~620KB to the binary), or stay static with 'unknown' and a checked cast ('x as T')
+
+/home/ubuntu/scriptc-try/parity.ts:32:24 - error SC1090: string conversions of unions with object arms (narrow first: check a discriminant field, or compare with '!== undefined'/'!== null' for unit arms) are not supported yet
+
+  31 |     const h = req.headers
+  32 |     out += ';x-one=' + h['x-one']
+     |                        ^~~~~~~~~~
+  33 |     out += ';x-dup=' + h['x-dup']
+
+/home/ubuntu/scriptc-try/parity.ts:33:24 - error SC1090: string conversions of unions with object arms (narrow first: check a discriminant field, or compare with '!== undefined'/'!== null' for unit arms) are not supported yet
+
+  32 |     out += ';x-one=' + h['x-one']
+  33 |     out += ';x-dup=' + h['x-dup']
+     |                        ^~~~~~~~~~
+  34 |     out += ';cookie=' + h['cookie']
+
+/home/ubuntu/scriptc-try/parity.ts:34:25 - error SC1090: string conversions of unions with object arms (narrow first: check a discriminant field, or compare with '!== undefined'/'!== null' for unit arms) are not supported yet
+
+  33 |     out += ';x-dup=' + h['x-dup']
+  34 |     out += ';cookie=' + h['cookie']
+     |                         ^~~~~~~~~~~
+  35 |     out += ';host=' + h['host']
+
+/home/ubuntu/scriptc-try/parity.ts:35:23 - error SC1090: string conversions of unions with object arms (narrow first: check a discriminant field, or compare with '!== undefined'/'!== null' for unit arms) are not supported yet
+
+  34 |     out += ';cookie=' + h['cookie']
+  35 |     out += ';host=' + h['host']
+     |                       ^~~~~~~~~
+  36 |     res.writeHead(200, { 'content-type': 'text/plain' })
+
+/home/ubuntu/scriptc-try/parity.ts:88:12 - error SC2020: 'res.on("finish", ...)' is part of the standard library types but has no scriptc lowering yet
+
+  87 |     let fired = 'no'
+  88 |     res.on('finish', () => {
+     |            ^~~~~~~~
+  89 |       fired = 'yes'
+
+  hint: "close" is the supported response event (as a literal)
+
+/home/ubuntu/scriptc-try/parity.ts:95:33 - error SC2020: 'setHeader with a 'string[]' value' is part of the standard library types but has no scriptc lowering yet
+
+  94 |   if (req.url === '/set-cookie') {
+  95 |     res.setHeader('Set-Cookie', ['a=1; Path=/', 'b=2; HttpOnly'])
+     |                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  96 |     res.appendHeader('X-Extra', 'e1')
+
+  hint: header values are strings or numbers here
+
+/home/ubuntu/scriptc-try/parity.ts:96:5 - error SC2020: 'ServerResponse.appendHeader' is typed by @types/node but has no scriptc lowering yet
+
+  95 |     res.setHeader('Set-Cookie', ['a=1; Path=/', 'b=2; HttpOnly'])
+  96 |     res.appendHeader('X-Extra', 'e1')
+     |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  97 |     res.appendHeader('X-Extra', 'e2')
+
+  hint: setHeader, getHeader, hasHeader, removeHeader, writeHead, write, end, destroy, headersSent, statusCode, statusMessage, and on/once of close are the supported ServerResponse members
+
+/home/ubuntu/scriptc-try/parity.ts:97:5 - error SC2020: 'ServerResponse.appendHeader' is typed by @types/node but has no scriptc lowering yet
+
+  96 |     res.appendHeader('X-Extra', 'e1')
+  97 |     res.appendHeader('X-Extra', 'e2')
+     |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  98 |     res.end('cookies')
+
+  hint: setHeader, getHeader, hasHeader, removeHeader, writeHead, write, end, destroy, headersSent, statusCode, statusMessage, and on/once of close are the supported ServerResponse members
+
+/home/ubuntu/scriptc-try/parity.ts:113:63 - error SC2020: 'Socket.remotePort' is typed by @types/node but has no scriptc lowering yet
+
+  112 |     res.writeHead(200, { 'content-type': 'text/plain' })
+  113 |     res.end('local=' + String(isLocal) + ';portok=' + String((req.socket.remotePort ?? 0) > 0))
+      |                                                               ^~~~~~~~~~~~~~~~~~~~~
+  114 |     return
+
+  hint: the type checker sees everything @types/node declares, but only the supported surface compiles (https://scriptc.dev/limitations)
+
+/home/ubuntu/scriptc-try/parity.ts:119:15 - error SC2011: the '+' operator on 'any'-typed values runs in the embedded dynamic engine, which this build does not include
+
+  118 |     req.on('data', (chunk) => {
+  119 |       total = total + chunk.length
+      |               ^~~~~~~~~~~~~~~~~~~~
+  120 |     })
+
+  hint: build with --dynamic to run 'any'-typed code in the embedded engine (adds ~620KB to the binary), or stay static with 'unknown' and a checked cast ('x as T')
+
+11 errors.
+BUILDDONE
+ls: cannot access 'parity-sc': No such file or directory

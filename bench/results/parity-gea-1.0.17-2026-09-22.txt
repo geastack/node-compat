@@ -1,0 +1,45 @@
+[build] compiling apps/http-parity/server.ts -> apps/http-parity/dist
+[build] emitted apps/http-parity/dist/server.cpp (15030 lines)
+[build] built apps/http-parity/dist/server
+GEABUILT
+PASS get-root
+PASS get-plain-implicit-headers
+PASS get-404
+PASS head-root
+PASS post-echo-content-length
+PASS post-echo-empty
+PASS post-echo-chunked
+PASS req-headers-join
+PASS stream-chunked
+PASS async-handler
+PASS timer-handler
+PASS status-message
+PASS status-204
+PASS headers-api
+PASS finish-event
+PASS keep-alive-pair
+PASS http10-default-close
+PASS http10-keep-alive
+PASS expect-100-continue
+PASS bad-request-line
+PASS unknown-transfer-encoding
+PASS oversized-headers
+PASS query-url
+PASS set-cookie-array
+PASS head-implicit-length
+PASS remote-address
+PASS big-body-1mb
+PASS double-end
+PASS write-after-end
+PASS chunk-extension
+PASS chunked-with-trailers
+PASS malformed-chunk-size
+PASS header-space-in-name
+PASS obsolete-line-folding
+PASS pipelined-post-then-get
+PASS delete-method
+PASS named-group-param
+PASS named-group-optional-absent
+
+38/38 parity, 0 diffs
+GEAPARITYDONE

@@ -1,0 +1,163 @@
+SCRIPTC-VS-NODE
+PASS get-root
+PASS get-plain-implicit-headers
+PASS get-404
+FAIL head-root
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n14\r\nHello, World! HEAD /\r\n0\r\n\r\n"
+PASS post-echo-content-length
+PASS post-echo-empty
+PASS post-echo-chunked
+FAIL req-headers-join
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n53\r\nmethod=GET;url=/req-info;ver=1.1;x-one=single;x-dup=a, b;cookie=k1=v1; k2=v2;host=h\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n49\r\nmethod=GET;url=/req-info;ver=1.1;x-one=single;x-dup=b;cookie=k2=v2;host=h\r\n0\r\n\r\n"
+PASS stream-chunked
+PASS async-handler
+PASS timer-handler
+PASS status-message
+FAIL status-204
+  --- node ---
+"HTTP/1.1 204 No Content\r\nDate: DATE\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 204 No Content\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n"
+PASS headers-api
+FAIL finish-event
+  --- node ---
+"HTTP/1.1 200 OK\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 12\r\n\r\nfinish-event"
+  --- gea ----
+"HTTP/1.1 404 Not Found\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n18\r\nnot found: /finish-event\r\n0\r\n\r\n"
+PASS keep-alive-pair
+FAIL http10-default-close
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: close\r\n\r\nHello, World! GET /"
+  --- gea ----
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n13\r\nHello, World! GET /\r\n0\r\n\r\n"
+FAIL http10-keep-alive
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: close\r\n\r\nHello, World! GET /"
+  --- gea ----
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\nTransfer-Encoding: chunked\r\n\r\n13\r\nHello, World! GET /\r\n0\r\n\r\nHTTP/1.1 200 OK\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 10\r\n\r\nplain body"
+FAIL expect-100-continue
+  --- node ---
+"HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n10\r\necho:world:len=5\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n10\r\necho:world:len=5\r\n0\r\n\r\n"
+FAIL bad-request-line
+  --- node ---
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+FAIL unknown-transfer-encoding
+  --- node ---
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\nb\r\necho::len=0\r\n0\r\n\r\n"
+FAIL oversized-headers
+  --- node ---
+"HTTP/1.1 431 Request Header Fields Too Large\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n13\r\nHello, World! GET /\r\n0\r\n\r\n"
+PASS query-url
+FAIL set-cookie-array
+  --- node ---
+"HTTP/1.1 200 OK\r\nSet-Cookie: a=1; Path=/\r\nSet-Cookie: b=2; HttpOnly\r\nX-Extra: e1\r\nX-Extra: e2\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 7\r\n\r\ncookies"
+  --- gea ----
+"HTTP/1.1 404 Not Found\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n16\r\nnot found: /set-cookie\r\n0\r\n\r\n"
+FAIL head-implicit-length
+  --- node ---
+"HTTP/1.1 200 OK\r\nDate: DATE\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 13\r\n\r\nimplicit body"
+FAIL remote-address
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n16\r\nlocal=true;portok=true\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 404 Not Found\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n12\r\nnot found: /remote\r\n0\r\n\r\n"
+PASS big-body-1mb
+PASS double-end
+PASS write-after-end
+PASS chunk-extension
+PASS chunked-with-trailers
+FAIL malformed-chunk-size
+  --- node ---
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+FAIL header-space-in-name
+  --- node ---
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n13\r\nHello, World! GET /\r\n0\r\n\r\n"
+FAIL obsolete-line-folding
+  --- node ---
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+PASS pipelined-post-then-get
+PASS delete-method
+PASS named-group-param
+FAIL named-group-optional-absent
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n17\r\nid=bob;action=undefined\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\ne\r\nid=bob;action=\r\n0\r\n\r\n"
+
+21/38 parity, 17 diffs
+NODEVARIANT-VS-NODE
+PASS get-root
+PASS get-plain-implicit-headers
+PASS get-404
+PASS head-root
+PASS post-echo-content-length
+PASS post-echo-empty
+PASS post-echo-chunked
+PASS req-headers-join
+PASS stream-chunked
+PASS async-handler
+PASS timer-handler
+PASS status-message
+PASS status-204
+PASS headers-api
+FAIL finish-event
+  --- node ---
+"HTTP/1.1 200 OK\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 12\r\n\r\nfinish-event"
+  --- gea ----
+"HTTP/1.1 404 Not Found\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n18\r\nnot found: /finish-event\r\n0\r\n\r\n"
+PASS keep-alive-pair
+PASS http10-default-close
+PASS http10-keep-alive
+PASS expect-100-continue
+PASS bad-request-line
+PASS unknown-transfer-encoding
+PASS oversized-headers
+PASS query-url
+FAIL set-cookie-array
+  --- node ---
+"HTTP/1.1 200 OK\r\nSet-Cookie: a=1; Path=/\r\nSet-Cookie: b=2; HttpOnly\r\nX-Extra: e1\r\nX-Extra: e2\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 7\r\n\r\ncookies"
+  --- gea ----
+"HTTP/1.1 404 Not Found\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n16\r\nnot found: /set-cookie\r\n0\r\n\r\n"
+PASS head-implicit-length
+FAIL remote-address
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n16\r\nlocal=true;portok=true\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 404 Not Found\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n12\r\nnot found: /remote\r\n0\r\n\r\n"
+PASS big-body-1mb
+PASS double-end
+PASS write-after-end
+PASS chunk-extension
+PASS chunked-with-trailers
+PASS malformed-chunk-size
+PASS header-space-in-name
+PASS obsolete-line-folding
+PASS pipelined-post-then-get
+PASS delete-method
+PASS named-group-param
+PASS named-group-optional-absent
+
+35/38 parity, 3 diffs
+SCPARITYDONE
