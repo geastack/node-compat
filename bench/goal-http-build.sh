@@ -7,16 +7,19 @@
 #
 # Usage on the Linux benchmark host:
 #   npm --prefix "$(node -p "require('path').dirname(require.resolve('@geastack/compiler/package.json'))")" run build
-#   CXX=clang++-22 bash bench/goal-http-build.sh
+#   bash bench/goal-http-build.sh
 #
 # Set GEA_COMPILER_JS to point at a specific build instead.
 #
-# Set CXX=g++ to use GCC. Set CARGO to override the cargo executable.
+# CXX defaults to clang++, the same default as scripts/build.mjs and the
+# compiler the published numbers were built with (clang 18 on the bench host).
+# Set CXX=g++ to use GCC: 4-10% slower on the same emitted source there. Set
+# CARGO to override the cargo executable.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-CXX_BIN=${CXX:-g++}
+CXX_BIN=${CXX:-clang++}
 CARGO_BIN=${CARGO:-cargo}
 # The compiler's exports map declares only an "import" condition, so
 # require.resolve('@geastack/compiler') raises ERR_PACKAGE_PATH_NOT_EXPORTED.

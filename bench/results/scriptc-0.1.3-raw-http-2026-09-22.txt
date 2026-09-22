@@ -1,0 +1,49 @@
+# scriptc 0.1.3 raw node:http server vs gea-raw, re-measured 2026-09-22 after the
+# -O2 -flto / clang++ default landed in scripts/build.mjs. Same box, same
+# bench/scriptc-raw-http.sh (server on CPU 0 for one worker, 0-3 for four; wrk
+# on 4-7, -t4 -c64, 2 s warm-up, 8 s sample, three rounds).
+#
+# scriptc binaries: `raw-static` (221,888 bytes) is the plain `server.listen(3101)`
+# build and cannot share the port -- a second instance dies with EADDRINUSE, so a
+# "4 worker" run of it is one process. The four-worker rows below use `raw-rp`
+# (221,976 bytes), the same server with `listen({ port, reusePort: true })`.
+# One-worker rows are shown for both builds; they are the same server.
+#
+# gea-raw: apps/raw-http-hello/dist/server, clang 18, -O2 -flto, stripped, no
+# libcrypto, 2,613,224 bytes, node-compat runtime 1.0.13 + compiler 1.0.16.
+
+round=1 scriptc-raw    workers=1 path=/     rps=  54506.26 p50=1.17ms   p99=1.25ms   rss_kib=2744
+round=1 scriptc-raw    workers=1 path=/json rps=  51861.20 p50=1.23ms   p99=1.30ms   rss_kib=2696
+round=2 scriptc-raw    workers=1 path=/     rps=  53260.49 p50=1.20ms   p99=1.26ms   rss_kib=2672
+round=2 scriptc-raw    workers=1 path=/json rps=  51305.43 p50=1.24ms   p99=1.31ms   rss_kib=2720
+round=3 scriptc-raw    workers=1 path=/     rps=  48258.77 p50=1.32ms   p99=1.42ms   rss_kib=2744
+round=3 scriptc-raw    workers=1 path=/json rps=  51646.87 p50=1.23ms   p99=1.32ms   rss_kib=2744
+round=1 scriptc-rp     workers=1 path=/     rps=  53539.02 p50=1.18ms   p99=1.28ms   rss_kib=2760
+round=1 scriptc-rp     workers=1 path=/json rps=  53051.70 p50=1.19ms   p99=1.30ms   rss_kib=2744
+round=2 scriptc-rp     workers=1 path=/     rps=  51511.56 p50=1.24ms   p99=1.32ms   rss_kib=2748
+round=2 scriptc-rp     workers=1 path=/json rps=  52901.22 p50=1.18ms   p99=1.36ms   rss_kib=2780
+round=3 scriptc-rp     workers=1 path=/     rps=  52086.81 p50=1.23ms   p99=1.28ms   rss_kib=2740
+round=3 scriptc-rp     workers=1 path=/json rps=  53915.55 p50=1.18ms   p99=1.26ms   rss_kib=2740
+round=1 scriptc-rp     workers=4 path=/     rps= 117061.95 p50=529.00us p99=1.11ms   rss_kib=9456
+round=1 scriptc-rp     workers=4 path=/json rps= 119813.04 p50=509.00us p99=1.03ms   rss_kib=9556
+round=2 scriptc-rp     workers=4 path=/     rps= 117253.89 p50=556.00us p99=1.16ms   rss_kib=9348
+round=2 scriptc-rp     workers=4 path=/json rps= 119153.00 p50=521.00us p99=1.06ms   rss_kib=9468
+round=3 scriptc-rp     workers=4 path=/     rps= 118376.80 p50=531.00us p99=1.08ms   rss_kib=9456
+round=3 scriptc-rp     workers=4 path=/json rps= 119447.62 p50=499.00us p99=1.01ms   rss_kib=9444
+round=1 gea-raw        workers=1 path=/     rps= 149730.72 p50=408.00us p99=826.00us rss_kib=6036
+round=1 gea-raw        workers=1 path=/json rps= 150117.85 p50=410.00us p99=824.00us rss_kib=5840
+round=2 gea-raw        workers=1 path=/     rps= 164433.42 p50=372.00us p99=747.00us rss_kib=6000
+round=2 gea-raw        workers=1 path=/json rps= 164055.13 p50=378.00us p99=758.00us rss_kib=6152
+round=3 gea-raw        workers=1 path=/     rps= 146860.04 p50=422.00us p99=847.00us rss_kib=5856
+round=3 gea-raw        workers=1 path=/json rps= 158733.26 p50=383.00us p99=778.00us rss_kib=5964
+round=1 gea-raw        workers=4 path=/     rps= 310901.06 p50=184.00us p99=464.00us rss_kib=23224
+round=1 gea-raw        workers=4 path=/json rps= 312738.32 p50=181.00us p99=509.00us rss_kib=23684
+round=2 gea-raw        workers=4 path=/     rps= 317044.69 p50=167.00us p99=390.00us rss_kib=23280
+round=2 gea-raw        workers=4 path=/json rps= 313629.62 p50=192.00us p99=469.00us rss_kib=23604
+round=3 gea-raw        workers=4 path=/     rps= 315712.42 p50=178.00us p99=494.00us rss_kib=23764
+round=3 gea-raw        workers=4 path=/json rps= 319413.45 p50=175.00us p99=408.00us rss_kib=23836
+
+# perf stat, single worker on CPU 0, user-mode per request (insn.sh):
+#   gea-raw     rps=154829  user: 9027 insn 7343 cyc | kernel: 14599 insn 16459 cyc
+#   rust-hyper  rps=151672  user: 12056 insn 7717 cyc | kernel: 15585 insn 16568 cyc
+#   hono-gea    rps=60370   user: 33060 insn 33925 cyc | kernel: 15865 insn 27165 cyc

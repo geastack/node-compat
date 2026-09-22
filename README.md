@@ -93,16 +93,22 @@ under `node_modules/.cache/geatsc/sources`, restoring the generics `tsc`
 erased so the library's hot path monomorphizes to fully typed C++ (see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
 
-- `--debug` builds at `-O0 -g` for lldb. Optimized builds default to `-O2`,
-  overridable with `GEA_OPT_LEVEL`, and are stripped; `-O3` measured *slower*
-  on server workloads (icache pressure), and `-O3 -flto` bought 2-3% at one worker
-  and 0.6% at four (inside the noise) for 25 s more link time, so neither is
-  the default.
+- `--debug` builds at `-O0 -g` for lldb. Optimized builds are stripped and
+  link-time optimized, at `-Os` under `clang++` (the `CXX` default) and `-O2`
+  under g++, because the right level depends on the compiler. Measured on the
+  bench host (clang 18, four pinned workers): `-Os -flto` is level with
+  `-O2 -flto` on the raw HTTP server (316k vs 313k req/s) and 5% faster on the
+  compiled Hono app (150k vs 144k, +10% at one worker), at 30% smaller
+  binaries (1.82 MB / 5.47 MB) and less memory — Hono runs more instructions
+  at `-Os` but fewer cycles, so its hot path is instruction-cache bound.
+  `-O3` buys nothing on either compiler. g++ 13 is the other way round (`-Os`
+  costs 25%) and is 4-10% behind clang on the same emitted source, so the
+  published numbers are clang's. `GEA_OPT_LEVEL` overrides the level,
+  `GEA_LTO=0` drops the LTO.
 - Binaries link with hidden visibility and dead-stripping
-  (`-fvisibility=hidden`, `-Wl,-dead_strip` / `--gc-sections`). `-Os` produces
-  a 39% smaller binary at 25% lower throughput on the raw HTTP server, so
-  `-O2` stays the default. OpenSSL is linked only when the program reaches
-  `node:crypto`; a server that never hashes anything maps no `libcrypto`.
+  (`-fvisibility=hidden`, `-Wl,-dead_strip` / `--gc-sections`). OpenSSL is
+  linked only when the program reaches `node:crypto`; a server that never
+  hashes anything maps no `libcrypto` (measured: 0.45 MB of PSS per process).
 
 Every figure above and its history is in [BENCHMARKS.md](BENCHMARKS.md).
 

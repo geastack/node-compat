@@ -1,0 +1,1007 @@
+{
+  "utc": "2026-09-22T03:33:56Z",
+  "settings": {
+    "output": "bench/results/http-box-2026-09-22-scriptc.json",
+    "rounds": 3,
+    "duration": "8s",
+    "servers": [
+      "scriptc-raw"
+    ],
+    "workers": [
+      1,
+      4
+    ],
+    "gea_dist": "dist",
+    "startup_only": false,
+    "server_cpus": "0-3"
+  },
+  "server_cpus": {
+    "1": "0",
+    "multi": "0-3"
+  },
+  "load_cpus": "4-7",
+  "connections": 64,
+  "load_threads": 4,
+  "caveat": "Eight-worker servers and wrk share CPUs; loopback throughput is host-limited.",
+  "machine": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Xeon(R) CPU E3-1231 v3 @ 3.40GHz\nCPU family:                              6\nModel:                                   60\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                3\nCPU(s) scaling MHz:                      88%\nCPU max MHz:                             3800.0000\nCPU min MHz:                             800.0000\nBogoMIPS:                                6784.29\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid xsaveopt dtherm ida arat pln pts vnmi md_clear flush_l1d ibpb_exit_to_user\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: VMX disabled\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Unknown: No mitigations\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Retpolines; IBPB conditional; IBRS_FW; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace\n",
+  "node": "v24.21.0",
+  "start_load": "0.07 0.84 1.94 1/275 1921749",
+  "sha256": {
+    "apps/hono-hello/dist/server": "b78d745788cbc243dc3eb18adb9431dc67b1c5428f9cde6e85d90cba2d511e52",
+    "apps/hono-hello/dist/server.cpp": "ec00f7aa9c61264c525d22b42979355f0839b5be18032721aadf42803c93a376",
+    "apps/raw-http-hello/dist/server": "042e9718f4dd7e0927e05656dc2e84f5811d6ca8a9e8ab5932430a39fe5557db",
+    "apps/raw-http-hello/dist/server.cpp": "ed76acda662d6ea6d986da9eb3ea8e0da355271e5301cc16487639e78ae3610f",
+    "apps/raw-http-hello/dist/cpp-drogon": "fdb341fd7a1589167c8436c0af90e626485aa5b1bc132712303a0a790e5854f5",
+    "apps/raw-http-hello/dist/cpp-epoll": "bc7b207ebc32e36d88cca8b9b1aeed6cab7fedff873f3a9d2a59cf66576dfa40",
+    "runtime/gea_node.cpp": "33d29e97d3bb8fcb22d305e3e7c126632b0013329d42d31b96d96e63492d956f",
+    "runtime/gea_node.hpp": "faf05d43960a26290c1a633da7581fb7e1cdf0a2fcb72187ec4b310335c02f40",
+    "apps/hono-hello/server.node.mjs": "ebd47d008f7e66d6841ee8656cf9a91eda340b95c348879002856430f917c174",
+    "apps/hono-hello/cluster.node.mjs": "406b49ca878ef15d762f8bc623e7dea69c932dade4dcc9f981d7717e5082ddc4",
+    "apps/hono-hello/node_modules/hono/package.json": "83da95303f0d0e1df8b146d3d12df282e7ba0b28204a83501e8b29ba1bebd131",
+    "apps/raw-http-hello/server.node.mjs": "f0981deb78cb1203b5943d63aee6d0be0c627c580a19cb38ca69a78aa228529d",
+    "apps/raw-http-hello/cluster.node.mjs": "5ed904308537410a481203258ed9a861853209fdf7949573499051fbd998dcb4",
+    "apps/raw-http-hello/rust-server/target/release/rust-http-hello": "4b884ceeb062648323fe9198fa5b636c3761361493d2489114cb2b4d62394c89",
+    "apps/raw-http-hello/rust-server/target/release/axum-http-hello": "58e778accda01b512d541218bea532824d8b6ac7f53888789761c8d53ce187f9",
+    "apps/raw-http-hello/rust-server/src/main.rs": "97f335c379a9f9153e30cef1b841d33f13e29d5b4251f319dad4b35a03ff33dd",
+    "apps/raw-http-hello/rust-server/src/bin/axum-http-hello.rs": "32c1d1fc4c5e76557672a3b9b78e383ba0cf7aeb5570deb7838b804c3ddab226",
+    "apps/raw-http-hello/cpp-server/server.cpp": "4881106e502fc43cbc6747af2cc3bb7d8457117ab656bde58b575c78efe25fb0",
+    "apps/raw-http-hello/drogon-server/main.cc": "aa790d8d9fef9ab76259e986c1705adcbf994592d7df119af4f08842ab165459",
+    "apps/raw-http-hello/rust-server/Cargo.lock": "914e45a89042aaacb3f6a0870902fd415d4e325b0a394674c2a9c63c06605a58",
+    "bench/http-matrix.py": "f1a7463fc04400e96e6e43d28eb9cdca7cd0a2f8da70308a02e748057621ae3c"
+  },
+  "wire_contract": [
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Tue, 22 Sep 2026 03:33:56 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "scriptc-raw",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Tue, 22 Sep 2026 03:33:56 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "scriptc-raw",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Tue, 22 Sep 2026 03:34:16 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "scriptc-raw",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Tue, 22 Sep 2026 03:34:16 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "scriptc-raw",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Tue, 22 Sep 2026 03:34:36 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "scriptc-raw",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Tue, 22 Sep 2026 03:34:36 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "scriptc-raw",
+      "workers": 4
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Tue, 22 Sep 2026 03:34:56 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "scriptc-raw",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Tue, 22 Sep 2026 03:34:56 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "scriptc-raw",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Tue, 22 Sep 2026 03:35:16 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "scriptc-raw",
+      "workers": 1
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Tue, 22 Sep 2026 03:35:16 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "scriptc-raw",
+      "workers": 1
+    },
+    {
+      "path": "/",
+      "bytes": 202,
+      "headers": {
+        "content-type": [
+          "text/plain; charset=utf-8"
+        ],
+        "date": [
+          "Tue, 22 Sep 2026 03:35:36 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "b89028d8b493964697d554838d0bbac2fdd2e28a1edfb087b861895a92496f95",
+      "server": "scriptc-raw",
+      "workers": 4
+    },
+    {
+      "path": "/json",
+      "bytes": 206,
+      "headers": {
+        "content-type": [
+          "application/json; charset=utf-8"
+        ],
+        "date": [
+          "Tue, 22 Sep 2026 03:35:36 GMT"
+        ],
+        "connection": [
+          "keep-alive"
+        ],
+        "keep-alive": [
+          "timeout=5"
+        ],
+        "transfer-encoding": [
+          "chunked"
+        ]
+      },
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "server": "scriptc-raw",
+      "workers": 4
+    }
+  ],
+  "startups": [
+    {
+      "round": 1,
+      "server": "scriptc-raw",
+      "workers": 1,
+      "milliseconds": 2.1001743152737617
+    },
+    {
+      "round": 1,
+      "server": "scriptc-raw",
+      "workers": 4,
+      "milliseconds": 6.615237798541784
+    },
+    {
+      "round": 2,
+      "server": "scriptc-raw",
+      "workers": 4,
+      "milliseconds": 6.694994866847992
+    },
+    {
+      "round": 2,
+      "server": "scriptc-raw",
+      "workers": 1,
+      "milliseconds": 6.1886971816420555
+    },
+    {
+      "round": 3,
+      "server": "scriptc-raw",
+      "workers": 1,
+      "milliseconds": 6.234872154891491
+    },
+    {
+      "round": 3,
+      "server": "scriptc-raw",
+      "workers": 4,
+      "milliseconds": 6.200508214533329
+    }
+  ],
+  "samples": [
+    {
+      "round": 1,
+      "server": "scriptc-raw",
+      "workers": 1,
+      "path": "/",
+      "memory_before": {
+        "rss_kib": 2680,
+        "pss_kib": 796,
+        "processes": [
+          {
+            "pid": 1921750,
+            "rss_kib": 2680,
+            "pss_kib": 796
+          }
+        ]
+      },
+      "load_before": "0.22 0.86 1.94 1/276 1921757",
+      "rps": 51749.23,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.22ms  126.13us   3.03ms   93.93%\n    Req/Sec    13.12k     2.03k   47.33k    99.69%\n  Latency Distribution\n     50%    1.23ms\n     75%    1.29ms\n     90%    1.32ms\n     99%    1.41ms\n  419130 requests in 8.10s, 80.74MB read\nRequests/sec:  51749.23\nTransfer/sec:      9.97MB\n",
+      "latency": {
+        "50%": "1.23ms",
+        "90%": "1.32ms",
+        "99%": "1.41ms"
+      },
+      "memory_after": {
+        "rss_kib": 2732,
+        "pss_kib": 840,
+        "processes": [
+          {
+            "pid": 1921750,
+            "rss_kib": 2732,
+            "pss_kib": 840
+          }
+        ]
+      },
+      "load_after": "0.36 0.87 1.94 1/280 1921818"
+    },
+    {
+      "round": 1,
+      "server": "scriptc-raw",
+      "workers": 1,
+      "path": "/json",
+      "memory_before": {
+        "rss_kib": 2732,
+        "pss_kib": 840,
+        "processes": [
+          {
+            "pid": 1921750,
+            "rss_kib": 2732,
+            "pss_kib": 840
+          }
+        ]
+      },
+      "load_before": "0.36 0.87 1.94 1/280 1921818",
+      "rps": 53237.66,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.20ms   45.53us   3.04ms   98.08%\n    Req/Sec    13.40k   142.04    14.56k    85.00%\n  Latency Distribution\n     50%    1.20ms\n     75%    1.20ms\n     90%    1.22ms\n     99%    1.26ms\n  426333 requests in 8.01s, 83.76MB read\nRequests/sec:  53237.66\nTransfer/sec:     10.46MB\n",
+      "latency": {
+        "50%": "1.20ms",
+        "90%": "1.22ms",
+        "99%": "1.26ms"
+      },
+      "memory_after": {
+        "rss_kib": 2804,
+        "pss_kib": 912,
+        "processes": [
+          {
+            "pid": 1921750,
+            "rss_kib": 2804,
+            "pss_kib": 912
+          }
+        ]
+      },
+      "load_after": "0.62 0.91 1.94 1/280 1921827"
+    },
+    {
+      "round": 1,
+      "server": "scriptc-raw",
+      "workers": 4,
+      "path": "/",
+      "memory_before": {
+        "rss_kib": 9388,
+        "pss_kib": 1384,
+        "processes": [
+          {
+            "pid": 1921828,
+            "rss_kib": 2292,
+            "pss_kib": 335
+          },
+          {
+            "pid": 1921830,
+            "rss_kib": 2368,
+            "pss_kib": 334
+          },
+          {
+            "pid": 1921831,
+            "rss_kib": 2352,
+            "pss_kib": 375
+          },
+          {
+            "pid": 1921832,
+            "rss_kib": 2376,
+            "pss_kib": 340
+          }
+        ]
+      },
+      "load_before": "1.13 1.01 1.97 1/283 1921839",
+      "rps": 116469.19,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   540.23us  139.34us   3.61ms   87.13%\n    Req/Sec    29.54k     4.47k  103.64k    99.38%\n  Latency Distribution\n     50%  560.00us\n     75%  618.00us\n     90%  653.00us\n     99%    1.15ms\n  943321 requests in 8.10s, 181.72MB read\nRequests/sec: 116469.19\nTransfer/sec:     22.44MB\n",
+      "latency": {
+        "50%": "560.00us",
+        "90%": "653.00us",
+        "99%": "1.15ms"
+      },
+      "memory_after": {
+        "rss_kib": 9456,
+        "pss_kib": 1452,
+        "processes": [
+          {
+            "pid": 1921828,
+            "rss_kib": 2296,
+            "pss_kib": 339
+          },
+          {
+            "pid": 1921830,
+            "rss_kib": 2404,
+            "pss_kib": 370
+          },
+          {
+            "pid": 1921831,
+            "rss_kib": 2352,
+            "pss_kib": 375
+          },
+          {
+            "pid": 1921832,
+            "rss_kib": 2404,
+            "pss_kib": 368
+          }
+        ]
+      },
+      "load_after": "1.60 1.11 1.99 1/283 1921848"
+    },
+    {
+      "round": 1,
+      "server": "scriptc-raw",
+      "workers": 4,
+      "path": "/json",
+      "memory_before": {
+        "rss_kib": 9456,
+        "pss_kib": 1452,
+        "processes": [
+          {
+            "pid": 1921828,
+            "rss_kib": 2296,
+            "pss_kib": 339
+          },
+          {
+            "pid": 1921830,
+            "rss_kib": 2404,
+            "pss_kib": 370
+          },
+          {
+            "pid": 1921831,
+            "rss_kib": 2352,
+            "pss_kib": 375
+          },
+          {
+            "pid": 1921832,
+            "rss_kib": 2404,
+            "pss_kib": 368
+          }
+        ]
+      },
+      "load_before": "1.60 1.11 1.99 1/283 1921848",
+      "rps": 118450.65,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   535.13us  284.99us   3.41ms   57.88%\n    Req/Sec    29.95k     5.52k   56.61k    64.29%\n  Latency Distribution\n     50%  643.00us\n     75%  799.00us\n     90%    0.87ms\n     99%    1.17ms\n  959460 requests in 8.10s, 188.49MB read\nRequests/sec: 118450.65\nTransfer/sec:     23.27MB\n",
+      "latency": {
+        "50%": "643.00us",
+        "90%": "0.87ms",
+        "99%": "1.17ms"
+      },
+      "memory_after": {
+        "rss_kib": 9540,
+        "pss_kib": 1536,
+        "processes": [
+          {
+            "pid": 1921828,
+            "rss_kib": 2296,
+            "pss_kib": 339
+          },
+          {
+            "pid": 1921830,
+            "rss_kib": 2420,
+            "pss_kib": 386
+          },
+          {
+            "pid": 1921831,
+            "rss_kib": 2420,
+            "pss_kib": 443
+          },
+          {
+            "pid": 1921832,
+            "rss_kib": 2404,
+            "pss_kib": 368
+          }
+        ]
+      },
+      "load_after": "2.58 1.34 2.06 1/284 1921862"
+    },
+    {
+      "round": 2,
+      "server": "scriptc-raw",
+      "workers": 4,
+      "path": "/json",
+      "memory_before": {
+        "rss_kib": 9332,
+        "pss_kib": 1377,
+        "processes": [
+          {
+            "pid": 1921863,
+            "rss_kib": 2292,
+            "pss_kib": 331
+          },
+          {
+            "pid": 1921865,
+            "rss_kib": 2356,
+            "pss_kib": 321
+          },
+          {
+            "pid": 1921866,
+            "rss_kib": 2312,
+            "pss_kib": 362
+          },
+          {
+            "pid": 1921867,
+            "rss_kib": 2372,
+            "pss_kib": 363
+          }
+        ]
+      },
+      "load_before": "2.86 1.42 2.08 1/284 1921874",
+      "rps": 118847.04,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   530.79us  148.43us   3.94ms   76.49%\n    Req/Sec    30.05k     3.20k   58.64k    83.54%\n  Latency Distribution\n     50%  469.00us\n     75%  665.00us\n     90%  715.00us\n     99%    0.94ms\n  962589 requests in 8.10s, 189.11MB read\nRequests/sec: 118847.04\nTransfer/sec:     23.35MB\n",
+      "latency": {
+        "50%": "469.00us",
+        "90%": "715.00us",
+        "99%": "0.94ms"
+      },
+      "memory_after": {
+        "rss_kib": 9432,
+        "pss_kib": 1477,
+        "processes": [
+          {
+            "pid": 1921863,
+            "rss_kib": 2304,
+            "pss_kib": 343
+          },
+          {
+            "pid": 1921865,
+            "rss_kib": 2424,
+            "pss_kib": 389
+          },
+          {
+            "pid": 1921866,
+            "rss_kib": 2324,
+            "pss_kib": 374
+          },
+          {
+            "pid": 1921867,
+            "rss_kib": 2380,
+            "pss_kib": 371
+          }
+        ]
+      },
+      "load_after": "3.19 1.51 2.11 1/284 1921885"
+    },
+    {
+      "round": 2,
+      "server": "scriptc-raw",
+      "workers": 4,
+      "path": "/",
+      "memory_before": {
+        "rss_kib": 9432,
+        "pss_kib": 1477,
+        "processes": [
+          {
+            "pid": 1921863,
+            "rss_kib": 2304,
+            "pss_kib": 343
+          },
+          {
+            "pid": 1921865,
+            "rss_kib": 2424,
+            "pss_kib": 389
+          },
+          {
+            "pid": 1921866,
+            "rss_kib": 2324,
+            "pss_kib": 374
+          },
+          {
+            "pid": 1921867,
+            "rss_kib": 2380,
+            "pss_kib": 371
+          }
+        ]
+      },
+      "load_before": "3.19 1.51 2.11 1/284 1921885",
+      "rps": 117001.1,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   540.08us  202.27us   4.20ms   66.68%\n    Req/Sec    29.58k     3.62k   57.95k    71.12%\n  Latency Distribution\n     50%  561.00us\n     75%  678.00us\n     90%  745.00us\n     99%    1.14ms\n  947684 requests in 8.10s, 182.56MB read\nRequests/sec: 117001.10\nTransfer/sec:     22.54MB\n",
+      "latency": {
+        "50%": "561.00us",
+        "90%": "745.00us",
+        "99%": "1.14ms"
+      },
+      "memory_after": {
+        "rss_kib": 9492,
+        "pss_kib": 1537,
+        "processes": [
+          {
+            "pid": 1921863,
+            "rss_kib": 2344,
+            "pss_kib": 383
+          },
+          {
+            "pid": 1921865,
+            "rss_kib": 2424,
+            "pss_kib": 389
+          },
+          {
+            "pid": 1921866,
+            "rss_kib": 2324,
+            "pss_kib": 374
+          },
+          {
+            "pid": 1921867,
+            "rss_kib": 2400,
+            "pss_kib": 391
+          }
+        ]
+      },
+      "load_after": "3.70 1.68 2.15 1/284 1921896"
+    },
+    {
+      "round": 2,
+      "server": "scriptc-raw",
+      "workers": 1,
+      "path": "/json",
+      "memory_before": {
+        "rss_kib": 2668,
+        "pss_kib": 786,
+        "processes": [
+          {
+            "pid": 1921897,
+            "rss_kib": 2668,
+            "pss_kib": 786
+          }
+        ]
+      },
+      "load_before": "3.56 1.68 2.15 1/281 1921904",
+      "rps": 53453.34,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.18ms  101.37us   3.02ms   95.19%\n    Req/Sec    13.57k     1.84k   45.87k    99.07%\n  Latency Distribution\n     50%    1.19ms\n     75%    1.19ms\n     90%    1.25ms\n     99%    1.33ms\n  432935 requests in 8.10s, 85.05MB read\nRequests/sec:  53453.34\nTransfer/sec:     10.50MB\n",
+      "latency": {
+        "50%": "1.19ms",
+        "90%": "1.25ms",
+        "99%": "1.33ms"
+      },
+      "memory_after": {
+        "rss_kib": 2740,
+        "pss_kib": 858,
+        "processes": [
+          {
+            "pid": 1921897,
+            "rss_kib": 2740,
+            "pss_kib": 858
+          }
+        ]
+      },
+      "load_after": "3.44 1.69 2.15 1/281 1921916"
+    },
+    {
+      "round": 2,
+      "server": "scriptc-raw",
+      "workers": 1,
+      "path": "/",
+      "memory_before": {
+        "rss_kib": 2740,
+        "pss_kib": 858,
+        "processes": [
+          {
+            "pid": 1921897,
+            "rss_kib": 2740,
+            "pss_kib": 858
+          }
+        ]
+      },
+      "load_before": "3.44 1.69 2.15 1/281 1921916",
+      "rps": 50676.24,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.25ms  110.46us   2.53ms   98.25%\n    Req/Sec    12.86k     2.06k   49.44k    99.69%\n  Latency Distribution\n     50%    1.25ms\n     75%    1.28ms\n     90%    1.30ms\n     99%    1.35ms\n  410446 requests in 8.10s, 79.07MB read\nRequests/sec:  50676.24\nTransfer/sec:      9.76MB\n",
+      "latency": {
+        "50%": "1.25ms",
+        "90%": "1.30ms",
+        "99%": "1.35ms"
+      },
+      "memory_after": {
+        "rss_kib": 2792,
+        "pss_kib": 910,
+        "processes": [
+          {
+            "pid": 1921897,
+            "rss_kib": 2792,
+            "pss_kib": 910
+          }
+        ]
+      },
+      "load_after": "3.22 1.70 2.15 1/279 1921927"
+    },
+    {
+      "round": 3,
+      "server": "scriptc-raw",
+      "workers": 1,
+      "path": "/",
+      "memory_before": {
+        "rss_kib": 2640,
+        "pss_kib": 782,
+        "processes": [
+          {
+            "pid": 1921928,
+            "rss_kib": 2640,
+            "pss_kib": 782
+          }
+        ]
+      },
+      "load_before": "3.12 1.70 2.15 1/279 1921935",
+      "rps": 51005.16,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.24ms  120.84us   3.12ms   88.43%\n    Req/Sec    12.94k     2.03k   47.53k    99.69%\n  Latency Distribution\n     50%    1.22ms\n     75%    1.30ms\n     90%    1.36ms\n     99%    1.41ms\n  413114 requests in 8.10s, 79.58MB read\nRequests/sec:  51005.16\nTransfer/sec:      9.83MB\n",
+      "latency": {
+        "50%": "1.22ms",
+        "90%": "1.36ms",
+        "99%": "1.41ms"
+      },
+      "memory_after": {
+        "rss_kib": 2736,
+        "pss_kib": 878,
+        "processes": [
+          {
+            "pid": 1921928,
+            "rss_kib": 2736,
+            "pss_kib": 878
+          }
+        ]
+      },
+      "load_after": "3.03 1.71 2.15 1/279 1921944"
+    },
+    {
+      "round": 3,
+      "server": "scriptc-raw",
+      "workers": 1,
+      "path": "/json",
+      "memory_before": {
+        "rss_kib": 2736,
+        "pss_kib": 878,
+        "processes": [
+          {
+            "pid": 1921928,
+            "rss_kib": 2736,
+            "pss_kib": 878
+          }
+        ]
+      },
+      "load_before": "3.03 1.71 2.15 1/279 1921944",
+      "rps": 50559.59,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.26ms   79.00us   2.74ms   96.81%\n    Req/Sec    12.77k     0.94k   23.90k    99.38%\n  Latency Distribution\n     50%    1.27ms\n     75%    1.30ms\n     90%    1.31ms\n     99%    1.34ms\n  409501 requests in 8.10s, 80.45MB read\nRequests/sec:  50559.59\nTransfer/sec:      9.93MB\n",
+      "latency": {
+        "50%": "1.27ms",
+        "90%": "1.31ms",
+        "99%": "1.34ms"
+      },
+      "memory_after": {
+        "rss_kib": 2792,
+        "pss_kib": 934,
+        "processes": [
+          {
+            "pid": 1921928,
+            "rss_kib": 2792,
+            "pss_kib": 934
+          }
+        ]
+      },
+      "load_after": "2.87 1.72 2.15 1/279 1921955"
+    },
+    {
+      "round": 3,
+      "server": "scriptc-raw",
+      "workers": 4,
+      "path": "/",
+      "memory_before": {
+        "rss_kib": 9376,
+        "pss_kib": 1373,
+        "processes": [
+          {
+            "pid": 1921956,
+            "rss_kib": 2356,
+            "pss_kib": 360
+          },
+          {
+            "pid": 1921958,
+            "rss_kib": 2332,
+            "pss_kib": 328
+          },
+          {
+            "pid": 1921959,
+            "rss_kib": 2300,
+            "pss_kib": 328
+          },
+          {
+            "pid": 1921960,
+            "rss_kib": 2388,
+            "pss_kib": 357
+          }
+        ]
+      },
+      "load_before": "3.20 1.81 2.17 1/282 1921967",
+      "rps": 117191.11,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   536.07us  123.13us   3.41ms   93.96%\n    Req/Sec    29.71k     4.63k  105.50k    99.69%\n  Latency Distribution\n     50%  522.00us\n     75%  577.00us\n     90%  612.00us\n     99%    1.09ms\n  949173 requests in 8.10s, 182.85MB read\nRequests/sec: 117191.11\nTransfer/sec:     22.58MB\n",
+      "latency": {
+        "50%": "522.00us",
+        "90%": "612.00us",
+        "99%": "1.09ms"
+      },
+      "memory_after": {
+        "rss_kib": 9436,
+        "pss_kib": 1433,
+        "processes": [
+          {
+            "pid": 1921956,
+            "rss_kib": 2364,
+            "pss_kib": 368
+          },
+          {
+            "pid": 1921958,
+            "rss_kib": 2344,
+            "pss_kib": 340
+          },
+          {
+            "pid": 1921959,
+            "rss_kib": 2316,
+            "pss_kib": 344
+          },
+          {
+            "pid": 1921960,
+            "rss_kib": 2412,
+            "pss_kib": 381
+          }
+        ]
+      },
+      "load_after": "3.59 1.91 2.20 1/282 1921976"
+    },
+    {
+      "round": 3,
+      "server": "scriptc-raw",
+      "workers": 4,
+      "path": "/json",
+      "memory_before": {
+        "rss_kib": 9436,
+        "pss_kib": 1433,
+        "processes": [
+          {
+            "pid": 1921956,
+            "rss_kib": 2364,
+            "pss_kib": 368
+          },
+          {
+            "pid": 1921958,
+            "rss_kib": 2344,
+            "pss_kib": 340
+          },
+          {
+            "pid": 1921959,
+            "rss_kib": 2316,
+            "pss_kib": 344
+          },
+          {
+            "pid": 1921960,
+            "rss_kib": 2412,
+            "pss_kib": 381
+          }
+        ]
+      },
+      "load_before": "3.59 1.91 2.20 1/282 1921976",
+      "rps": 119050.71,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   529.14us  114.91us   3.78ms   93.96%\n    Req/Sec    30.09k     2.42k   61.89k    93.17%\n  Latency Distribution\n     50%  508.00us\n     75%  556.00us\n     90%  596.00us\n     99%    1.05ms\n  964244 requests in 8.10s, 189.43MB read\nRequests/sec: 119050.71\nTransfer/sec:     23.39MB\n",
+      "latency": {
+        "50%": "508.00us",
+        "90%": "596.00us",
+        "99%": "1.05ms"
+      },
+      "memory_after": {
+        "rss_kib": 9500,
+        "pss_kib": 1497,
+        "processes": [
+          {
+            "pid": 1921956,
+            "rss_kib": 2380,
+            "pss_kib": 384
+          },
+          {
+            "pid": 1921958,
+            "rss_kib": 2364,
+            "pss_kib": 360
+          },
+          {
+            "pid": 1921959,
+            "rss_kib": 2328,
+            "pss_kib": 356
+          },
+          {
+            "pid": 1921960,
+            "rss_kib": 2428,
+            "pss_kib": 397
+          }
+        ]
+      },
+      "load_after": "4.11 2.08 2.26 1/282 1921987"
+    }
+  ],
+  "complete": true
+}

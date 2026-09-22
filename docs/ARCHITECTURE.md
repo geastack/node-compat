@@ -17,8 +17,9 @@ runtime/gea_node.cpp (reactor: event loop, sockets, HTTP parser, allocator)
 
 Everything ends up in **one translation unit**: geatsc emits `program.cpp`,
 the [plugin](../plugin/index.mjs) `#include`s `gea_node.cpp` right after the
-runtime umbrella, and clang/g++ compiles the lot with whole-program
-visibility (`-O2`, `-fno-exceptions`, `-fno-rtti`).
+runtime umbrella, and clang (or g++) compiles the lot with whole-program
+visibility (`-Os -flto` under clang, `-O2 -flto` under g++, `-fno-exceptions`,
+`-fno-rtti`).
 
 ### Layer 1 — the reactor (`runtime/gea_node.cpp`)
 
@@ -212,10 +213,18 @@ Measured on the idle benchmark box; the full history with numbers is in
 1. **Kill dynamic-value traffic** (`gea_cpp_value`) — the typed dispatch
    boundary, typed header maps, typed listeners. Boxing was never one big
    cost; it was death by make_shared: each box allocates bridge closures.
-2. **`-O2`, not `-Os`, not `-O3`, not LTO** — +40% over `-Os`; `-O3` measured ~15%
-   *slower* than `-O2` (icache bloat); `-O3 -flto` +2-3% at one worker, +0.6%
-   at four (292k vs 290k pinned, inside the noise), +25 s link (2026-09-22). Stripped, and `-lcrypto` only when
-   `node:crypto` is reached. Always measure.
+2. **`-Os -flto` on clang, `-O2 -flto` on g++, never `-O3`** — the flag
+   answer depends on the compiler, so it was measured on both (four pinned
+   workers, 2026-09-22). clang 18, raw server: `-O2` 290-308k req/s at
+   2.71 MB, `-O2 -flto` 310-314k at 2.61 MB, `-Os -flto` 312-320k at 1.82 MB,
+   `-O3` level with `-O2` at +5% size. clang 18, Hono: `-O2 -flto` 144k at
+   7.80 MB, `-Os -flto` 150k at 5.47 MB (+10% at one worker) — more
+   instructions per request (35,991 vs 33,060) but fewer cycles (28,605 vs
+   33,925): the hot path is instruction-cache bound and smaller code wins.
+   g++ 13: `-O2` 290k, `-O3 -flto` 292k (inside the noise), `-Os` −25% at
+   1.65 MB; and g++ is 4-10% behind clang on the same emitted source.
+   Stripped, and `-lcrypto` only when `node:crypto` is reached (0.45 MB of PSS
+   per process otherwise). Always measure, and say which compiler.
 3. **Pool allocator** — +31%; a server's steady state allocates the same few
    sizes forever, and recycling beats even a good general malloc.
 4. **epoll** + syscall-adjacent trims (move the response buffer instead of

@@ -729,9 +729,28 @@ const sources = emittedUnits.filter((unit) => unit.fileName.endsWith('.cpp')).ma
 // unconditional -lcrypto mapped a 4.5 MB library into every server that never
 // hashed anything. macOS uses CommonCrypto and needs no library either way.
 const needsCrypto = emittedUnits.some((unit) => unit.source.includes('#include "gea_node_crypto.hpp"'))
+// The C++ compiler is the caller's; the default is clang++, which is what the
+// published benchmarks were built with (clang 18 on the Ubuntu bench host;
+// g++ 13 there is 4-10% slower on the same emitted source).
+const cxx = process.env.CXX ?? 'clang++'
+const cxxIsClang = /clang/.test(path.basename(cxx)) || (!/g\+\+|gcc/.test(path.basename(cxx)) && process.platform === 'darwin')
+// The optimization level depends on the compiler, because the answer does
+// (bench host, 2026-09-22, four pinned workers, same emitted source). clang 18:
+// `-Os -flto` is the fastest AND the smallest -- level with `-O2 -flto` on the
+// raw server (316k vs 313k req/s) and +5% on the compiled Hono app (150k vs
+// 144k; +10% at one worker), at 30% smaller binaries (1.82 MB / 5.47 MB) and
+// less memory. Hono executes more instructions at -Os but fewer cycles: the
+// hot path is instruction-cache bound, and smaller code wins. `-O3` bought
+// nothing on either compiler. g++ 13 is the opposite: `-Os` costs 25%, so it
+// keeps `-O2`. LTO helps both (clang: +3% and -4% size over plain `-O2`).
+// clang on Linux needs the gold plugin for LTO (ld.bfd has no LLVM plugin and
+// lld is not installed everywhere). GEA_OPT_LEVEL overrides the level,
+// GEA_LTO=0 drops the LTO, for a profile or a bisect.
+const lto = optimize && process.env.GEA_LTO !== '0'
 const flags = [
   '-std=c++20',
-  optimize ? (process.env.GEA_OPT_LEVEL ?? '-O2') : '-O0',
+  optimize ? (process.env.GEA_OPT_LEVEL ?? (cxxIsClang ? '-Os' : '-O2')) : '-O0',
+  ...(lto ? ['-flto', ...(process.platform === 'linux' && cxxIsClang ? ['-fuse-ld=gold'] : [])] : []),
   ...(!optimize ? ['-g'] : []),
   // Symbols are for a profile, and a profile builds with -O0 -g above. An
   // optimized binary ships stripped: on the raw server the symbol table was
@@ -766,9 +785,6 @@ const flags = [
   '-o',
   exePath
 ]
-// The C++ compiler is the caller's: on the Ubuntu bench box clang 18 segfaults
-// on the emitted lambda nest, so that host builds with `CXX=g++`.
-const cxx = process.env.CXX ?? 'clang++'
 if (verbose) console.error(`[build] ${cxx} ${flags.join(' ')}`)
 const linkStarted = process.hrtime.bigint()
 try {

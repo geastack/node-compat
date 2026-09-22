@@ -61,6 +61,14 @@ def command(name, workers):
             env['SINGLE_THREAD'] = '1'
         else:
             env['TOKIO_WORKER_THREADS'] = str(workers)
+    elif name == 'scriptc-raw':
+        # Vercel scriptc's static build of the same raw-http-hello server.ts
+        # (with `reusePort: true`, or a second instance dies with EADDRINUSE).
+        # scriptc has no cluster module, so N workers are N processes started by
+        # bench/scriptc-cluster.sh; one worker runs the binary directly so the
+        # startup figure is the binary's own.
+        binary = os.environ.get('SCRIPTC_RAW', 'apps/raw-http-hello/scriptc/raw-rp')
+        cmd = [binary] if workers == 1 else ['bash', 'bench/scriptc-cluster.sh', binary, str(workers)]
     else:
         cmd = [f'apps/raw-http-hello/dist/{name}']
         env['DROGON_THREADS' if name == 'cpp-drogon' else 'CPP_WORKERS'] = str(workers)
