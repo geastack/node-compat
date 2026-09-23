@@ -110,6 +110,12 @@ declare global {
 
   var process: NodeJS.Process
 
+  // Same alias `@types/node` publishes. A type only: a value binding here
+  // would claim a host cell the plugin does not define.
+  interface NodeRequire {
+    (specifier: string): any
+  }
+
   // Node's own alias for the object `globalThis` already names -- kept
   // because library code still spells it this way. `@hono/node-server`'s
   // `listener.ts`/`request.ts`/`response.ts` read and
