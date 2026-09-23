@@ -479,6 +479,11 @@ export function geatscNodePlugin() {
         //    `main` lives in the target's own entry file
         //    (`scripts/build.mjs`), not inside the unit.
         ...noPluginCapabilities,
+        // `/// <reference types="node" />` in an installed library's `.d.ts`
+        // (pino, sonic-boom, @fastify/proxy-addr) would otherwise load
+        // `@types/node` past `types: []` and redeclare every global this
+        // target defines; this target's own declarations answer it.
+        typeDirectives: new Map([['node', processDeclarations]]),
         // The Node wrapper declarations are exact host identities. A spelling
         // match is insufficient: the compiler verifies the resolved Symbol's
         // full declaration set against this file, so a caller's ambient
