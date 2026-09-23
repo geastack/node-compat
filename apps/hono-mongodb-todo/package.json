@@ -42,12 +42,12 @@
     "native-Hono+Mongo": "npm run native:hono-mongodb"
   },
   "dependencies": {
-    "@geajs/core": "1.4.0",
+    "@geajs/core": "1.4.2",
     "hono": "4.12.27",
     "mongodb": "7.1.1"
   },
   "devDependencies": {
-    "@geajs/vite-plugin": "1.4.1",
+    "@geajs/vite-plugin": "1.4.2",
     "@types/node": "22.15.3",
     "gcp-metadata": "7.0.1",
     "kerberos": "7.0.0",
