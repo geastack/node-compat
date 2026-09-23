@@ -562,6 +562,14 @@ if (process.env.GEA_FILE_MAP) {
         message: row.message
       })),
     withheld: result.diagnostics.diagnostics.filter((row) => row.message.startsWith('withheld:')).map((row) => row.message),
+    // Certify-stage refusals are not diagnostics. Without this column a
+    // program can fail with certificate=null, missingPredicates=[], roots=[]
+    // and the corpus ladder reports `certify:unknown` with an empty reason.
+    refusals: result.refusals
+      .filter((row) => row.stage === 'certify')
+      .slice(0, 20)
+      .map((row) => `${row.key}: ${row.reason}`),
+    slotDrift: result.slotDrift.slice(0, 10).map((row) => row.reason ?? `${row.source} -> ${row.slot}`),
     diagnostics: result.diagnostics.diagnostics.slice(0, 40).map((row) => `${row.severity} ${where(row)}: ${row.message}`),
     sourcePreparations: result.sourcePreparations,
     emittedLines: result.units.reduce((total, unit) => total + unit.source.split('\n').length, 0),
