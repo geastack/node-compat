@@ -6,6 +6,7 @@ import type { BufferEncoding } from './buffer'
 
 export type RandomBytesCallback = (error: Error | null, buffer: Buffer) => void
 
+/** @gea-host-inert */
 declare function __gea_node_crypto_random_bytes(size: number): Buffer
 
 function nodeCryptoRandomBytes(size: number): Buffer
@@ -25,9 +26,13 @@ export type BinaryLike = string | Uint8Array
 
 /** @gea-host-inert */
 declare function __gea_node_crypto_validate(algorithm: string): void
+/** @gea-host-inert */
 declare function __gea_node_crypto_digest(algorithm: string, input: Buffer): Buffer
+/** @gea-host-inert */
 declare function __gea_node_crypto_hmac(algorithm: string, key: Buffer, input: Buffer): Buffer
+/** @gea-host-inert */
 declare function __gea_node_crypto_pbkdf2(password: Buffer, salt: Buffer, iterations: number, keyLength: number, digest: string): Buffer
+/** @gea-host-inert */
 declare function __gea_node_crypto_timing_safe_equal(left: Uint8Array, right: Uint8Array): boolean
 /** @gea-host-inert */
 declare function __gea_node_crypto_get_fips(): number

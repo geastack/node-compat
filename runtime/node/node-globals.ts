@@ -95,10 +95,13 @@ declare global {
       // at runtime, where unavailable/generated facades answer `undefined`.
       getBuiltinModule<ID extends keyof ProcessBuiltinModules>(id: ID): ProcessBuiltinModules[ID]
       getBuiltinModule(id: string): object | undefined
+      /** @gea-host-no-property-writes */
       nextTick(callback: (...args: unknown[]) => void, ...args: unknown[]): void
       cwd(): string
       exit(code?: number): never
+      /** @gea-host-no-property-writes */
       on(event: 'exit', listener: (code: number) => void): this
+      /** @gea-host-no-property-writes */
       removeListener(event: 'exit', listener: (code: number) => void): this
     }
   }

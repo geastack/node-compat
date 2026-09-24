@@ -10,6 +10,7 @@ import { nodeNotImplemented } from './not-implemented'
 
 /** @gea-host-inert */
 declare function __gea_node_fs_access(path: string, mode: number): boolean
+/** @gea-host-inert */
 declare function __gea_node_fs_read_file(path: string): Buffer
 
 const nodeFsConstants = {

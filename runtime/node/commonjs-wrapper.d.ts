@@ -17,6 +17,10 @@ declare global {
     }
   }
 
+  // Loading a module runs its body, which is program code, and builds new
+  // module records; it installs no key on its argument or on any object the
+  // program already holds.
+  /** @gea-host-no-property-writes */
   var require: (specifier: string) => any
   var exports: any
   var module: { exports: any }
