@@ -10,9 +10,13 @@ export interface ContextStore<StoreType> {
   run<Args extends unknown[], Result>(store: StoreType, callback: (...args: Args) => Result, ...args: Args): Result
 }
 
-interface StoreBinding<ContextType> {
+// A binding keeps its transform erased: a channel's type parameters describe
+// what publishers pass, and storage that depended on them would give every
+// instantiation a different layout -- while `channel()` hands one registered
+// channel to callers at any parameters.
+interface StoreBinding {
   readonly store: ContextStore<unknown>
-  readonly transform: (context: ContextType) => unknown
+  readonly transform: (context: unknown) => unknown
 }
 
 const channelNames: ChannelName[] = []
@@ -35,7 +39,7 @@ function reportUncaught(error: unknown): void {
 export class Channel<StoreType = unknown, ContextType = StoreType> {
   readonly name: ChannelName
   private readonly listeners_: ChannelListener[]
-  private readonly stores_: StoreBinding<ContextType>[]
+  private readonly stores_: StoreBinding[]
 
   constructor(name: ChannelName) {
     this.name = name
@@ -87,9 +91,9 @@ export class Channel<StoreType = unknown, ContextType = StoreType> {
     transform?: (context: ContextType) => BoundStoreType
   ): void {
     const existing = this.stores_.findIndex((binding) => binding.store === store)
-    const binding: StoreBinding<ContextType> = {
+    const binding: StoreBinding = {
       store: store as ContextStore<unknown>,
-      transform: transform ?? ((context) => context as unknown as BoundStoreType)
+      transform: (context) => (transform ? transform(context as ContextType) : context)
     }
     if (existing < 0) this.stores_.push(binding)
     else this.stores_[existing] = binding
