@@ -551,6 +551,13 @@ if (process.env.GEA_FILE_MAP) {
       (blocker) => `${where({ location: blocker.location, component: blocker.functionId })}: ${blocker.reason}`
     ),
     emissionRefusals: result.emissionRefusals.map((refusal) => `${refusal.owner}: ${refusal.reason}`),
+    slotDrift: result.slotDrift.map((drift) => ({
+      location: ownerLocation(drift.operation),
+      role: drift.role,
+      source: drift.source,
+      slot: drift.slot,
+      reason: drift.reason
+    })),
     roots: result.diagnostics.diagnostics.filter((row) => row.severity === 'root').map((row) => `${where(row)}: ${row.message}`),
     // TypeScript's own errors, separately: they are `checker/<code>/<n>` rows,
     // and a program the checker rejects is not a program the compiler failed on.
