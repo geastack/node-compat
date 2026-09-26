@@ -78,19 +78,20 @@ inline std::deque<std::function<void()>> &microtasks() {
 }
 inline void queue_microtask(std::function<void()> callback) { microtasks().push_back(std::move(callback)); }
 inline void drain_microtasks() {
-  // Popped before it runs: a microtask that enqueues another must not see its
-  // own entry still in the queue, and the drain has to reach the new one.
-  while (!microtasks().empty()) {
-    // Node's next-tick queue outranks both Promise reactions and host
-    // `queueMicrotask` callbacks. A callback may enqueue more ticks, so the
-    // priority boundary is every individual microtask, not just the start of
-    // one reactor turn.
+  // Node's `processTicksAndRejections`: every queued next tick, then the whole
+  // microtask queue, repeated until a tick round leaves no microtask behind. A
+  // tick queued from inside a microtask runs after the remaining microtasks,
+  // not before the next one. Popped before it runs: a microtask that enqueues
+  // another must not see its own entry still in the queue.
+  for (;;) {
     drain_next_ticks();
-    std::function<void()> task = std::move(microtasks().front());
-    microtasks().pop_front();
-    task();
+    if (microtasks().empty()) break;
+    while (!microtasks().empty()) {
+      std::function<void()> task = std::move(microtasks().front());
+      microtasks().pop_front();
+      task();
+    }
   }
-  drain_next_ticks();
 }
 inline std::deque<std::function<void()>> &next_ticks() {
   static std::deque<std::function<void()>> queue;

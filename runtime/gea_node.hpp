@@ -276,10 +276,25 @@ inline int run_compiled_program(int argc, char **argv, void (*entry)()) {
     if (const auto count = std::strtoull(candidates, nullptr, 10); count != 0)
       gea::configureAutomaticCycleCollection(std::chrono::milliseconds{0}, 0, static_cast<std::size_t>(count));
   }
-  entry();
-  drain_microtasks();
-  ::__gea_node_run_pending();
-  drain_microtasks();
+  // An exception nothing catches ends the process the way Node's does: the
+  // error is reported on stderr, `exit` listeners run with code 1, and the
+  // process exits 1 -- never `std::terminate`'s abort.
+  try {
+    entry();
+    drain_microtasks();
+    ::__gea_node_run_pending();
+    drain_microtasks();
+  } catch (const gea::Value& thrown) {
+    std::fflush(stdout);
+    std::string text;
+    try {
+      text = gea::host::detail::toString(thrown);
+    } catch (...) {
+      text = "uncaught exception";
+    }
+    std::fprintf(stderr, "%s\n", text.c_str());
+    process::exit(1);
+  }
   return 0;
 }
 

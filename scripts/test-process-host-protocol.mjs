@@ -185,6 +185,14 @@ int main(int argc, char** argv) {
   gea::node::process::next_tick([&order] { assert(order == 0); order = 1; });
   gea::node::drain_microtasks();
   assert(order == 2);
+  order = 0;
+  gea::node::queue_microtask([&order] {
+    assert(order == 0); order = 1;
+    gea::node::process::next_tick([&order] { assert(order == 2); order = 3; });
+  });
+  gea::node::queue_microtask([&order] { assert(order == 1); order = 2; });
+  gea::node::drain_microtasks();
+  assert(order == 3);
   assert(gea::node::process::exit_status(std::numeric_limits<double>::quiet_NaN()) == 0);
   assert(gea::node::process::exit_status(std::numeric_limits<double>::infinity()) == 0);
   assert(gea::node::process::exit_status(4294967297.0) == 1);
