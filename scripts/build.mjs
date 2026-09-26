@@ -553,6 +553,7 @@ if (process.env.GEA_FILE_MAP) {
     emissionRefusals: result.emissionRefusals.map((refusal) => `${refusal.owner}: ${refusal.reason}`),
     slotDrift: result.slotDrift.map((drift) => ({
       location: ownerLocation(drift.operation),
+      operation: drift.operation,
       role: drift.role,
       source: drift.source,
       slot: drift.slot,
