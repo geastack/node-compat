@@ -168,6 +168,82 @@ inline void next_tick(Callback callback, Arguments... arguments) {
   }
 }
 
+/** A warning's string-valued own property, or empty when it is absent or not a string. */
+inline std::string warning_string_property(const gea::Value& warning, const char* name) {
+  const gea::Value value = warning.getProperty(gea::PropertyKey::string(name), warning);
+  return value.tag() == gea::Value::Tag::String ? gea::dynamicToString(value) : std::string();
+}
+
+/**
+ * Node's default 'warning' listener (`lib/internal/process/warning.js`
+ * `onWarning`), run one tick after the call as Node's `doEmitWarning` is:
+ * `(node:<pid>) [<code>] <warning.toString()>`, the detail on its own line,
+ * and the trace hint after the first warning only.
+ */
+inline void write_warning(const std::string& text, const std::string& code, const std::string& detail, bool deprecation) {
+  static bool trace_hint_shown = false;
+  std::string message = "(node:" + std::to_string(::getpid()) + ") ";
+  if (!code.empty()) message += "[" + code + "] ";
+  message += text;
+  if (!detail.empty()) message += "\n" + detail;
+  if (!trace_hint_shown) {
+    const std::vector<std::string>& arguments = cluster::state().arguments;
+    std::string argv0 = arguments.empty() ? std::string("node") : arguments.front();
+    if (const auto slash = argv0.find_last_of('/'); slash != std::string::npos) argv0 = argv0.substr(slash + 1);
+    message += "\n(Use `" + argv0 + (deprecation ? " --trace-deprecation" : " --trace-warnings") +
+               " ...` to show where the warning was created)";
+    trace_hint_shown = true;
+  }
+  message += "\n";
+  std::fwrite(message.data(), 1, message.size(), ::stderr);
+  std::fflush(::stderr);
+}
+
+/**
+ * `process.emitWarning(warning[, type[, code]])` and
+ * `process.emitWarning(warning[, options])`: a string warning is an Error
+ * named `type` (default `Warning`) whose message it is; an Error-like object
+ * is used as it is, with its own `name`, `message`, `code` and `detail`.
+ */
+inline void emit_warning_values(const std::vector<gea::Value>& arguments) {
+  const gea::Value warning = arguments.empty() ? gea::Value() : arguments[0];
+  const gea::Value second = arguments.size() > 1 ? arguments[1] : gea::Value();
+  std::string type = "Warning";
+  std::string code;
+  std::string detail;
+  if (second.tag() == gea::Value::Tag::Object) {
+    if (const std::string stated = warning_string_property(second, "type"); !stated.empty()) type = stated;
+    code = warning_string_property(second, "code");
+    detail = warning_string_property(second, "detail");
+  } else if (second.tag() == gea::Value::Tag::String) {
+    type = gea::dynamicToString(second);
+    if (arguments.size() > 2 && arguments[2].tag() == gea::Value::Tag::String) code = gea::dynamicToString(arguments[2]);
+  }
+  std::string name = type;
+  std::string message;
+  if (warning.tag() == gea::Value::Tag::String) {
+    message = gea::dynamicToString(warning);
+  } else if (warning.tag() == gea::Value::Tag::Object) {
+    const gea::Value stated = warning.getProperty(gea::PropertyKey::string("name"), warning);
+    name = stated.tag() == gea::Value::Tag::Undefined ? std::string("Error") : gea::dynamicToString(stated);
+    const gea::Value text = warning.getProperty(gea::PropertyKey::string("message"), warning);
+    message = text.tag() == gea::Value::Tag::Undefined ? std::string() : gea::dynamicToString(text);
+    code = warning_string_property(warning, "code");
+    detail = warning_string_property(warning, "detail");
+  } else {
+    gea::host::throwRuntimeError("TypeError", "The \"warning\" argument must be of type string or an instance of Error");
+  }
+  // Error.prototype.toString (ECMA-262 20.5.3.4).
+  const std::string text = name.empty() ? message : message.empty() ? name : name + ": " + message;
+  const bool deprecation = name == "DeprecationWarning";
+  queue_next_tick([text, code, detail, deprecation] { write_warning(text, code, detail, deprecation); });
+}
+
+template <typename... Arguments>
+inline void emit_warning(const Arguments&... arguments) {
+  emit_warning_values(std::vector<gea::Value>{next_tick_value(arguments)...});
+}
+
 inline std::vector<gea::CallableObject<void(double)>>& exit_listeners() {
   static std::vector<gea::CallableObject<void(double)>> value;
   return value;

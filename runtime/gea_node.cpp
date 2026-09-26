@@ -3180,6 +3180,15 @@ inline bool __gea_node_cluster_kill(double pid, std::string signal) {
 }
 inline double __gea_node_process_pid() { return static_cast<double>(::getpid()); }
 inline double __gea_node_process_ppid() { return static_cast<double>(::getppid()); }
+namespace gea::node::process {
+inline void emit_warning_values(const std::vector<gea::Value>& arguments);
+}
+inline void __gea_node_process_emit_warning(std::string message, std::string type, std::string code) {
+  std::vector<gea::Value> arguments{gea::Value::box(gea::Value::Tag::String, std::move(message)),
+                                    gea::Value::box(gea::Value::Tag::String, std::move(type))};
+  if (!code.empty()) arguments.push_back(gea::Value::box(gea::Value::Tag::String, std::move(code)));
+  gea::node::process::emit_warning_values(arguments);
+}
 inline void __gea_node_process_exit(double code) {
   std::fflush(nullptr);
   ::_exit(static_cast<int>(code));

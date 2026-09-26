@@ -40,8 +40,7 @@ test('Process host metadata claims a finite, receiverless Process@1 protocol', (
   // These declarations are not runtime promises.  In particular, a throwing
   // facade must never turn into a claimed host member just because Node types
   // mention it.
-  for (const member of ['emitWarning', 'once', 'platform', 'version'])
-    assert.equal(capabilities.hostMembers.has(`gea::node::Process.${member}`), false)
+  for (const member of ['once', 'platform', 'version']) assert.equal(capabilities.hostMembers.has(`gea::node::Process.${member}`), false)
   assert.equal(capabilities.hostMembers.has('gea::node::ProcessWriteStream.write'), false)
   assert.equal(capabilities.hostMembers.has('gea::node::Process.kill'), false)
   assert.deepEqual(capabilities.hostInvocations.get('gea::node::ProcessHrTime.call'), {
@@ -215,4 +214,47 @@ int main(int argc, char** argv) {
   )
   execFileSync(executable, { stdio: 'inherit' })
   assert.equal(spawnSync(executable, ['4294967297']).status, 1)
+})
+
+test('Process emitWarning writes Node’s default warning text one tick later', () => {
+  const executable = resolve(root, 'apps/fastify-hello/dist/process-emit-warning')
+  execFileSync(
+    process.env.CXX ?? 'clang++',
+    [
+      '-std=c++20',
+      `-I${compilerRuntimeInclude()}`,
+      `-I${resolve(root, 'runtime')}`,
+      `-I${resolve(root, 'runtime/node')}`,
+      '-x',
+      'c++',
+      '-',
+      '-o',
+      executable
+    ],
+    {
+      input: `
+#include "gea_node.hpp"
+#include <cstdio>
+int main() {
+  gea::node::process::emit_warning(std::string("first"), std::string("DeprecationWarning"), std::string("DEP1"));
+  std::fputs("sync\\n", stderr);
+  gea::node::process::emit_warning(std::string("plain"));
+  __gea_node_process_emit_warning("module", "Warning", "");
+  gea::node::drain_microtasks();
+}
+`,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'inherit']
+    }
+  )
+  const native = spawnSync(executable, { encoding: 'utf8' }).stderr.replace(/\(node:\d+\)/g, '(node:PID)')
+  const node = spawnSync(
+    process.execPath,
+    [
+      '-e',
+      "process.emitWarning('first', 'DeprecationWarning', 'DEP1'); process.stderr.write('sync\\n'); process.emitWarning('plain'); require('node:process').emitWarning('module')"
+    ],
+    { encoding: 'utf8' }
+  ).stderr.replace(/\(node:\d+\)/g, '(node:PID)')
+  assert.equal(native, node)
 })

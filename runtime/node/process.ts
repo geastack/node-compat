@@ -14,6 +14,7 @@ declare function __gea_node_process_pid(): number
 declare function __gea_node_process_ppid(): number
 /** @gea-host-inert */
 declare function __gea_node_process_exit(code: number): void
+declare function __gea_node_process_emit_warning(message: string, type: string, code: string): void
 
 export interface ProcessEnv {
   [key: string]: string | undefined
@@ -62,11 +63,7 @@ const nodeProcessStdout = new WriteStream(1)
 const nodeProcessStderr = new WriteStream(2)
 
 function nodeProcessEmitWarning(message: string, options?: { code?: string }): void {
-  const code = options?.code
-  // Call the host primitive directly here. The pinned declaration program's
-  // NodeJS.WriteStream method symbol is intentionally richer than this small
-  // runtime overlay class and must not rename the overlay's own method body.
-  __gea_node_stdio_write(2, (code === undefined ? '' : `[${code}] `) + message + '\n')
+  __gea_node_process_emit_warning(message, 'Warning', options?.code ?? '')
 }
 
 // `process.exit` ends the process now: stdio is flushed and nothing after the

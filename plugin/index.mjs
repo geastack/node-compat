@@ -186,6 +186,14 @@ const processHostMembers = new Map([
   ],
   [`${processCarrier}.cwd`, { kind: 'method', arity: 0, emit: 'gea::node::process::cwd()' }],
   [
+    `${processCarrier}.emitWarning`,
+    {
+      kind: 'method',
+      arity: 'pass-through',
+      emit: 'gea::node::process::emit_warning({args})'
+    }
+  ],
+  [
     `${processCarrier}.exit`,
     {
       kind: 'method',

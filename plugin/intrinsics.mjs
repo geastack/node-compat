@@ -571,6 +571,11 @@ export const intrinsics = {
     returnType: 'std::string',
     decl: 'std::string __gea_node_os_type();'
   },
+  __gea_node_process_emit_warning: {
+    emit: '__gea_node_process_emit_warning',
+    returnType: 'void',
+    decl: 'void __gea_node_process_emit_warning(std::string message, std::string type, std::string code);'
+  },
   __gea_node_stdio_write: {
     emit: '__gea_node_stdio_write',
     returnType: 'void',
