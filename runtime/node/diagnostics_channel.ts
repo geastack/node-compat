@@ -20,7 +20,7 @@ interface StoreBinding {
 }
 
 const channelNames: ChannelName[] = []
-const namedChannels: Channel<unknown, unknown>[] = []
+const namedChannels: Channel[] = []
 
 // Node retains inactive named channels through weak references. Gea does not
 // expose WeakRef/FinalizationRegistry, so this registry retains them strongly.
@@ -36,7 +36,7 @@ function reportUncaught(error: unknown): void {
   })
 }
 
-export class Channel<StoreType = unknown, ContextType = StoreType> {
+export class Channel {
   readonly name: ChannelName
   private readonly listeners_: ChannelListener[]
   private readonly stores_: StoreBinding[]
@@ -48,11 +48,11 @@ export class Channel<StoreType = unknown, ContextType = StoreType> {
     const index = channelIndex(name)
     if (index < 0) {
       channelNames.push(name)
-      namedChannels.push(this as Channel<unknown, unknown>)
+      namedChannels.push(this as Channel)
     } else {
       // `new Channel(name)` is public in Node and becomes the named registry
       // entry even when another channel with the same name already exists.
-      namedChannels[index] = this as Channel<unknown, unknown>
+      namedChannels[index] = this as Channel
     }
   }
 
@@ -60,7 +60,7 @@ export class Channel<StoreType = unknown, ContextType = StoreType> {
     return this.listeners_.length > 0 || this.stores_.length > 0
   }
 
-  publish(message: ContextType): void {
+  publish(message: unknown): void {
     const listeners = this.listeners_.slice()
     for (let index = 0; index < listeners.length; index += 1) {
       try {
@@ -84,16 +84,16 @@ export class Channel<StoreType = unknown, ContextType = StoreType> {
     return true
   }
 
-  bindStore(store: ContextStore<ContextType>): void
-  bindStore<BoundStoreType>(store: ContextStore<BoundStoreType>, transform: (context: ContextType) => BoundStoreType): void
+  bindStore(store: ContextStore<unknown>): void
+  bindStore<BoundStoreType>(store: ContextStore<BoundStoreType>, transform: (context: unknown) => BoundStoreType): void
   bindStore<BoundStoreType>(
     store: ContextStore<BoundStoreType>,
-    transform?: (context: ContextType) => BoundStoreType
+    transform?: (context: unknown) => BoundStoreType
   ): void {
     const existing = this.stores_.findIndex((binding) => binding.store === store)
     const binding: StoreBinding = {
       store: store as ContextStore<unknown>,
-      transform: (context) => (transform ? transform(context as ContextType) : context)
+      transform: (context) => (transform ? transform(context as unknown) : context)
     }
     if (existing < 0) this.stores_.push(binding)
     else this.stores_[existing] = binding
@@ -107,7 +107,7 @@ export class Channel<StoreType = unknown, ContextType = StoreType> {
   }
 
   runStores<ThisArg, Args extends unknown[], Result>(
-    context: ContextType,
+    context: unknown,
     fn: (this: ThisArg, ...args: Args) => Result,
     thisArg?: ThisArg,
     ...args: Args
@@ -135,10 +135,10 @@ export class Channel<StoreType = unknown, ContextType = StoreType> {
   }
 }
 
-export function channel(name: ChannelName): Channel<unknown, unknown> {
+export function channel(name: ChannelName): Channel {
   const index = channelIndex(name)
   if (index >= 0) return namedChannels[index]
-  return new Channel<unknown, unknown>(name)
+  return new Channel(name)
 }
 
 export function hasSubscribers(name: ChannelName): boolean {
@@ -163,11 +163,11 @@ export interface TracingChannelSubscribers<ContextType extends object> {
 }
 
 export interface TracingChannelCollection<StoreType, ContextType extends object> {
-  readonly start: Channel<StoreType, ContextType>
-  readonly end: Channel<StoreType, ContextType>
-  readonly asyncStart: Channel<StoreType, ContextType>
-  readonly asyncEnd: Channel<StoreType, ContextType>
-  readonly error: Channel<StoreType, ContextType>
+  readonly start: Channel
+  readonly end: Channel
+  readonly asyncStart: Channel
+  readonly asyncEnd: Channel
+  readonly error: Channel
 }
 
 interface TraceResult {
@@ -178,20 +178,20 @@ interface TraceResult {
 const tracingEvents = ['start', 'end', 'asyncStart', 'asyncEnd', 'error'] as const
 type TracingEvent = (typeof tracingEvents)[number]
 
-export class TracingChannel<StoreType = unknown, ContextType extends object = Record<string, unknown>> {
-  readonly start: Channel<StoreType, ContextType>
-  readonly end: Channel<StoreType, ContextType>
-  readonly asyncStart: Channel<StoreType, ContextType>
-  readonly asyncEnd: Channel<StoreType, ContextType>
-  readonly error: Channel<StoreType, ContextType>
+export class TracingChannel {
+  readonly start: Channel
+  readonly end: Channel
+  readonly asyncStart: Channel
+  readonly asyncEnd: Channel
+  readonly error: Channel
 
-  constructor(nameOrChannels: string | TracingChannelCollection<StoreType, ContextType>) {
+  constructor(nameOrChannels: string | TracingChannelCollection<unknown, Record<string, unknown>>) {
     if (typeof nameOrChannels === 'string') {
-      this.start = channel(`tracing:${nameOrChannels}:start`) as Channel<StoreType, ContextType>
-      this.end = channel(`tracing:${nameOrChannels}:end`) as Channel<StoreType, ContextType>
-      this.asyncStart = channel(`tracing:${nameOrChannels}:asyncStart`) as Channel<StoreType, ContextType>
-      this.asyncEnd = channel(`tracing:${nameOrChannels}:asyncEnd`) as Channel<StoreType, ContextType>
-      this.error = channel(`tracing:${nameOrChannels}:error`) as Channel<StoreType, ContextType>
+      this.start = channel(`tracing:${nameOrChannels}:start`) as Channel
+      this.end = channel(`tracing:${nameOrChannels}:end`) as Channel
+      this.asyncStart = channel(`tracing:${nameOrChannels}:asyncStart`) as Channel
+      this.asyncEnd = channel(`tracing:${nameOrChannels}:asyncEnd`) as Channel
+      this.error = channel(`tracing:${nameOrChannels}:error`) as Channel
     } else {
       this.start = nameOrChannels.start
       this.end = nameOrChannels.end
@@ -205,14 +205,14 @@ export class TracingChannel<StoreType = unknown, ContextType extends object = Re
     return tracingEvents.some((event) => this[event].hasSubscribers)
   }
 
-  subscribe(subscribers: TracingChannelSubscribers<ContextType>): void {
+  subscribe(subscribers: TracingChannelSubscribers<Record<string, unknown>>): void {
     for (const event of tracingEvents) {
       const listener = subscribers[event]
       if (listener) this[event].subscribe(listener as ChannelListener)
     }
   }
 
-  unsubscribe(subscribers: TracingChannelSubscribers<ContextType>): boolean {
+  unsubscribe(subscribers: TracingChannelSubscribers<Record<string, unknown>>): boolean {
     let removed = true
     for (const event of tracingEvents) {
       const listener = subscribers[event]
@@ -223,12 +223,12 @@ export class TracingChannel<StoreType = unknown, ContextType extends object = Re
 
   traceSync<ThisArg, Args extends unknown[], Result>(
     fn: (this: ThisArg, ...args: Args) => Result,
-    context?: ContextType,
+    context?: Record<string, unknown>,
     thisArg?: ThisArg,
     ...args: Args
   ): Result {
     if (!this.hasSubscribers) return fn.call(thisArg as ThisArg, ...args)
-    const trace = (context ?? {}) as ContextType & TraceResult
+    const trace = (context ?? {}) as Record<string, unknown> & TraceResult
     return this.start.runStores(trace, () => {
       try {
         const result = fn.call(thisArg as ThisArg, ...args)
@@ -246,12 +246,12 @@ export class TracingChannel<StoreType = unknown, ContextType extends object = Re
 
   tracePromise<ThisArg, Args extends unknown[], Result>(
     fn: (this: ThisArg, ...args: Args) => Result | PromiseLike<Result>,
-    context?: ContextType,
+    context?: Record<string, unknown>,
     thisArg?: ThisArg,
     ...args: Args
   ): Promise<Result> {
     if (!this.hasSubscribers) return fn.call(thisArg as ThisArg, ...args) as Promise<Result>
-    const trace = (context ?? {}) as ContextType & TraceResult
+    const trace = (context ?? {}) as Record<string, unknown> & TraceResult
     const promise = this.start.runStores(trace, () => {
       try {
         const result = fn.call(thisArg as ThisArg, ...args)
@@ -284,12 +284,12 @@ export class TracingChannel<StoreType = unknown, ContextType extends object = Re
   traceCallback<ThisArg, Args extends unknown[], Result>(
     fn: (this: ThisArg, ...args: Args) => Result,
     position: number = -1,
-    context?: ContextType,
+    context?: Record<string, unknown>,
     thisArg?: ThisArg,
     ...args: Args
   ): Result {
     if (!this.hasSubscribers) return fn.call(thisArg as ThisArg, ...args)
-    const trace = (context ?? {}) as ContextType & TraceResult
+    const trace = (context ?? {}) as Record<string, unknown> & TraceResult
     const callArgs = args.slice() as unknown[]
     const callbackValue = callArgs.at(position)
     if (typeof callbackValue !== 'function') throw new TypeError('The callback argument must be a function')
@@ -325,8 +325,12 @@ export class TracingChannel<StoreType = unknown, ContextType extends object = Re
   }
 }
 
-export function tracingChannel<StoreType = unknown, ContextType extends object = Record<string, unknown>>(
-  nameOrChannels: string | TracingChannelCollection<StoreType, ContextType>
-): TracingChannel<StoreType, ContextType> {
+// Not generic, and neither are `Channel` and `TracingChannel`: a CommonJS
+// `require('diagnostics_channel')` holds every export as a member of the
+// module's exports object, and a generic declaration is a template with no
+// single value for that member to hold.
+export function tracingChannel(
+  nameOrChannels: string | TracingChannelCollection<unknown, Record<string, unknown>>
+): TracingChannel {
   return new TracingChannel(nameOrChannels)
 }

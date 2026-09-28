@@ -294,7 +294,18 @@ function writeProject() {
   // `/// <reference lib="..."/>` chain pulls in es2021 down through es5,
   // which is the entire non-DOM portion of what was requested.
   const libDir = path.dirname(compilerRequire.resolve('typescript/lib/lib.es2022.d.ts'))
-  const libFiles = ['lib.es2022.d.ts', 'lib.es2018.asynciterable.d.ts', 'lib.es2018.asyncgenerator.d.ts', 'lib.esnext.disposable.d.ts'].map(
+  // `lib.es2024.promise.d.ts` states `Promise.withResolvers`, which Node 24
+  // provides and fastify's `ready()` calls through its own feature test;
+  // `lib.es2024.sharedmemory.d.ts` states `Atomics.waitAsync`, which Node 24
+  // provides and thread-stream's `lib/wait.js` calls.
+  const libFiles = [
+    'lib.es2022.d.ts',
+    'lib.es2018.asynciterable.d.ts',
+    'lib.es2018.asyncgenerator.d.ts',
+    'lib.esnext.disposable.d.ts',
+    'lib.es2024.promise.d.ts',
+    'lib.es2024.sharedmemory.d.ts'
+  ].map(
     (name) => `./${path.relative(outDir, path.join(libDir, name)).replace(/\\/g, '/')}`
   )
   // These are the `files` entries below with no `.d.ts` extension: ambient
@@ -313,9 +324,12 @@ function writeProject() {
     path.join(builtinsDir, 'abort-events.ts'),
     path.join(builtinsDir, 'global-timers.ts')
   ]
+  // The prelude scripts come BEFORE the entry: the compiler evaluates module
+  // bodies in this order, and Node's globals exist before any program code
+  // runs. With the entry first, a top-level `setTimeout(...)` constructed its
+  // `Timeout` through a class `global-timers.ts` had not yet initialized.
   const files = [
     ...libFiles,
-    path.relative(outDir, entry).replace(/\\/g, '/'),
     `./${path.relative(outDir, path.join(builtinsDir, 'standard-library.ts')).replace(/\\/g, '/')}`,
     // Unconditional, like `standard-library.ts` and for the same reason: a
     // node global is one library code names with no import, so it has to be
@@ -343,6 +357,7 @@ function writeProject() {
     // `timers.ts` they used to be.
     `./${path.relative(outDir, path.join(builtinsDir, 'global-timers.ts')).replace(/\\/g, '/')}`
   ]
+  const entryFile = path.relative(outDir, entry).replace(/\\/g, '/')
   const globalsFile = path.join(builtinsDir, 'globals.ts')
   const reachableGlobals = runtimeRootsForReachableGlobalNeeds({
     entryFiles: [entry],
@@ -354,6 +369,7 @@ function writeProject() {
     files.push(`./${path.relative(outDir, globalsFile).replace(/\\/g, '/')}`)
     unconditionalAmbientRoots.push(globalsFile)
   }
+  files.push(entryFile)
   const project = {
     // A generated project. `files` names the program's roots (including,
     // now, the real lib files themselves -- see the comment above); `paths`
@@ -478,7 +494,7 @@ const compileSources = (sources, javaScriptSources) =>
     // here, where `rootFileNames` is added unconditionally regardless of the
     // module-set filter. See `writeProject`'s own comment on
     // `unconditionalAmbientRoots`.
-    rootFileNames: [entry, ...unconditionalAmbientRoots],
+    rootFileNames: [...unconditionalAmbientRoots, entry],
     packageSources: sources,
     dynamicFallback,
     javaScriptSources,
@@ -646,6 +662,12 @@ if (result.units.length === 0) {
     // declaration owner to a line, and `ownerLocation` above already asks it;
     // an `op|node|...` owner has no location and prints its file alone.
     console.error(`  certify  ${ownerLocation(refusal.owner)} ${refusal.owner}: ${refusal.reason}`)
+    // A function-level row stands for every operation of that function that
+    // demanded the key; name where each one is.
+    if (refusal.owner.startsWith('fn|')) {
+      const lines = new Set((refusal.sites ?? []).map((site) => ownerLocation(site.replace(/^result\|/, ''))))
+      for (const line of lines) console.error(`           at ${line}`)
+    }
   }
   // A `print` refusal names identities and nothing else -- `decl|f74|400`,
   // `node|f72|Identifier|58` -- and an identity carries no file name, so the

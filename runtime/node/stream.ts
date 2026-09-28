@@ -26,6 +26,7 @@ import {
   EventEmitter,
   EventEmitterAsyncResource,
   EventHandler,
+  EventName,
   getEventListeners,
   getMaxListeners,
   Listener,
@@ -137,6 +138,17 @@ export class Stream extends EventEmitter {
   }
 }
 
+// An async source settles each chunk on its own schedule; the stream ends, or
+// is destroyed with the source's error, once the iteration does.
+const pumpAsyncIterable = async (readable: Readable, iterable: any): Promise<void> => {
+  try {
+    for await (const value of iterable) readable.push(value)
+    readable.push(null)
+  } catch (error) {
+    readable.destroy(error instanceof Error ? error : new Error(String(error)))
+  }
+}
+
 export class Readable extends Stream {
   private paused_: boolean
   // Allocated on first use, not per stream: an http IncomingMessage is a
@@ -199,46 +211,46 @@ export class Readable extends Stream {
     this.webPump_ = pump
   }
 
-  protected override newListenerAdded(name: string): void {
+  protected override newListenerAdded(name: EventName): void {
     if (name === 'data' && this.readableFlowing !== false) this.resume()
   }
 
-  override on(name: string, listener: EventHandler): this {
+  override on(name: EventName, listener: EventHandler): this {
     super.on(name, listener)
     return this
   }
 
-  override addListener(name: string, listener: EventHandler): this {
+  override addListener(name: EventName, listener: EventHandler): this {
     super.addListener(name, listener)
     return this
   }
 
-  override prependListener(name: string, listener: EventHandler): this {
+  override prependListener(name: EventName, listener: EventHandler): this {
     super.prependListener(name, listener)
     return this
   }
 
-  override once(name: string, listener: EventHandler): this {
+  override once(name: EventName, listener: EventHandler): this {
     super.once(name, listener)
     return this
   }
 
-  override prependOnceListener(name: string, listener: EventHandler): this {
+  override prependOnceListener(name: EventName, listener: EventHandler): this {
     super.prependOnceListener(name, listener)
     return this
   }
 
-  override off(name: string, listener: EventHandler): this {
+  override off(name: EventName, listener: unknown): this {
     super.off(name, listener)
     return this
   }
 
-  override removeListener(name: string, listener: EventHandler): this {
+  override removeListener(name: EventName, listener: unknown): this {
     super.removeListener(name, listener)
     return this
   }
 
-  override emit(name: string, ...args: unknown[]): boolean {
+  override emit(name: EventName, ...args: unknown[]): boolean {
     return super.emit(name, ...args)
   }
 
@@ -597,13 +609,19 @@ export class Readable extends Stream {
     return Promise.resolve()
   }
 
-  static from(iterable: Iterable<unknown>, options: unknown = undefined): Readable {
+  // Node takes any sync or async iterable here, and which protocol the source
+  // answers is a run-time question: the source crosses as a box.
+  static from(iterable: any, options: unknown = undefined): Readable {
     // Keep the public options boundary concrete across translation units. The
     // declaration facade supplies the rich ReadableOptions type; the runtime
     // receives its record as gea_cpp_value and projects the fields it supports.
     const runtimeOptions = options as { objectMode?: boolean } | undefined
     const objectMode = runtimeOptions === undefined || runtimeOptions.objectMode !== false
     const readable = new Readable({ objectMode })
+    if (typeof iterable[Symbol.asyncIterator] === 'function') {
+      void pumpAsyncIterable(readable, iterable)
+      return readable
+    }
     for (const value of iterable) readable.push(value)
     readable.push(null)
     return readable
@@ -750,37 +768,37 @@ export class Writable extends Stream {
     this.writableNeedDrain = false
   }
 
-  override on(name: string, listener: EventHandler): this {
+  override on(name: EventName, listener: EventHandler): this {
     super.on(name, listener)
     return this
   }
 
-  override addListener(name: string, listener: EventHandler): this {
+  override addListener(name: EventName, listener: EventHandler): this {
     super.addListener(name, listener)
     return this
   }
 
-  override prependListener(name: string, listener: EventHandler): this {
+  override prependListener(name: EventName, listener: EventHandler): this {
     super.prependListener(name, listener)
     return this
   }
 
-  override once(name: string, listener: EventHandler): this {
+  override once(name: EventName, listener: EventHandler): this {
     super.once(name, listener)
     return this
   }
 
-  override prependOnceListener(name: string, listener: EventHandler): this {
+  override prependOnceListener(name: EventName, listener: EventHandler): this {
     super.prependOnceListener(name, listener)
     return this
   }
 
-  override removeListener(name: string, listener: EventHandler): this {
+  override removeListener(name: EventName, listener: unknown): this {
     super.removeListener(name, listener)
     return this
   }
 
-  override emit(name: string, ...args: unknown[]): boolean {
+  override emit(name: EventName, ...args: unknown[]): boolean {
     return super.emit(name, ...args)
   }
 
@@ -986,37 +1004,37 @@ export class Duplex extends Readable {
     this.writableNeedDrain = false
   }
 
-  override on(name: string, listener: EventHandler): this {
+  override on(name: EventName, listener: EventHandler): this {
     super.on(name, listener)
     return this
   }
 
-  override addListener(name: string, listener: EventHandler): this {
+  override addListener(name: EventName, listener: EventHandler): this {
     super.addListener(name, listener)
     return this
   }
 
-  override prependListener(name: string, listener: EventHandler): this {
+  override prependListener(name: EventName, listener: EventHandler): this {
     super.prependListener(name, listener)
     return this
   }
 
-  override once(name: string, listener: EventHandler): this {
+  override once(name: EventName, listener: EventHandler): this {
     super.once(name, listener)
     return this
   }
 
-  override prependOnceListener(name: string, listener: EventHandler): this {
+  override prependOnceListener(name: EventName, listener: EventHandler): this {
     super.prependOnceListener(name, listener)
     return this
   }
 
-  override removeListener(name: string, listener: EventHandler): this {
+  override removeListener(name: EventName, listener: unknown): this {
     super.removeListener(name, listener)
     return this
   }
 
-  override emit(name: string, ...args: unknown[]): boolean {
+  override emit(name: EventName, ...args: unknown[]): boolean {
     return super.emit(name, ...args)
   }
 

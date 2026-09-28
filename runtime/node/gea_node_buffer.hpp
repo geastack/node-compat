@@ -417,6 +417,16 @@ inline gea::Ref<View> from(const gea::Ref<gea::ArrayBuffer>& block, double byteO
 inline gea::Ref<View> from(const gea::Ref<gea::ArrayBuffer>& block) { return from(block, 0.0); }
 
 /**
+ * `Buffer.from(sharedArrayBuffer, ...)`: node answers a view SHARING the
+ * block, which this Buffer carrier -- a view over an ordinary ArrayBuffer --
+ * cannot hold. Refused where it is reached, as every unimplemented member of
+ * a node-compat facade is, rather than answered with a copy.
+ */
+[[noreturn]] inline gea::Ref<View> from(const gea::Ref<gea::SharedArrayBuffer>&, double = 0.0, double = 0.0) {
+  gea::host::throwRuntimeError("Error", "ERR_GEA_NODE_NOT_IMPLEMENTED: node:buffer.Buffer.from(SharedArrayBuffer) is not implemented for this geastack target");
+}
+
+/**
  * `Buffer.concat(list)`, over a list of anything with `data()`/`size()`.
  *
  * A template because the element carrier is the program's: an array of
@@ -424,14 +434,30 @@ inline gea::Ref<View> from(const gea::Ref<gea::ArrayBuffer>& block) { return fro
  * array of `Buffer` as the same, but a host row states one spelling for both
  * and neither element type is this file's to name.
  */
+namespace detail {
+template <typename Item>
+inline const View& concatItem(const Item& item, std::size_t) {
+  return gea::detail::hostTypedArrayArgument(item);
+}
+/** A boxed list item: node's own check that it is a Buffer or Uint8Array. */
+inline const View& concatItem(const gea::Value& item, std::size_t index) {
+  if (item.tag() != gea::Value::Tag::Object || item.payloadType() != gea::detail::payloadTypeTagFor<gea::Ref<View>>())
+    gea::host::throwRuntimeError(
+        "TypeError", "The \"list[" + std::to_string(index) + "]\" argument must be an instance of Buffer or Uint8Array.");
+  return *item.as<gea::Ref<View>>();
+}
+}  // namespace detail
+
 template <typename List>
 inline gea::Ref<View> concat(const List& list) {
   std::size_t total = 0;
-  for (const auto& item : list) total += gea::detail::hostTypedArrayArgument(item).size();
+  std::size_t position = 0;
+  for (const auto& item : list) total += detail::concatItem(item, position++).size();
   std::vector<std::uint8_t> out;
   out.reserve(total);
+  position = 0;
   for (const auto& item : list) {
-    const View& view = gea::detail::hostTypedArrayArgument(item);
+    const View& view = detail::concatItem(item, position++);
     out.insert(out.end(), view.data(), view.data() + view.size());
   }
   return detail::bufferResult(std::move(out));
@@ -441,9 +467,10 @@ template <typename List>
 inline gea::Ref<View> concat(const List& list, double requestedLength) {
   std::vector<std::uint8_t> out(detail::allocationSize(requestedLength), std::uint8_t{0});
   std::size_t offset = 0;
+  std::size_t position = 0;
   for (const auto& item : list) {
     if (offset >= out.size()) break;
-    const View& view = gea::detail::hostTypedArrayArgument(item);
+    const View& view = detail::concatItem(item, position++);
     const std::size_t count = std::min(view.size(), out.size() - offset);
     if (count != 0) std::copy_n(view.data(), count, out.data() + offset);
     offset += count;

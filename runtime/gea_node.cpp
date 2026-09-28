@@ -318,7 +318,8 @@ inline int nextDelayMs() {
 
 inline double add(std::function<void()> callback, double delayMs, bool repeats) {
   const double id = nextTimerId();
-  if (delayMs < 0) delayMs = 0;
+  // Node: a delay below 1 (NaN included) or above 2147483647 is 1.
+  if (!(delayMs >= 1) || delayMs > 2147483647) delayMs = 1;
   registry().push_back(Timer{id, nowMs() + delayMs, delayMs, repeats, true, std::move(callback)});
   return id;
 }
@@ -365,6 +366,65 @@ inline void fireDue() {
 }
 
 }  // namespace gea::node::timers
+
+// ---------------------------------------------------------------------------
+// setImmediate's queue: Node's check phase. Every pass of the loop runs, after
+// its I/O callbacks, the immediates that were queued before the phase began;
+// one queued by a running immediate waits for the next pass. Microtasks and
+// nextTicks drain between two immediates, as they do in Node. A pending
+// immediate keeps the poll from blocking, and a referenced one keeps the loop
+// alive.
+// ---------------------------------------------------------------------------
+namespace gea::node::immediates {
+
+struct Immediate {
+  double id;
+  bool referenced;
+  std::function<void()> callback;
+};
+
+inline std::deque<Immediate> &queue() {
+  static std::deque<Immediate> immediates;
+  return immediates;
+}
+
+inline double add(std::function<void()> callback) {
+  static double id = 0;
+  queue().push_back(Immediate{++id, true, std::move(callback)});
+  return id;
+}
+
+inline void remove(double id) {
+  auto &immediates = queue();
+  immediates.erase(std::remove_if(immediates.begin(), immediates.end(), [&](const Immediate &entry) { return entry.id == id; }),
+                   immediates.end());
+}
+
+inline void setReferenced(double id, bool referenced) {
+  for (Immediate &entry : queue())
+    if (entry.id == id) entry.referenced = referenced;
+}
+
+inline bool hasPending() { return !queue().empty(); }
+inline bool hasReferenced() {
+  for (const Immediate &entry : queue())
+    if (entry.referenced) return true;
+  return false;
+}
+
+inline void runCheckPhase() {
+  auto &immediates = queue();
+  if (immediates.empty()) return;
+  const double last = immediates.back().id;
+  while (!immediates.empty() && immediates.front().id <= last) {
+    Immediate entry = std::move(immediates.front());
+    immediates.pop_front();
+    if (entry.callback) entry.callback();
+    gea::node::drain_microtasks();
+  }
+}
+
+}  // namespace gea::node::immediates
 
 // ---------------------------------------------------------------------------
 // Size-class free-list allocator (global operator new/delete override).
@@ -816,12 +876,12 @@ private:
       });
       const bool timersPending = gea::node::timers::hasPending();
       if ((pfds.empty() || (done == nullptr && !haveReferencedWatcher)) &&
-          !gea::node::timers::hasReferenced()) {
+          !gea::node::timers::hasReferenced() && !gea::node::immediates::hasReferenced()) {
         purgeClosedIfSafe();
         return stopRequested(done);  // only unref work remains
       }
 
-      const int timeout = timersPending ? gea::node::timers::nextDelayMs() : -1;
+      const int timeout = gea::node::immediates::hasPending() ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
       const int events = ::poll(pfds.data(), static_cast<nfds_t>(pfds.size()), timeout);
       if (events < 0) {
         if (errno == EINTR) continue;
@@ -856,6 +916,7 @@ private:
       // Handler promises progress here: continuations queued during dispatch
       // (async handlers, body-delivery microtasks) run before the next poll.
       gea::node::drain_microtasks();
+      if (!stopRequested(done)) gea::node::immediates::runCheckPhase();
       const bool stopped = stopRequested(done);
       --dispatchDepth_;
       purgeClosedIfSafe();
@@ -895,12 +956,12 @@ private:
       });
       const bool timersPending = gea::node::timers::hasPending();
       if ((!haveWatchers || (done == nullptr && !haveReferencedWatcher)) &&
-          !gea::node::timers::hasReferenced()) {
+          !gea::node::timers::hasReferenced() && !gea::node::immediates::hasReferenced()) {
         purgeClosedIfSafe();
         return stopRequested(done);
       }
 
-      const int timeout = timersPending ? gea::node::timers::nextDelayMs() : -1;
+      const int timeout = gea::node::immediates::hasPending() ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
       const int count = ::epoll_wait(epollFd_, events, 128, timeout);
       if (count < 0) {
         if (errno == EINTR) continue;
@@ -930,6 +991,7 @@ private:
         if (stopRequested(done)) break;
       }
       gea::node::drain_microtasks();
+      if (!stopRequested(done)) gea::node::immediates::runCheckPhase();
       const bool stopped = stopRequested(done);
       --dispatchDepth_;
       purgeClosedIfSafe();
@@ -3366,6 +3428,15 @@ inline double __gea_node_set_interval(std::function<void()> callback, double del
 inline void __gea_node_clear_timer(double id) { gea::node::timers::remove(id); }
 
 inline void __gea_node_timer_unref(double id) { gea::node::timers::unref(id); }
+
+inline double __gea_node_immediate_start(std::function<void()> callback) {
+  if (!callback) return 0;
+  return gea::node::immediates::add(std::move(callback));
+}
+
+inline void __gea_node_immediate_clear(double id) { gea::node::immediates::remove(id); }
+
+inline void __gea_node_immediate_ref(double id, bool referenced) { gea::node::immediates::setReferenced(id, referenced); }
 
 inline void __gea_node_run_pending() { gea::node::clientEventLoop().run(); }
 

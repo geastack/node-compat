@@ -1375,6 +1375,20 @@ export class Server extends EventEmitter {
   address(): { address: string; family: string; port: number } {
     return { address: '0.0.0.0', family: 'IPv4', port: this.port_ }
   }
+
+  // Node's `server.setTimeout(msecs, callback)`: the idle timeout every
+  // accepted socket inherits, and a 'timeout' listener. fastify calls it with
+  // `connectionTimeout`, 0 by default -- Node's own default, no timeout. The
+  // reactor arms no per-socket idle timer, so any other value is refused
+  // here, naming the member, rather than accepted and never enforced.
+  timeout = 0
+
+  setTimeout(msecs: number = 0, callback?: () => void): this {
+    if (msecs !== 0) nodeNotImplemented('http', `Server.setTimeout(${msecs}) (this target arms no socket idle timeout)`)
+    this.timeout = msecs
+    if (callback !== undefined) this.on('timeout', callback)
+    return this
+  }
 }
 
 export class ClientRequest {

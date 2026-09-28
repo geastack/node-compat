@@ -43,6 +43,12 @@ declare function __gea_node_timer_start_interval(callback: () => void, delay: nu
 declare function __gea_node_timer_clear(id: number): void
 /** @gea-host-inert */
 declare function __gea_node_timer_unref(id: number): void
+/** @gea-host-no-property-writes */
+declare function __gea_node_immediate_start(callback: () => void): number
+/** @gea-host-inert */
+declare function __gea_node_immediate_clear(id: number): void
+/** @gea-host-inert */
+declare function __gea_node_immediate_ref(id: number, referenced: boolean): void
 
 class Timeout {
   private id_: number
@@ -70,11 +76,11 @@ class Timeout {
   }
 }
 
-// `callback` takes an `any` rest list -- Node's own spelling -- so a real
-// caller like a `Promise` executor's `resolve: (value: T) => void` (the
-// `new Promise((resolve) => setTimeout(resolve))` idiom `@hono/node-server`'s
-// `listener.ts`/`request.ts` rely on) is assignable here even though the
-// native timer never actually forwards any argument to the callback.
+// `callback`'s parameters are the arguments written after the delay (Node's
+// `setTimeout(callback, delay, ...args)`), so a real caller like a `Promise`
+// executor's `resolve: (value: T) => void` (the `new Promise((resolve) =>
+// setTimeout(resolve))` idiom `@hono/node-server`'s `listener.ts`/`request.ts`
+// rely on) is assignable here and receives exactly what the call passed.
 //
 // NOT a `never` rest list: that is how geatsc spells a callable carrying
 // IDENTITY ONLY (`callable-identity`), which states no calling convention, and
@@ -86,17 +92,78 @@ class Timeout {
 // The wrapper closure is the other half: the host symbol declares `() => void`
 // and the native timer forwards no arguments, so rather than leave a
 // rest-arity callable to be converted to a zero-arity one by a conversion this
-// target does not install, the zero-arity callable is CONSTRUCTED here.
-function setTimeout(callback: (...args: any[]) => void, delay: number = 0): Timeout {
+// target does not install, the zero-arity callable is CONSTRUCTED here, and it
+// forwards the call's own arguments. One plain signature each: `node:timers`
+// re-exports these two as values, and an alias of an overload set would be
+// stored at the overload's type rather than the implementation's frame.
+function setTimeout(callback: (...args: any[]) => void, delay: number = 0, ...args: any[]): Timeout {
   return new Timeout(
     __gea_node_timer_start_timeout((): void => {
-      callback()
+      callback(...args)
     }, delay)
   )
 }
 
-function setInterval(callback: () => void, delay: number = 0): Timeout {
-  return new Timeout(__gea_node_timer_start_interval(callback, delay))
+function setInterval(callback: (...args: any[]) => void, delay: number = 0, ...args: any[]): Timeout {
+  return new Timeout(
+    __gea_node_timer_start_interval((): void => {
+      callback(...args)
+    }, delay)
+  )
+}
+
+// `setImmediate`'s handle. Its callback runs in the loop's check phase, after
+// the pass's I/O callbacks (`gea::node::immediates`).
+class Immediate {
+  private id_: number
+  private referenced_: boolean
+
+  constructor(id: number) {
+    this.id_ = id
+    this.referenced_ = true
+  }
+
+  id(): number {
+    return this.id_
+  }
+
+  ref(): Immediate {
+    if (!this.referenced_) {
+      this.referenced_ = true
+      __gea_node_immediate_ref(this.id_, true)
+    }
+    return this
+  }
+
+  unref(): Immediate {
+    if (this.referenced_) {
+      this.referenced_ = false
+      __gea_node_immediate_ref(this.id_, false)
+    }
+    return this
+  }
+
+  hasRef(): boolean {
+    return this.referenced_
+  }
+}
+
+// A generic overload over one plain implementation: the overload states that
+// the callback receives the arguments written after it (which types an untyped
+// callback's parameters, D106), and a call runs the implementation, so a
+// JavaScript caller's `any` instantiation needs no per-instantiation copy.
+function setImmediate<TArgs extends any[]>(callback: (...args: TArgs) => void, ...args: TArgs): Immediate
+function setImmediate(callback: (...args: any[]) => void, ...args: any[]): Immediate {
+  return new Immediate(
+    __gea_node_immediate_start((): void => {
+      callback(...args)
+    })
+  )
+}
+
+function clearImmediate(handle: Immediate | null | undefined): void {
+  if (handle === null || handle === undefined) return
+  __gea_node_immediate_clear(handle.id())
 }
 
 function timerId(handle: Timeout | number | null | undefined): number {

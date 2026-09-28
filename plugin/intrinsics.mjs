@@ -477,6 +477,21 @@ export const intrinsics = {
     returnType: 'void',
     decl: 'void __gea_node_clear_timer(double id);'
   },
+  __gea_node_immediate_start: {
+    emit: '__gea_node_immediate_start',
+    returnType: 'double',
+    decl: 'double __gea_node_immediate_start(std::function<void()> callback);'
+  },
+  __gea_node_immediate_clear: {
+    emit: '__gea_node_immediate_clear',
+    returnType: 'void',
+    decl: 'void __gea_node_immediate_clear(double id);'
+  },
+  __gea_node_immediate_ref: {
+    emit: '__gea_node_immediate_ref',
+    returnType: 'void',
+    decl: 'void __gea_node_immediate_ref(double id, bool referenced);'
+  },
   __gea_node_process_env: {
     emit: 'gea_cpp_process_env',
     returnType: 'gea_cpp_value'

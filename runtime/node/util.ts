@@ -47,7 +47,8 @@ function invalidArgType(name: string, expected: string, actual: undefined | null
 export function inherits(ctor: Function, superCtor: Function): void {
   if (ctor === undefined || ctor === null) invalidArgType('ctor', 'function', ctor)
   if (superCtor === undefined || superCtor === null) invalidArgType('superCtor', 'function', superCtor)
-  const superPrototype: object | undefined = superCtor.prototype
+  // Any object can be a prototype, so it crosses as the box `Function#prototype` reads.
+  const superPrototype = superCtor.prototype
   if (superPrototype === undefined) invalidArgType('superCtor.prototype', 'object', undefined)
   Object.defineProperty(ctor, 'super_', { value: superCtor, writable: true, configurable: true })
   Object.setPrototypeOf(ctor.prototype, superPrototype)

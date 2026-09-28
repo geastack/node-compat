@@ -331,11 +331,34 @@ inline double now() { return gea::node::timers::nowMs() - origin(); }
 // Hand the thread to the reactor and return when no watcher and no timer is
 // left. `gea_node.cpp` defines it; the generated program entry below calls it.
 void __gea_node_run_pending();
+double __gea_node_set_timeout(std::function<void()> callback, double delayMs);
+void __gea_node_timer_unref(double id);
 
 namespace gea::node {
 
+/**
+ * Node installs a default `Error.prepareStackTrace` (Node 21 on), which formats
+ * an error and its call sites. This target records no frames, so the default
+ * formats the header alone -- the text `Error.captureStackTrace` installs.
+ */
+inline gea::Value default_prepare_stack_trace() {
+  return gea::Value::box(
+      gea::Value::Tag::Function,
+      gea::CallableObject<gea::Value(gea::Value, gea::Value)>(
+          +[](void *, gea::Value error, gea::Value) -> gea::Value {
+            return gea::Value::box(gea::Value::Tag::String, gea::host::ErrorConstructor::stackHeaderOf(error));
+          },
+          nullptr));
+}
+
 inline int run_compiled_program(int argc, char **argv, void (*entry)()) {
   set_process_arguments(argc, argv);
+  gea::host::ErrorConstructor::prepareStackTrace = default_prepare_stack_trace();
+  // `Atomics.waitAsync`'s timeout fires through the reactor's own timers,
+  // unreferenced: as in Node, a pending waitAsync keeps no process alive.
+  gea::runtime::atomics::asyncTimeoutScheduler() = +[](std::function<void()> callback, double delayMs) {
+    ::__gea_node_timer_unref(::__gea_node_set_timeout(std::move(callback), delayMs));
+  };
   std::setvbuf(stdout, nullptr, _IOLBF, 0);
   gea::setPromiseWaitPump(::__gea_node_pump_until);
   gea::detail::setNextTickDrain(&drain_next_ticks);

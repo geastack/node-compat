@@ -11,7 +11,7 @@
 
 export type EventArgs = readonly unknown[]
 /** What `emit` applies: a callable handed a positional list it cannot type in advance. */
-export type Listener<A extends EventArgs = EventArgs, R = unknown> = (...args: A) => R
+export type Listener<A extends EventArgs = EventArgs, R = unknown> = (this: unknown, ...args: A) => R
 /**
  * What a caller may register: a callable that accepts any positional list, so
  * every concrete handler is assignable to it -- `net.ts`'s `(socket: Socket)
@@ -163,6 +163,11 @@ export class EventEmitter {
 
   static captureRejectionSymbol = captureRejectionSymbolValue
   static errorMonitor = errorMonitorValue
+
+  // `require('events')` is this class, as in Node, and names itself and its
+  // async-resource subclass; both are assigned once the subclass exists.
+  static EventEmitter: typeof EventEmitter
+  static EventEmitterAsyncResource: typeof EventEmitterAsyncResource
 
   static addAbortListener(signal: AbortSignal, resource: (event?: Event) => void): AbortDisposable {
     return addAbortListener(signal, resource)
@@ -737,23 +742,7 @@ export function on(emitter: EventEmitter, name: EventName, options: StaticEventE
   return new EventIterator(emitter, name, options)
 }
 
-export const prototype: EventEmitter = EventEmitter.prototype
+EventEmitter.EventEmitter = EventEmitter
+EventEmitter.EventEmitterAsyncResource = EventEmitterAsyncResource
 
-const eventsDefault = {
-  addAbortListener,
-  EventEmitter,
-  EventEmitterAsyncResource,
-  captureRejections,
-  captureRejectionSymbol,
-  defaultMaxListeners,
-  errorMonitor,
-  getEventListeners,
-  getMaxListeners,
-  listenerCount,
-  on,
-  once,
-  prototype,
-  setMaxListeners
-}
-
-export default eventsDefault
+export default EventEmitter

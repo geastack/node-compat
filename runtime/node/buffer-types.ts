@@ -91,10 +91,15 @@ export interface BufferConstructor {
   alloc(size: number, fill?: string | number | Uint8Array, encoding?: BufferEncoding): Buffer
   allocUnsafe(size: number): Buffer
   concat(list: readonly Uint8Array[], totalLength?: number): Buffer
+  // A list the program holds as boxes (fastify's content-type parser pushes
+  // each `data` chunk into an untyped `[]`): every item is checked to be a
+  // Buffer/Uint8Array, as node does.
+  concat(list: readonly unknown[], totalLength?: number): Buffer
   byteLength(value: string | Uint8Array | ArrayBuffer, encoding?: BufferEncoding): number
   from(value: string, encoding?: BufferEncoding): Buffer
   from(value: readonly number[] | Uint8Array): Buffer
   from(value: ArrayBuffer, byteOffset?: number, length?: number): Buffer
+  from(value: SharedArrayBuffer, byteOffset?: number, length?: number): Buffer
   isBuffer(value: unknown): value is Buffer
 }
 
