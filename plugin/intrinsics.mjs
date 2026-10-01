@@ -332,6 +332,16 @@ export const intrinsics = {
     returnType: 'void',
     decl: 'void __gea_http_serve(double port, const gea_cpp_value& handler);'
   },
+  __gea_http_serve_at: {
+    emit: '__gea_http_serve_at',
+    returnType: 'void',
+    decl: 'void __gea_http_serve_at(double port, std::string host, const gea_cpp_value& handler);'
+  },
+  __gea_http_set_keep_alive_timeout: {
+    emit: '__gea_http_set_keep_alive_timeout',
+    returnType: 'void',
+    decl: 'void __gea_http_set_keep_alive_timeout(double milliseconds);'
+  },
   __gea_http_write: {
     emit: '__gea_http_write',
     returnType: 'void',
@@ -515,6 +525,11 @@ export const intrinsics = {
     emit: '__gea_node_os_release',
     returnType: 'std::string',
     decl: 'std::string __gea_node_os_release();'
+  },
+  __gea_node_os_hostname: {
+    emit: '__gea_node_os_hostname',
+    returnType: 'std::string',
+    decl: 'std::string __gea_node_os_hostname();'
   },
   // node:cluster and the process/os facts a cluster program needs. See
   // runtime/node/cluster.ts and the cluster namespace in runtime/gea_node.cpp.

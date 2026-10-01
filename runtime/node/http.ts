@@ -34,6 +34,21 @@ import { nodeNotImplemented } from './not-implemented'
 import { DestroyCallback, Duplex, Readable, StreamCallback, Writable } from './stream'
 import { Socket as NetSocket } from './net'
 
+/**
+ * The IPv4 address a listen binds for the host it was asked for: an IPv4
+ * literal as given, `localhost` as its IPv4 loopback, and every interface for
+ * no host, `0.0.0.0` or `::`. Anything else -- an IPv6 address, a name needing
+ * resolution -- is refused naming `member`, never widened to every interface.
+ */
+export function boundListenAddress(host: string | undefined, member: string): string {
+  const bound = host === undefined || host === '0.0.0.0' || host === '::' ? '0.0.0.0' : host === 'localhost' ? '127.0.0.1' : host
+  if (!/^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(bound))
+    nodeNotImplemented('http', `${member} with host ${bound} (this target binds one IPv4 address)`)
+  return bound
+}
+
+/** The keep-alive timeout, in milliseconds, keep-alive responses advertise. @gea-host-inert */
+declare function __gea_http_set_keep_alive_timeout(milliseconds: number): void
 // The narrower contract (see `net.ts` for the argument). `serve` stores the
 // dispatch handler; `done` reaches `responseComplete` -> `processInput`, which
 // runs the program's own handler for the next pipelined request; `destroy` and
@@ -41,8 +56,9 @@ import { Socket as NetSocket } from './net'
 // forbidden by `@gea-host-inert`, which is why these four carry this tag and
 // not that one -- none of them writes a property on any JavaScript object.
 /** @gea-host-no-property-writes */
-declare function __gea_http_serve(
+declare function __gea_http_serve_at(
   port: number,
+  host: string,
   onRequest: (connId: number, flags: number, method: string, url: string, httpVersion: string, rawHead: string, body: string) => void
 ): void
 // `@gea-host-inert` is the per-declaration host effect contract (compiler
@@ -1043,11 +1059,19 @@ export class ServerResponse extends Writable {
     return true
   }
 
-  override end(chunk: string | Uint8Array = ''): this {
+  // Node's `end(chunk, encoding, callback)`: a `null` chunk is no data
+  // (fastify's reply ends a HEAD or an empty body as `res.end(null, null, null)`),
+  // and the callback is a one-shot 'finish' listener. A string body is sent as
+  // UTF-8, so any other encoding is refused by name rather than ignored.
+  override end(body: string | Uint8Array | null = '', encoding?: string | null, callback?: (() => void) | null): this {
+    if (encoding !== undefined && encoding !== null && encoding !== 'utf8' && encoding !== 'utf-8')
+      nodeNotImplemented('http', `ServerResponse.end with encoding ${encoding}`)
     if (this.finished || this.destroyed) return this
+    if (callback !== undefined && callback !== null) this.once('finish', callback)
     this.finished = true
     this.writable = false
     this.writableEnded = true
+    const chunk = body ?? ''
     if (typeof chunk === 'string') {
       // Bound ONCE. `chunk` is carried as a union, and every read of it inside
       // this guard selects the string arm and copies the text out again -- one
@@ -1077,10 +1101,13 @@ export class ServerResponse extends Writable {
     }
     this.writableFinished = true
     __gea_http_done(this.connId_, this.keepAliveFinal_)
-    if (this.hasAnyListeners()) {
-      if (this.listenerCount('finish') > 0) this.emit('finish')
-      if (this.listenerCount('close') > 0) this.emit('close')
-    }
+    // Node emits 'finish' once the write has flushed and 'close' after it, never
+    // inside `end()`: a pipelined request's handler runs before either.
+    if (this.hasAnyListeners())
+      queueMicrotask(() => {
+        if (this.listenerCount('finish') > 0) this.emit('finish')
+        if (this.listenerCount('close') > 0) this.emit('close')
+      })
     return this
   }
 
@@ -1110,7 +1137,7 @@ type ServerListener = EventHandler | RequestListener | ConnectionListener
  * Node's own `ServerOptions` carries fourteen members (`maxHeaderSize`,
  * `keepAlive`, `keepAliveInitialDelay`, `insecureHTTPParser`,
  * `joinDuplicateHeaders`, `IncomingMessage`, `ServerResponse`, ...) and this
- * target honors none of them: the reactor behind `__gea_http_serve` has fixed
+ * target honors none of them: the reactor behind `__gea_http_serve_at` has fixed
  * parsing, fixed keep-alive behaviour, and constructs its own
  * `IncomingMessage`/`ServerResponse`. Declaring those members and ignoring
  * them is the failure this runtime avoids everywhere else -- the program would
@@ -1281,6 +1308,7 @@ export class Server extends EventEmitter {
   private connectionOnce_: boolean[]
   private requestListener_: RequestListener
   private port_: number
+  private host_: string
 
   constructor(requestListener: RequestListener) {
     super()
@@ -1291,24 +1319,40 @@ export class Server extends EventEmitter {
     this.connectionListeners_ = []
     this.connectionOnce_ = []
     this.port_ = 0
+    this.host_ = '0.0.0.0'
   }
 
   // Node's own shape is `listen(port?, host?, backlog?, callback?)`, and
   // `@hono/node-server`'s `serve()` calls the three-argument form:
   // `server.listen(options.port ?? 3000, options.hostname, () => ...)`.
   //
-  // `hostname` is accepted and CHECKED rather than accepted and dropped. The
-  // reactor binds `INADDR_ANY` unconditionally (`gea_node.cpp`'s listener
-  // setup: `addr.sin_addr.s_addr = htonl(INADDR_ANY)`), so a program that asks
-  // for `127.0.0.1` expecting a loopback-only socket would instead get one
-  // reachable from the whole network -- a silent difference that widens what
-  // the process exposes. Only the spellings that already mean "every
-  // interface" pass; anything else is refused here, naming the member.
-  listen(port: number, hostname?: string | (() => void), callback?: () => void): Server {
+  // fastify calls the options form, `server.listen({ port, host })`.
+  //
+  // The host is BOUND, never dropped: a program that asks for `127.0.0.1`
+  // gets a loopback-only socket, not one reachable from the whole network.
+  // The reactor binds one IPv4 address (`__gea_http_serve_at`), so an IPv4
+  // literal and `localhost` (its IPv4 loopback) are honored, the spellings
+  // that mean "every interface" bind every interface, and anything else --
+  // an IPv6 address, a name needing resolution -- is refused, naming it.
+  listen(
+    portOrOptions: number | { port?: number; host?: string },
+    hostname?: string | (() => void),
+    callback?: () => void
+  ): Server {
     let done = callback
-    if (typeof hostname === 'function') done = hostname
-    else if (hostname !== undefined && hostname !== '0.0.0.0' && hostname !== '::')
-      nodeNotImplemented('http', `Server.listen with hostname ${hostname} (this target binds every interface)`)
+    let port: number
+    let host: string | undefined
+    if (typeof portOrOptions === 'number') {
+      port = portOrOptions
+      if (typeof hostname === 'function') done = hostname
+      else host = hostname
+    } else {
+      port = portOrOptions.port ?? 0
+      host = portOrOptions.host
+      if (typeof hostname === 'function') done = hostname
+    }
+    const bound = boundListenAddress(host, 'Server.listen')
+    this.host_ = bound
     this.port_ = port
     this.listening = true
     if (done !== undefined) done()
@@ -1323,8 +1367,9 @@ export class Server extends EventEmitter {
     const extraOnce = this.requestOnce_
     const connectionListeners = this.connectionListeners_
     const connectionOnce = this.connectionOnce_
-    __gea_http_serve(
+    __gea_http_serve_at(
       port,
+      bound,
       (connId: number, flags: number, method: string, url: string, httpVersion: string, rawHead: string, body: string): void => {
         const keepAlive = (flags & FLAG_KEEP_ALIVE) !== 0
         const req = new IncomingMessage(connId, method, url, httpVersion, rawHead, body)
@@ -1372,8 +1417,21 @@ export class Server extends EventEmitter {
     return this
   }
 
+  // Node's `server.keepAliveTimeout`: what a keep-alive response's
+  // `Keep-Alive: timeout=N` advertises, in whole seconds (fastify sets its own
+  // 72000 ms default). The reactor arms no idle timer, so, as before, the
+  // header is an advertisement rather than an enforced deadline.
+  private keepAliveTimeout_ = 5000
+  get keepAliveTimeout(): number {
+    return this.keepAliveTimeout_
+  }
+  set keepAliveTimeout(milliseconds: number) {
+    this.keepAliveTimeout_ = milliseconds
+    __gea_http_set_keep_alive_timeout(milliseconds)
+  }
+
   address(): { address: string; family: string; port: number } {
-    return { address: '0.0.0.0', family: 'IPv4', port: this.port_ }
+    return { address: this.host_, family: 'IPv4', port: this.port_ }
   }
 
   // Node's `server.setTimeout(msecs, callback)`: the idle timeout every
@@ -1430,7 +1488,9 @@ export function get(
 // need an adapter into a callable (there is none) and whose generic
 // fallbacks would box `req`/`res` (see `Server`'s registration methods).
 /** @gea-exact-arms */
-export function createServer(optionsOrListener: ServerOptions | RequestListener, requestListener?: RequestListener): Server {
+// `http.createServer([options][, requestListener])`: fastify passes
+// `options.http`, `undefined` when no HTTP options are configured.
+export function createServer(optionsOrListener?: ServerOptions | RequestListener, requestListener?: RequestListener): Server {
   if (requestListener !== undefined) return new Server(requestListener)
   return new Server(optionsOrListener as RequestListener)
 }

@@ -162,7 +162,11 @@ inline void next_tick(Callback callback, Arguments... arguments) {
   if constexpr (requires { callback(arguments...); }) {
     queue_next_tick([callback = std::move(callback), ... arguments = std::move(arguments)]() mutable { callback(arguments...); });
   } else {
-    const gea::Value held = gea::Value::box(gea::Value::Tag::Function, callback);
+    // A callback that arrives boxed is already the function value; boxing
+    // it again would hand the queue a Value whose payload is a Value.
+    gea::Value held;
+    if constexpr (std::is_same_v<std::decay_t<Callback>, gea::Value>) held = callback;
+    else held = gea::Value::box(gea::Value::Tag::Function, callback);
     std::vector<gea::Value> values{next_tick_value(arguments)...};
     queue_next_tick([held, values = std::move(values)]() mutable { held.callAsFunction(values); });
   }
@@ -262,17 +266,41 @@ inline std::vector<gea::CallableObject<void(double)>>& exit_listeners() {
 // `remove_listener("exit", listener)` on that SAME variable copies the
 // already-shared identity instead of minting a fresh one, and the two
 // compare equal.
+// A listener held as the `void(double)` exit callback, sharing the caller's
+// function identity so `remove_listener` finds what `on` added. One declared
+// with no parameter ignores the exit code; an absent one (on-exit-leak-free's
+// `functions[event]`, a table read) is Node's ERR_INVALID_ARG_TYPE.
+template <typename Listener>
+inline gea::CallableObject<void(double)> exit_listener_of(const Listener& listener) {
+  if constexpr (gea::is_optional_v<Listener>) {
+    if (!listener.has_value()) gea::host::throwRuntimeError("TypeError", "The \"listener\" argument must be of type function");
+    return exit_listener_of(*listener);
+  } else if constexpr (std::is_same_v<std::decay_t<decltype(listener.identified())>, gea::CallableObject<void(double)>>) {
+    return listener.identified();
+  } else {
+    using Source = std::decay_t<decltype(listener.identified())>;
+    return gea::CallableObject<void(double)>::adaptSource(listener.identified(), [](void* environment, double code) {
+      const auto& source = *static_cast<const Source*>(environment);
+      if constexpr (std::is_invocable_v<const Source&, double>) {
+        source(code);
+      } else {
+        source();
+      }
+    });
+  }
+}
+
 template <typename Listener>
 inline Process on(const std::string& event, const Listener& listener) {
   if (event != "exit") throw gea::Value::box(gea::Value::Tag::String, "process event is not implemented");
-  exit_listeners().emplace_back(listener.identified());
+  exit_listeners().emplace_back(exit_listener_of(listener));
   return process;
 }
 
 template <typename Listener>
 inline Process remove_listener(const std::string& event, const Listener& listener) {
   if (event != "exit") throw gea::Value::box(gea::Value::Tag::String, "process event is not implemented");
-  const gea::CallableObject<void(double)> held(listener);
+  const gea::CallableObject<void(double)> held = exit_listener_of(listener);
   std::erase(exit_listeners(), held);
   return process;
 }

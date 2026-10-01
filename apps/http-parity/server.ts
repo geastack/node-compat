@@ -3,6 +3,8 @@
 // by argv/env; the driver diffs raw responses byte-for-byte.
 import { createServer } from 'node:http'
 
+let endCallbackFired = false
+
 const server = createServer((req, res) => {
   if (req.url === '/') {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' })
@@ -126,6 +128,33 @@ const server = createServer((req, res) => {
   if (req.url === '/double-end') {
     res.end('first')
     res.end('second')
+    return
+  }
+  // fastify's body parser reads a request as `on('data')`, `on('end')`, `resume()`.
+  if (req.url === '/resume-echo') {
+    let received = ''
+    req.on('data', (chunk) => {
+      received = received + String(chunk)
+    })
+    req.on('end', () => {
+      res.end('resumed:' + received)
+    })
+    req.resume()
+    return
+  }
+  // fastify's reply ends an empty body as `res.end(null, null, null)`.
+  if (req.url === '/end-null') {
+    res.end(null, null, null)
+    return
+  }
+  if (req.url === '/end-callback') {
+    res.end('callback', 'utf8', () => {
+      endCallbackFired = true
+    })
+    return
+  }
+  if (req.url === '/end-callback-fired') {
+    res.end('fired=' + String(endCallbackFired))
     return
   }
   if (req.url === '/write-after-end') {

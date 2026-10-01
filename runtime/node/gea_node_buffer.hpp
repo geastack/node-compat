@@ -448,7 +448,20 @@ inline const View& concatItem(const gea::Value& item, std::size_t index) {
 }
 }  // namespace detail
 
+namespace detail {
+/** A boxed `list`: node requires an Array (ERR_INVALID_ARG_TYPE otherwise) and reads its elements in order. */
+inline std::vector<gea::Value> concatList(const gea::Value& list) {
+  if (list.tag() != gea::Value::Tag::Object || !list.isArrayPayload())
+    gea::host::throwRuntimeError("TypeError", "The \"list\" argument must be an instance of Array.");
+  const std::size_t length = list.dynamicArrayLength("Buffer.concat list");
+  std::vector<gea::Value> items(length);
+  for (std::size_t index = 0; index < length; index += 1) list.dynamicArrayElement(index, items[index], "Buffer.concat list");
+  return items;
+}
+}  // namespace detail
+
 template <typename List>
+  requires(!std::is_same_v<List, gea::Value>)
 inline gea::Ref<View> concat(const List& list) {
   std::size_t total = 0;
   std::size_t position = 0;
@@ -464,6 +477,7 @@ inline gea::Ref<View> concat(const List& list) {
 }
 
 template <typename List>
+  requires(!std::is_same_v<List, gea::Value>)
 inline gea::Ref<View> concat(const List& list, double requestedLength) {
   std::vector<std::uint8_t> out(detail::allocationSize(requestedLength), std::uint8_t{0});
   std::size_t offset = 0;
@@ -520,6 +534,28 @@ inline gea::Ref<View> subarray(const View& view, double begin = 0.0, double end 
 inline gea::Ref<View> slice(const View& view, double begin = 0.0, double end = std::numeric_limits<double>::infinity()) {
   return view.subarray(begin, end);
 }
+
+// A position the program holds boxed is ToNumber-ed, as the typed overloads
+// above receive it; an undefined `end` is the length
+// (%TypedArray%.prototype.subarray step 7).
+namespace detail {
+inline double boxedPosition(const ::gea::Value& position, double absent) {
+  return position.tag() == ::gea::Value::Tag::Undefined ? absent : ::gea::dynamicToNumber(position);
+}
+}  // namespace detail
+
+inline gea::Ref<View> subarray(const View& view, const ::gea::Value& begin) {
+  return view.subarray(detail::boxedPosition(begin, 0.0), std::numeric_limits<double>::infinity());
+}
+inline gea::Ref<View> subarray(const View& view, const ::gea::Value& begin, const ::gea::Value& end) {
+  return view.subarray(detail::boxedPosition(begin, 0.0), detail::boxedPosition(end, std::numeric_limits<double>::infinity()));
+}
+inline gea::Ref<View> subarray(const View& view, double begin, const ::gea::Value& end) {
+  return view.subarray(begin, detail::boxedPosition(end, std::numeric_limits<double>::infinity()));
+}
+inline gea::Ref<View> slice(const View& view, const ::gea::Value& begin) { return subarray(view, begin); }
+inline gea::Ref<View> slice(const View& view, const ::gea::Value& begin, const ::gea::Value& end) { return subarray(view, begin, end); }
+inline gea::Ref<View> slice(const View& view, double begin, const ::gea::Value& end) { return subarray(view, begin, end); }
 
 inline std::string toString(
     const View& view,
@@ -726,5 +762,8 @@ inline gea::Ref<View> swap32(const gea::Ref<View>& view) {
   swap32(*view);
   return view;
 }
+
+inline gea::Ref<View> concat(const gea::Value& list) { return concat(detail::concatList(list)); }
+inline gea::Ref<View> concat(const gea::Value& list, double requestedLength) { return concat(detail::concatList(list), requestedLength); }
 
 }  // namespace gea::node::buffer

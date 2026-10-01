@@ -22,6 +22,15 @@ function nodeCryptoRandomBytes(size: number, callback?: RandomBytesCallback): Bu
 
 export { nodeCryptoRandomBytes as randomBytes }
 
+/** RFC 9562 version 4: 122 random bits, with the version and variant fields set. */
+export function randomUUID(): string {
+  const bytes = __gea_node_crypto_random_bytes(16)
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80
+  const hex = bytes.toString('hex')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
 export type BinaryLike = string | Uint8Array
 
 /** @gea-host-inert */

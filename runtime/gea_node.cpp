@@ -2187,6 +2187,19 @@ class HttpServer;  // forward
 // Pipelining stays ordered: the next buffered request is not dispatched
 // until the current response completes.
 // ---------------------------------------------------------------------------
+// The `Keep-Alive: timeout=N` a keep-alive response advertises: the server's
+// `keepAliveTimeout` in whole seconds (Node's `_http_outgoing`), 0 omitting the
+// line. Node's default is 5000 ms. The reactor arms no idle timer of its own,
+// so this is the advertisement Node makes, not an enforced deadline.
+inline int &keepAliveTimeoutSeconds() {
+  static int seconds = 5;
+  return seconds;
+}
+inline std::string keepAliveHeader() {
+  if (keepAliveTimeoutSeconds() <= 0) return std::string();
+  return "Keep-Alive: timeout=" + std::to_string(keepAliveTimeoutSeconds()) + "\r\n";
+}
+
 template <typename Responder>
 class HttpConnection final : public HttpConnectionBase {
 public:
@@ -2328,14 +2341,18 @@ public:
     // per second and appended as one piece instead of as seven.
     if (chunked && keepAlive && !headHasConnection_ && !headHasDate_ && (flags & kHeadSendDate) != 0) {
       static thread_local time_t tailSecond = 0;
+      static thread_local int tailKeepAlive = -1;
       static thread_local std::string tail;
       const std::string &date = cachedHttpDate();
       const time_t second = httpDateCache().second;
-      if (second != tailSecond || tail.empty()) {
+      if (second != tailSecond || tailKeepAlive != keepAliveTimeoutSeconds() || tail.empty()) {
         tailSecond = second;
+        tailKeepAlive = keepAliveTimeoutSeconds();
         tail.assign("Date: ");
         tail.append(date);
-        tail.append("\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\nTransfer-Encoding: chunked\r\n\r\n");
+        tail.append("\r\nConnection: keep-alive\r\n");
+        tail.append(keepAliveHeader());
+        tail.append("Transfer-Encoding: chunked\r\n\r\n");
       }
       outbuf_.append(tail);
       return kHeadChunked | kHeadKeepAlive;
@@ -2346,7 +2363,10 @@ public:
       outbuf_.append("\r\n");
     }
     if (!headHasConnection_) {
-      if (keepAlive) outbuf_.append("Connection: keep-alive\r\nKeep-Alive: timeout=5\r\n");
+      if (keepAlive) {
+        outbuf_.append("Connection: keep-alive\r\n");
+        outbuf_.append(keepAliveHeader());
+      }
       else outbuf_.append("Connection: close\r\n");
     }
     if (writeContentLength) {
@@ -2760,8 +2780,8 @@ private:
 template <typename Responder>
 class HttpServer final : public IoWatcher {
 public:
-  HttpServer(EventLoop &loop, int port, Responder responder)
-      : loop_(loop), listener_(makeListener(port)), responder_(std::move(responder)) {}
+  HttpServer(EventLoop &loop, int port, in_addr_t address, Responder responder)
+      : loop_(loop), listener_(makeListener(port, address)), responder_(std::move(responder)) {}
 
   bool valid() const noexcept { return listener_.fd() >= 0; }
   const Responder &responder() const noexcept { return responder_; }
@@ -2780,7 +2800,7 @@ public:
   }
 
 private:
-  static Socket makeListener(int port) {
+  static Socket makeListener(int port, in_addr_t address) {
     const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
     Socket socket(fd);
     if (fd < 0) return socket;
@@ -2791,7 +2811,7 @@ private:
 #endif
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_addr.s_addr = address;
     addr.sin_port = htons(static_cast<uint16_t>(port));
     if (::bind(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) return Socket(-1);
     if (::listen(fd, 1024) < 0) return Socket(-1);
@@ -2831,7 +2851,7 @@ inline std::string makeResponse(const char *contentType, const std::string &body
 // (pool allocator free lists, microtask queue, boxed values) hold per
 // process exactly as they do today. The parent serves as worker 0.
 template <typename Responder>
-inline void serve(int port, Responder responder) {
+inline void serve(int port, in_addr_t address, Responder responder) {
   ::signal(SIGPIPE, SIG_IGN);
   int workers = 1;
   if (const char *env = std::getenv("GEA_WORKERS")) {
@@ -2848,7 +2868,7 @@ inline void serve(int port, Responder responder) {
     }
   }
   EventLoop &loop = clientEventLoop();
-  HttpServer<Responder> server(loop, port, std::move(responder));
+  HttpServer<Responder> server(loop, port, address, std::move(responder));
   if (!server.valid()) {
     std::fprintf(stderr, "gea-node: failed to bind port %d: %s\n", port, std::strerror(errno));
     return;
@@ -3267,7 +3287,7 @@ inline double __gea_node_os_available_parallelism() {
 inline double __gea_answer() { return 42.0; }
 
 inline void __gea_serve_hello(double port) {
-  gea::node::serve(static_cast<int>(port),
+  gea::node::serve(static_cast<int>(port), htonl(INADDR_ANY),
                    [](double connId, double, const std::string &, const std::string &path, const std::string &,
                       const std::string &, const std::string &) {
                      auto *conn = gea::node::findConnection(connId);
@@ -3286,13 +3306,31 @@ inline void __gea_serve_hello(double port) {
 // std::function type erasure. There is deliberately no boxed overload.
 template <typename OnRequest>
 inline void __gea_http_serve(double port, OnRequest &&onRequest) {
-  gea::node::serve(static_cast<int>(port), std::forward<OnRequest>(onRequest));
+  gea::node::serve(static_cast<int>(port), htonl(INADDR_ANY), std::forward<OnRequest>(onRequest));
+}
+
+// The same listener bound to one IPv4 address. `http.ts` resolves the host it
+// accepts (an IPv4 literal, or `localhost`) before calling; a literal that
+// does not parse here is a caller defect and refuses rather than widening to
+// every interface.
+template <typename OnRequest>
+inline void __gea_http_serve_at(double port, std::string host, OnRequest &&onRequest) {
+  in_addr address{};
+  if (::inet_pton(AF_INET, host.c_str(), &address) != 1) {
+    std::fprintf(stderr, "gea-node: listen host %s is not an IPv4 address\n", host.c_str());
+    std::abort();
+  }
+  gea::node::serve(static_cast<int>(port), address.s_addr, std::forward<OnRequest>(onRequest));
 }
 
 // There is no `gea_cpp_value` fallback: the dispatch arrow is emitted as a
 // typed lambda, which the template above takes directly. A program that somehow
 // reached this boundary boxed fails to compile rather than silently boxing
 // every request.
+
+inline void __gea_http_set_keep_alive_timeout(double milliseconds) {
+  gea::node::keepAliveTimeoutSeconds() = std::isfinite(milliseconds) && milliseconds > 0 ? static_cast<int>(std::floor(milliseconds / 1000)) : 0;
+}
 
 inline void __gea_http_write(double connId, std::string data) {
   if (auto *conn = gea::node::findConnection(connId)) conn->enqueueResponseBytes(data);
@@ -3472,6 +3510,14 @@ inline std::string __gea_node_os_arch() {
 }
 
 inline std::string __gea_node_os_release() { return __gea_node_uname().release; }
+
+// Node's `os.hostname()` is libuv's `uv_os_gethostname`: gethostname(2), and
+// the kernel's node name when that fails.
+inline std::string __gea_node_os_hostname() {
+  char name[256] = {};
+  if (::gethostname(name, sizeof(name) - 1) == 0) return name;
+  return __gea_node_uname().nodename;
+}
 
 inline std::string __gea_node_os_type() {
 #if defined(__APPLE__)

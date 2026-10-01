@@ -15,6 +15,14 @@ import { Buffer } from './buffer-types'
 import type { Buffer as BufferType } from './buffer-types'
 export type { BufferType }
 
+// `buffer.constants` and its two aliases, with the values Node reports on a
+// 64-bit build: `Number.MAX_SAFE_INTEGER` for a Buffer's length and V8's
+// string limit, 2 ** 29 - 24. thread-stream sizes its string writes against
+// `constants.MAX_STRING_LENGTH` when it loads.
+export const kMaxLength = 9007199254740991
+export const kStringMaxLength = 536870888
+export const constants = { MAX_LENGTH: kMaxLength, MAX_STRING_LENGTH: kStringMaxLength }
+
 export interface BlobOptions {
   endings?: 'transparent' | 'native'
   type?: string

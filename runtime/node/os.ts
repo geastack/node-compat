@@ -9,6 +9,8 @@ declare function __gea_node_os_release(): string
 /** @gea-host-inert */
 declare function __gea_node_os_type(): string
 /** @gea-host-inert */
+declare function __gea_node_os_hostname(): string
+/** @gea-host-inert */
 declare function __gea_node_os_available_parallelism(): number
 
 function nodeOsPlatform(): string {
@@ -25,6 +27,10 @@ function nodeOsRelease(): string {
 
 function nodeOsType(): string {
   return __gea_node_os_type()
+}
+
+function nodeOsHostname(): string {
+  return __gea_node_os_hostname()
 }
 
 function nodeOsEndianness(): 'LE' | 'BE' {
@@ -69,5 +75,6 @@ export {
   nodeOsArch as arch,
   nodeOsRelease as release,
   nodeOsType as type,
+  nodeOsHostname as hostname,
   nodeOsEndianness as endianness
 }

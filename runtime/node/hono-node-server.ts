@@ -10,7 +10,7 @@
 // EventEmitter state, the header block parsed into an array and then an
 // object and then a `Headers`, the response body awaited through a Promise
 // and re-framed -- and the request reaches the program as the reactor's own
-// dispatch anyway (`__gea_http_serve`), with the method, the URL, the raw
+// dispatch anyway (`__gea_http_serve_at`), with the method, the URL, the raw
 // header block and the body bytes already separated. So this goes from that
 // dispatch to a `Request` (`Request.fromWire`: nothing copied, headers parsed
 // only if read) and from the `Response` to one wire write. What Hono itself
@@ -18,7 +18,7 @@
 //
 // Same-tree measurement, one worker, `/json`: 13.3k rps through the compiled
 // package against 26.0k through this shape (hono-bridge, 2026-09-18).
-import { statusText } from './http'
+import { boundListenAddress, statusText } from './http'
 import { Buffer } from './buffer-types'
 
 // The same contracts `http.ts` states for these five, for the same reasons
@@ -29,8 +29,9 @@ import { Buffer } from './buffer-types'
 // dispatch closure reaches, `Object` included, and refuses Hono's own
 // `Object.keys`.
 /** @gea-host-no-property-writes */
-declare function __gea_http_serve(
+declare function __gea_http_serve_at(
   port: number,
+  host: string,
   onRequest: (connId: number, flags: number, method: string, url: string, httpVersion: string, rawHead: string, body: string) => void
 ): void
 /** @gea-host-inert */
@@ -158,7 +159,7 @@ function respondFailure(connId: number, error: unknown): void {
 
 // The reactor's per-request work, as a declared function the dispatch closure
 // calls rather than a body it carries. The closure handed to
-// `__gea_http_serve` is an argument to an untagged host native, and the
+// `__gea_http_serve_at` is an argument to an untagged host native, and the
 // host-mutation census stamps `every` key onto each intrinsic object such an
 // argument can reach; a closure that itself read `Request` or `Promise` (both
 // properties of the global object) reached the global object, and with it
@@ -193,10 +194,12 @@ function dispatch(fetch: FetchCallback, connId: number, flags: number, method: s
 export const serve = (options: Options, listeningListener?: (info: AddressInfo) => void): ServerType => {
   const fetch = options.fetch
   const port = options.port ?? 3000
-  __gea_http_serve(port, (connId: number, flags: number, method: string, url: string, _httpVersion: string, rawHead: string, body: string): void => {
+  const address = boundListenAddress(options.hostname, 'serve')
+  // `__gea_http_serve_at` runs the event loop and returns only at shutdown.
+  if (listeningListener !== undefined) listeningListener({ address, family: 'IPv4', port })
+  __gea_http_serve_at(port, address, (connId: number, flags: number, method: string, url: string, _httpVersion: string, rawHead: string, body: string): void => {
     dispatch(fetch, connId, flags, method, url, rawHead, body)
   })
-  if (listeningListener !== undefined) listeningListener({ address: '0.0.0.0', family: 'IPv4', port })
   return {
     close(callback?: (error?: Error) => void): void {
       __gea_http_stop()

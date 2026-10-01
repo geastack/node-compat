@@ -19,8 +19,8 @@ app.post('/body/form', async (c) => {
 })
 
 // Port 3900, not 3000: this Mac's port 3000 is reserved for the user's own
-// dev server. The reactor binds every interface regardless of what is asked
-// (see runtime/node/http.ts), so only the port number is a real lever here.
+// dev server. With no `hostname`, `serve` binds every interface
+// (runtime/node/http.ts's `boundListenAddress`).
 serve({ fetch: (request, _env) => app.fetch(request), port: 3900 }, () => {
   console.log('hono-native listening on http://127.0.0.1:3900')
 })
