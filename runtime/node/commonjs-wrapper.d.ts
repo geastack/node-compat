@@ -20,4 +20,11 @@ declare global {
   var require: (specifier: string) => any
   var exports: any
   var module: { exports: any }
+
+  // `@types/node` spells the callable `require` surface as `NodeRequire`.
+  // Generated projects set `types: []`, so the alias has to live here or
+  // tests that annotate `require` with that name fail as `TS2304`.
+  interface NodeRequire extends NodeJS.Require {}
+  var __filename: string
+  var __dirname: string
 }
