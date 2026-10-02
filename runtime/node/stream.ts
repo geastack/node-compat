@@ -729,7 +729,7 @@ export class Readable extends Stream {
     return readableFromWeb(readableStream, options)
   }
 
-  static toWeb(streamReadable: Readable, _options: unknown = undefined): ReadableStream {
+  static toWeb(streamReadable: Readable, _options: unknown = undefined): ReadableStream<any> {
     return readableToWeb(streamReadable)
   }
 }
@@ -1325,7 +1325,7 @@ export class Duplex extends Readable {
 // so restoring the static costs one line once the compiler can carry it. Same
 // posture as `TextEncoder.encodeInto` elsewhere in this target: a member with
 // no implementation behind it is absent, never fabricated.
-export const duplexToWeb = (duplex: Duplex): { readable: ReadableStream; writable: WritableStream } => ({
+export const duplexToWeb = (duplex: Duplex): { readable: ReadableStream<any>; writable: WritableStream } => ({
   readable: readableToWeb(duplex),
   writable: writableToWeb(duplex)
 })
@@ -1429,22 +1429,39 @@ function readableFromWeb(readableStream: unknown, options: unknown = undefined):
   return output
 }
 
-// The controller's real shape (`ReadableStreamDefaultController<unknown>`)
-// only exposes `enqueue`/`close`/`error` -- naming it here (instead of the
-// underlying-source callback's inferred `any`) is enough to drop the casts
-// this block used to need.
-// `ReadableStream<R>` defaults to `R = Uint8Array` (matching real Node's
-// `Readable.toWeb` typical usage, and what `@hono/node-server` itself
-// declares -- `let reader: ReadableStreamDefaultReader<Uint8Array>`). But a
-// source `Readable` can be in object mode (`Readable.from(['to-web'])`,
-// see apps/stream-adapters), where 'data' hands back a string, not bytes --
-// the genuinely dynamic byte-vs-object boundary this file's header comment
-// describes. The cast at `enqueue` is that boundary, named instead of
-// hidden behind `any`.
-function readableToWeb(streamReadable: Readable): ReadableStream {
-  return new ReadableStream({
+// A byte-mode source yields `Buffer`s and an object-mode one yields whatever its
+// producer pushed (`Readable.from(['to-web'])` yields strings), so the stream
+// handed back is one of two physical classes and its static type is the one
+// that admits both: `ReadableStream<any>`, which derives to the union of the
+// stream's copies. `ReadableStream<Uint8Array>` is the copy `@hono/node-server`
+// reads (`Readable.toWeb(incoming) as ReadableStream<Uint8Array>`), and
+// `ReadableStream<any>` is the copy that carries arbitrary chunks natively
+// (boxed, because an object-mode chunk IS a genuinely dynamic value). Asserting
+// an object-mode chunk to `Uint8Array` instead -- as this did -- is a checked
+// cast the first string aborts.
+function readableToWeb(streamReadable: Readable): ReadableStream<any> {
+  if (streamReadable.readableObjectMode) return objectReadableToWeb(streamReadable)
+  return byteReadableToWeb(streamReadable)
+}
+
+function byteReadableToWeb(streamReadable: Readable): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
     start(controller): void {
       streamReadable.on('data', (chunk?: unknown) => controller.enqueue(chunk as Uint8Array))
+      streamReadable.once('end', () => controller.close())
+      streamReadable.once('error', (error?: unknown) => controller.error(error))
+      streamReadable.resume()
+    },
+    cancel(reason?: unknown): void {
+      streamReadable.destroy(reason instanceof Error ? reason : null)
+    }
+  })
+}
+
+function objectReadableToWeb(streamReadable: Readable): ReadableStream<any> {
+  return new ReadableStream<any>({
+    start(controller): void {
+      streamReadable.on('data', (chunk?: unknown) => controller.enqueue(chunk))
       streamReadable.once('end', () => controller.close())
       streamReadable.once('error', (error?: unknown) => controller.error(error))
       streamReadable.resume()
@@ -1674,9 +1691,20 @@ function pipelineArray(streamsAndCallback: unknown[], suppliedCallback: ((error?
   if (typeof streamsAndCallback[streamsAndCallback.length - 1] === 'function') {
     callback = streamsAndCallback.pop() as (error?: Error | null) => void
   }
-  const streams: Stream[] = (
-    streamsAndCallback.length === 1 && Array.isArray(streamsAndCallback[0]) ? streamsAndCallback[0] : streamsAndCallback
-  ) as Stream[]
+  // Each branch asserts ONE carrier. A conditional over the dynamic array
+  // element and the `unknown[]` itself is a two-arm union asserted to
+  // `Stream[]`, and the compiler loads only the arm it can convert (the box)
+  // without checking which one is live: `pipeline(a, b, c)` aborted reading
+  // its own argument list as a boxed array. The checked dispatch now throws
+  // for the `unknown[]` arm here instead, because this body writes and calls
+  // (the element-wise rebuild is a copy, taken only where nothing could
+  // observe the difference), so the per-branch assertion stays.
+  let streams: Stream[] = []
+  if (streamsAndCallback.length === 1 && Array.isArray(streamsAndCallback[0])) {
+    streams = streamsAndCallback[0] as Stream[]
+  } else {
+    for (const candidate of streamsAndCallback) streams.push(candidate as Stream)
+  }
   if (streams.length < 2) throw streamError('pipeline requires at least two streams', 'ERR_MISSING_ARGS')
   // Attach downstream first. A Readable created from an in-memory iterable can
   // drain synchronously as soon as its first `data` listener is installed.

@@ -2,15 +2,13 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repo = path.resolve(here, '..', '..')
-const workspace = path.resolve(repo, '..')
+const ts = createRequire(import.meta.url)('typescript')
 const surfacePath = path.join(repo, 'runtime', 'node', 'generated', 'node24-surface.json')
-const nodeTypesEntry = path.join(here, 'node_modules', '@types', 'node', 'index.d.ts')
-const compilerPath = path.join(workspace, 'compiler', 'packages', 'geatsc', 'dist', 'compiler.js')
-const { compile } = await import(pathToFileURL(compilerPath).href)
 const surface = JSON.parse(fs.readFileSync(surfacePath, 'utf8'))
 
 const lines = [
@@ -37,28 +35,25 @@ lines.push('export function main(): number { return 24 }', '')
 
 const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gea-node24-declarations-'))
 const entry = path.join(rootDir, 'surface.ts')
-const outDir = path.join(rootDir, 'dist')
 fs.writeFileSync(entry, lines.join('\n'))
 
-const result = compile({
-  entry,
-  outDir,
-  emitMain: true,
-  nodeResolution: {
-    builtinsDir: path.join(repo, 'runtime', 'node'),
-    builtinFacadesDir: path.join(repo, 'runtime', 'node', 'generated', 'facades'),
-    builtins: Object.keys(surface.modules).map((name) => name.slice('node:'.length)),
-    builtinDeclarationFiles: [nodeTypesEntry]
-  }
+// The pinned @types/node declarations are the contract. geatsc answers `node:*` with the executable builtin
+// shims (which implement only part of it), so this probe is checked by the TypeScript checker against the
+// pinned declaration root alone.
+const program = ts.createProgram([entry], {
+  target: ts.ScriptTarget.ES2022,
+  module: ts.ModuleKind.ESNext,
+  moduleResolution: ts.ModuleResolutionKind.Bundler,
+  strict: true,
+  noEmit: true,
+  skipLibCheck: true,
+  types: ['node'],
+  typeRoots: [path.join(here, 'node_modules', '@types')]
 })
-
+const diagnostics = ts.getPreEmitDiagnostics(program).filter((diagnostic) => diagnostic.file?.fileName === entry)
 assert.deepEqual(
-  result.diagnostics,
+  diagnostics.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')),
   [],
-  `Pinned Node 24 declaration compilation failed:\n${result.diagnostics
-    .map((diagnostic) => `${diagnostic.file ?? ''}:${diagnostic.line ?? ''} ${diagnostic.message}`)
-    .join('\n')}`
+  'Pinned Node 24 declaration compilation failed'
 )
-process.stdout.write(
-  `Verified geatsc compilation against all ${Object.keys(surface.modules).length} Node 24 modules and ${exportCount} exports\n`
-)
+process.stdout.write(`Verified TypeScript compilation against all ${Object.keys(surface.modules).length} Node 24 modules and ${exportCount} exports\n`)

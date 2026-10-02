@@ -88,6 +88,14 @@ const resolvedRuntimeModule = (specifier, importer, overrides) => {
       const source = path.resolve(path.dirname(importer), `${specifier.slice(0, -'.js'.length)}.ts`)
       if (fs.existsSync(source)) return source
     }
+    // The target's own builtin sources import each other extensionless (`./events`), which Node's resolver
+    // cannot see for a `.ts` file.
+    if (specifier.startsWith('.') && /\.[cm]?tsx?$/.test(importer)) {
+      for (const candidate of [`${specifier}.ts`, path.join(specifier, 'index.ts')]) {
+        const source = path.resolve(path.dirname(importer), candidate)
+        if (fs.existsSync(source)) return source
+      }
+    }
     return null
   }
 }

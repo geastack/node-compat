@@ -1,74 +1,13 @@
 // Generated from the pinned Node 24 declaration inventory. Do not edit.
 // Canonical builtin: node:path
 import { nodeNotImplemented } from "../../not-implemented"
-
-export function basename(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:path", "basename")
-}
-
-export const delimiter: unknown = undefined
-
-export function dirname(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:path", "dirname")
-}
-
-export function extname(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:path", "extname")
-}
-
-export function format(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:path", "format")
-}
-
-export function isAbsolute(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:path", "isAbsolute")
-}
-
-export function join(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:path", "join")
-}
+import { basename, delimiter, dirname, extname, format, isAbsolute, join, normalize, parse, posix, relative, resolve, sep, toNamespacedPath, win32 } from "../../path"
+export { basename, delimiter, dirname, extname, format, isAbsolute, join, normalize, parse, posix, relative, resolve, sep, toNamespacedPath, win32 }
 
 export function matchesGlob(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:path", "matchesGlob")
 }
-
-export function normalize(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:path", "normalize")
-}
-
-export function parse(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:path", "parse")
-}
-
-export const posix: unknown = undefined
-
-export function relative(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:path", "relative")
-}
-
-export function resolve(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:path", "resolve")
-}
-
-export const sep: unknown = undefined
-
-export function toNamespacedPath(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:path", "toNamespacedPath")
-}
-
-export const win32: unknown = undefined
 
 // `export =` is a genuinely dynamic CommonJS namespace boundary. Keep
 // string-keyed assignments so C/C++ platform macros cannot rewrite Node

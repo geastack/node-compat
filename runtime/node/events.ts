@@ -859,21 +859,5 @@ export function on(emitter: EventEmitter, name: EventName, options: StaticEventE
 
 export const prototype: EventEmitter = EventEmitter.prototype
 
-const eventsDefault = {
-  addAbortListener,
-  EventEmitter,
-  EventEmitterAsyncResource,
-  captureRejections,
-  captureRejectionSymbol,
-  defaultMaxListeners,
-  errorMonitor,
-  getEventListeners,
-  getMaxListeners,
-  listenerCount,
-  on,
-  once,
-  prototype,
-  setMaxListeners
-}
-
-export default eventsDefault
+// `require('events')` is the EventEmitter constructor itself, carrying the module's statics.
+export default EventEmitter

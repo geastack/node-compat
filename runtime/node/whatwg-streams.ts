@@ -539,9 +539,26 @@ class ReadableStreamDefaultReader<R = Uint8Array> {
     this.stream_ = stream
   }
 
-  read(): Promise<ReadableStreamReadResult<R>> {
+  // `view` belongs to the BYOB reader, but it is a parameter of THIS method
+  // rather than of an override in `ReadableStreamBYOBReader`: a reader read
+  // through a receiver spelled at `any` is the union of every physical copy
+  // of this class, and a subclass override with a different convention
+  // splits that read into a method VALUE per arm that no single published
+  // receiver can describe. One method, one convention, no override.
+  read(view?: Uint8Array): Promise<ReadableStreamReadResult<R>> {
     if (this.stream_ === null) return Promise.reject(new TypeError('Reader has no stream'))
-    return this.stream_.readInternal()
+    const pending = this.stream_.readInternal()
+    if (view === undefined || view === null) return pending
+    return pending.then((result) => {
+      if (result.done) return result
+      // The spec's byte precondition, asserted on the value rather than on
+      // the stream: a BYOB read of a non-byte stream fails here, loudly,
+      // instead of being reinterpreted silently at the class level.
+      const source = result.value as unknown as Uint8Array
+      const length = Math.min(view.length ?? 0, source.length ?? 0)
+      for (let index = 0; index < length; index++) view[index] = source[index]
+      return { done: false, value: view as unknown as R }
+    })
   }
 
   // WHATWG Streams §4.5.3. Distinct from `cancelAndRelease` (below, this
@@ -586,27 +603,12 @@ class ReadableStreamDefaultReader<R = Uint8Array> {
 // instance has -- and since a generic class is now one physical class PER
 // layout-distinct `R`, a byte-fixed base meant `getReader` had to assert its
 // own `this` was a different class. Carrying `R` is what removes that
-// assertion; the byte claim moves onto the chunk below, which is where the
-// spec's precondition actually lives and where a wrong value is caught.
+// assertion; the byte claim moves onto the chunk in the base's `read(view)`, which
+// is where the spec's precondition actually lives and where a wrong value is
+// caught.
 class ReadableStreamBYOBReader<R = Uint8Array> extends ReadableStreamDefaultReader<R> {
   constructor(stream: ReadableStream<R>) {
     super(stream)
-  }
-
-  // `view` is a destination BUFFER, so the result stays `R`-shaped: filling a
-  // caller's `Uint8Array` does not change what the stream yields, and keeping
-  // the base's return type is also what lets this override a `<R>` base.
-  read(view?: Uint8Array): Promise<ReadableStreamReadResult<R>> {
-    return super.read().then((result) => {
-      if (result.done || view === undefined || view === null) return result
-      // The spec's byte precondition, asserted on the value rather than on
-      // the stream: a BYOB read of a non-byte stream fails here, loudly,
-      // instead of being reinterpreted silently at the class level.
-      const source = result.value as unknown as Uint8Array
-      const length = Math.min(view.length ?? 0, source.length ?? 0)
-      for (let index = 0; index < length; index++) view[index] = source[index]
-      return { done: false, value: view as unknown as R }
-    })
   }
 }
 

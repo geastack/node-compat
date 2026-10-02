@@ -2034,10 +2034,21 @@ export class BlockList {
   }
 
   toJSON(): readonly string[] {
-    const result: string[] = []
+    // Node lists the rules by kind: addresses, subnets, then ranges. Subnets and ranges come newest first; Node
+    // keeps addresses in a hash set, so their order is unspecified and newest first is the deterministic choice.
+    const addresses: string[] = []
+    const subnets: string[] = []
+    const ranges: string[] = []
     for (let index = 0; index < this.ruleStrings_.length; index += 1) {
-      result.push(this.ruleStrings_[index])
+      const rule = this.ruleStrings_[index]
+      if (rule.startsWith('Address: ')) addresses.push(rule)
+      else if (rule.startsWith('Subnet: ')) subnets.push(rule)
+      else ranges.push(rule)
     }
+    const result: string[] = []
+    for (let index = 0; index < addresses.length; index += 1) result.push(addresses[index])
+    for (let index = 0; index < subnets.length; index += 1) result.push(subnets[index])
+    for (let index = 0; index < ranges.length; index += 1) result.push(ranges[index])
     return result
   }
 

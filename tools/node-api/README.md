@@ -17,11 +17,10 @@ npm run check:tcp
 ```
 
 `check:pilot` compiles and executes `apps/net-stub-pilot`. It verifies that
-direct, aliased, namespace, constructor, static method, instance method,
-property, named-value, and CommonJS-default stub uses throw the stable
-`ERR_GEA_NODE_NOT_IMPLEMENTED` error only when executed. Generated C++ is also
-checked to ensure statically typed stub arguments do not cross a
-`gea_cpp_value` argument bridge.
+direct, aliased, namespace, constructor, static method, instance method, and
+property uses of implemented `node:net` members run natively, and that reading
+a stubbed constant (`node:constants.EACCES`, named or through the CommonJS
+default) is inert.
 
 `check:imports` compiles and executes an entry that imports all 57 generated
 facades without touching any export. `check:tcp` preserves the existing
@@ -29,10 +28,10 @@ MongoDB-oriented bare-`net` client path by connecting to a local echo server
 and verifying a complete write/read/close exchange.
 
 `check` also generates a type-only import probe for every inventoried export and
-compiles it through geatsc with the pinned `@types/node` declaration root kept
-separate from executable builtin shims. This checks that all canonical Node 24
-modules and all 1,960 exports are part of the compiler's type-checking
-program. This includes the `export =` object surfaces of `node:constants`,
+compiles it with TypeScript against the pinned `@types/node` declaration root,
+separate from the executable builtin shims (which implement only part of that
+contract). This checks that all canonical Node 24 modules and all 1,960 exports
+are part of the pinned declaration program. This includes the `export =` object surfaces of `node:constants`,
 `node:process`, and the other CommonJS-shaped builtins. The inventory contains
 119 Node globals; quoted ambient module symbols are not counted as globals.
 

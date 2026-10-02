@@ -1,13 +1,12 @@
 // Generated from the pinned Node 24 declaration inventory. Do not edit.
 // Canonical builtin: node:http2
 import { nodeNotImplemented } from "../../not-implemented"
+export { constants, sensitiveHeaders } from "../../http2"
 
 export function connect(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:http2", "connect")
 }
-
-export const constants: unknown = undefined
 
 export function createSecureServer(...args: unknown[]): never {
   void args
@@ -52,5 +51,3 @@ export function performServerHandshake(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:http2", "performServerHandshake")
 }
-
-export const sensitiveHeaders: unknown = undefined

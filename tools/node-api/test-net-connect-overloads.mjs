@@ -159,7 +159,20 @@ try {
   }
   const blockList = await run('block-list', address.port)
   assert.equal(blockList.code, 0, `${blockList.stdout}\n${blockList.stderr}`)
-  assert.equal(blockList.stdout.trim(), blockListOracle())
+  // Node stores address rules in a hash set, so the order of `Address:` rules is unspecified; subnets and ranges
+  // are newest first. Compare the address rules as a set and everything else exactly.
+  const canonicalRules = (line) => {
+    const rules = line.split('|')
+    const addresses = rules.filter((rule) => rule.startsWith('Address: ')).sort()
+    return [...addresses, ...rules.filter((rule) => !rule.startsWith('Address: '))].join('|')
+  }
+  const canonicalBlockList = (text) =>
+    text
+      .trim()
+      .split('\n')
+      .map((line, index) => (index === 0 || index === 2 ? canonicalRules(line) : line))
+      .join('\n')
+  assert.equal(canonicalBlockList(blockList.stdout), canonicalBlockList(blockListOracle()))
 
   const socketMethods = await run('socket-methods', address.port)
   assert.equal(

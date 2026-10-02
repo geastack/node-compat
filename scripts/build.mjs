@@ -421,9 +421,17 @@ function writeProject() {
     `./${path.relative(outDir, path.join(builtinsDir, 'native-addons.ts')).replace(/\\/g, '/')}`
   ]
   const globalsFile = path.join(builtinsDir, 'globals.ts')
+  // The target's own `node:*` sources are part of the runtime graph: `fs.ts` names `URL`, so an entry that
+  // only imports `node:fs` still needs the declaration provider.
   const reachableGlobals = runtimeRootsForReachableGlobalNeeds({
     entryFiles: [entry],
-    moduleOverrides: answeredPackages(),
+    moduleOverrides: new Map([
+      ...[...builtinModules()].flatMap(([name, file]) => [
+        [`node:${name}`, file],
+        [name, file]
+      ]),
+      ...answeredPackages()
+    ]),
     providers: [{ file: globalsFile, names: whatwgGlobalNames }],
     ts
   })

@@ -17,26 +17,41 @@
 // name this file does not declare is "Cannot export 'ReadableStream'. Only
 // local declarations can be exported from a module."
 //
-// KNOWN LIMIT, and the reason `stream.ts` names the globals directly instead of
-// importing from here: the alias of a GENERIC class does not lower. A generic
-// class's bare name denotes no value in this target -- there is no single class
-// object for `ReadableStream<R>`, only the copy each instantiation names -- so
-// `const ReadableStreamAlias = ReadableStream` reads a cell the program never
-// introduces, and emission refuses it with `native-boundary:external-binding`.
-// The same rule is already stated for import/export specifiers by
-// `namesUninstantiatedGeneric` in the compiler's `producers/
-// declaration-lifecycle.ts`; a variable initializer has no equivalent, because
-// unlike a specifier it really does need a value. `ReadableStream`,
-// `ReadableStreamDefaultController` and `ReadableStreamDefaultReader` are the
-// three generic ones, and any program that pulls THIS module in pays for them.
-// Importing a non-generic name from here (`WritableStream`) is unaffected.
+// A generic class's bare name denotes no single value in this target -- there is
+// no class object for `ReadableStream<R>`, only the copy each instantiation
+// names -- so a read of `ReadableStreamAlias` is a read of the CLASS, never of a
+// cell holding one copy's constructor (`genericClassAliasTargetSymbol` in the
+// compiler's `class-alias.ts`), and each `new` through the alias selects its own
+// copy. `stream.ts` still names the globals directly: it does not need the
+// module's chunk-type default below.
 
 type UnderlyingReadableStreamSourceAlias<R> = UnderlyingReadableStreamSource<R>
 type QueuingStrategyInitAlias = QueuingStrategyInit
 type ReadableStreamReadResultAlias<R> = ReadableStreamReadResult<R>
 
+// The module surface's chunk type defaults to `unknown`, not the global class's
+// `Uint8Array`. A WHATWG stream carries ANY chunk -- `controller.enqueue('text')`
+// and `enqueue({ id: 1 })` are ordinary -- and a program that imports the class
+// from `node:stream/web` and builds `new ReadableStream({ start })` states no
+// chunk type for inference to find, so the default IS the answer: `Uint8Array`
+// there declares a byte stream the program never asked for, and a dynamic call
+// enqueueing a string aborts against it. The global keeps `Uint8Array` because
+// library code names it bare and means bytes (Fetch bodies, `@hono/node-server`).
+// `unknown` is exactly the dynamic boundary: the `unknown` copy is the one
+// `TransformStream` already exposes, so no further physical class is minted.
+//
+// The default is stated on the CONSTRUCTOR TYPE, not the class: type arguments
+// of a `new` are inferred against the construct signature this alias has, and a
+// bare type alias default alone would leave `new ReadableStream(...)` on the
+// class's own default. The assignment is the identity -- the alias holds the one
+// class object, and each `new` through it names the copy its own `R` selects.
+type ReadableStreamConstructorAlias = new <R = unknown>(
+  underlyingSource?: UnderlyingReadableStreamSource<R>,
+  strategy?: QueuingStrategyInit
+) => ReadableStream<R>
+
 const ReadableStreamDefaultControllerAlias = ReadableStreamDefaultController
-type ReadableStreamDefaultControllerAlias<R = Uint8Array> = ReadableStreamDefaultController<R>
+type ReadableStreamDefaultControllerAlias<R = unknown> = ReadableStreamDefaultController<R>
 
 const ReadableStreamBYOBRequestAlias = ReadableStreamBYOBRequest
 type ReadableStreamBYOBRequestAlias = ReadableStreamBYOBRequest
@@ -44,11 +59,11 @@ type ReadableStreamBYOBRequestAlias = ReadableStreamBYOBRequest
 const ReadableByteStreamControllerAlias = ReadableByteStreamController
 type ReadableByteStreamControllerAlias = ReadableByteStreamController
 
-const ReadableStreamAlias = ReadableStream
-type ReadableStreamAlias<R = Uint8Array> = ReadableStream<R>
+const ReadableStreamAlias: ReadableStreamConstructorAlias = ReadableStream
+type ReadableStreamAlias<R = unknown> = ReadableStream<R>
 
 const ReadableStreamDefaultReaderAlias = ReadableStreamDefaultReader
-type ReadableStreamDefaultReaderAlias<R = Uint8Array> = ReadableStreamDefaultReader<R>
+type ReadableStreamDefaultReaderAlias<R = unknown> = ReadableStreamDefaultReader<R>
 
 const ReadableStreamBYOBReaderAlias = ReadableStreamBYOBReader
 type ReadableStreamBYOBReaderAlias = ReadableStreamBYOBReader

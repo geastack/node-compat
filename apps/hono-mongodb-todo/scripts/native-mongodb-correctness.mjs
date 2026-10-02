@@ -80,6 +80,8 @@ function buildProbe(name) {
     '--out', outDir,
     '--exe', executable,
     '--report', report,
+    // The probes use globals (`URL`, timers, ...) the way the hono app does.
+    '--globals',
     ...(mode === '--emit-only' ? ['--emit-only'] : []),
     ...(mode === '--link-only' ? ['--link-only'] : [])
   ]
@@ -100,7 +102,8 @@ function buildProbe(name) {
 
 function run(command, commandArgs, label) {
   return new Promise((resolve) => {
-    const child = spawn(command, commandArgs, { cwd: appRoot, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
+    // node-compat root: probes name repo-relative paths (`apps/hono-mongodb-todo/...`).
+    const child = spawn(command, commandArgs, { cwd: nodeCompatRoot, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
     let stdout = ''
     let stderr = ''
     let timedOut = false
@@ -163,8 +166,8 @@ for (const name of probes) {
   }
 
   const entry = path.join(probeDir, `${name}.ts`)
-  const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx'
-  const reference = await run(npx, ['tsx', entry], 'node')
+  const tsx = path.join(appRoot, 'node_modules/.bin', process.platform === 'win32' ? 'tsx.cmd' : 'tsx')
+  const reference = fs.existsSync(tsx) ? await run(tsx, [entry], 'node') : await run(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['tsx', entry], 'node')
   const native = await run(executable, [], 'native')
   const problems = []
   if (reference.timedOut || reference.code !== 0) {

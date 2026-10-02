@@ -1,8 +1,8 @@
 // Generated from the pinned Node 24 declaration inventory. Do not edit.
 // Canonical builtin: node:process
 import { nodeNotImplemented } from "../../not-implemented"
-import { emitWarning, env, platform, stderr, stdout, version } from "../../process"
-export { emitWarning, env, platform, stderr, stdout, version }
+import { emitWarning, env, exit, pid, platform, ppid, stderr, stdout, version, versions } from "../../process"
+export { emitWarning, env, exit, pid, platform, ppid, stderr, stdout, version, versions }
 
 export function abort(...args: unknown[]): never {
   void args
@@ -82,11 +82,6 @@ export const execPath: unknown = undefined
 export function execve(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:process", "execve")
-}
-
-export function exit(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:process", "exit")
 }
 
 export const exitCode: unknown = undefined
@@ -195,10 +190,6 @@ export function once(...args: unknown[]): never {
 }
 
 export const permission: unknown = undefined
-
-export const pid: unknown = undefined
-
-export const ppid: unknown = undefined
 
 export function prependListener(...args: unknown[]): never {
   void args
@@ -315,8 +306,6 @@ export function uptime(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:process", "uptime")
 }
-
-export const versions: unknown = undefined
 
 // `export =` is a genuinely dynamic CommonJS namespace boundary. Keep
 // string-keyed assignments so C/C++ platform macros cannot rewrite Node

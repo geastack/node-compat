@@ -2653,8 +2653,23 @@ inline double net_is_ip(const std::string &input) {
     componentStart = index + 1;
   }
   if (validIpv4 && componentCount == 4) return 4.0;
+  // Node accepts a `%zone` suffix of one or more [0-9a-zA-Z-.:] characters on an IPv6 address without
+  // consulting the interface table; glibc's inet_pton rejects every zone and Darwin's resolves it, so
+  // validate the zone here and hand only the address to the platform parser.
+  std::string address = input;
+  const std::size_t zoneStart = input.find('%');
+  if (zoneStart != std::string::npos) {
+    if (zoneStart + 1 >= input.size()) return 0.0;
+    for (std::size_t index = zoneStart + 1; index < input.size(); ++index) {
+      const char character = input[index];
+      const bool allowed = (character >= '0' && character <= '9') || (character >= 'a' && character <= 'z') ||
+                           (character >= 'A' && character <= 'Z') || character == '-' || character == '.' || character == ':';
+      if (!allowed) return 0.0;
+    }
+    address = input.substr(0, zoneStart);
+  }
   in6_addr ipv6{};
-  if (::inet_pton(AF_INET6, input.c_str(), &ipv6) == 1) return 6.0;
+  if (::inet_pton(AF_INET6, address.c_str(), &ipv6) == 1) return 6.0;
   return 0.0;
 }
 

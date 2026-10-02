@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
+import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 
 import { compilerRuntimeInclude } from './resolve-compiler.mjs'
@@ -52,6 +53,7 @@ test('Process host metadata claims a finite, receiverless Process@1 protocol', (
 
 test('Process getBuiltinModule uses the cached native builtin registry', () => {
   const executable = resolve(root, 'apps/fastify-hello/dist/process-builtin-module')
+  mkdirSync(dirname(executable), { recursive: true })
   execFileSync(
     process.env.CXX ?? 'clang++',
     [
@@ -136,6 +138,7 @@ test('Process getBuiltinModule preserves Node’s generic literal return type', 
 
 test('Process native state preserves environment identity, tuple ABI, next-tick priority, and exit semantics', () => {
   const executable = resolve(root, 'apps/fastify-hello/dist/process-host-protocol')
+  mkdirSync(dirname(executable), { recursive: true })
   execFileSync(
     process.env.CXX ?? 'clang++',
     [

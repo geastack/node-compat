@@ -24,11 +24,28 @@ const checkOnly = process.argv.includes('--check')
 const internalOverlayExports = new Map(
   Object.entries({
     'node:buffer': ['default'],
+    // @types/node declares only the default export and Worker; the overlay also publishes the Cluster members as named exports.
+    'node:cluster': [
+      'Cluster',
+      'SCHED_NONE',
+      'SCHED_RR',
+      'WorkerProcess',
+      'disconnect',
+      'fork',
+      'isMaster',
+      'isPrimary',
+      'isWorker',
+      'setupPrimary',
+      'worker',
+      'workers'
+    ],
+    'node:crypto': ['Cipher', 'Decipher'],
     'node:events': ['EventIterator'],
     'node:fs': ['FsPromises'],
-    'node:http': ['Socket', 'default', 'httpMethods'],
+    'node:http': ['Socket', 'default', 'httpMethods', 'statusText'],
+    'node:net': ['ReactorSocket'],
     'node:process': ['WriteStream'],
-    'node:stream': ['finishedPromise', 'pipelinePromise'],
+    'node:stream': ['duplexToWeb', 'finishedPromise', 'pipelinePromise'],
     'node:stream/promises': ['nodeStreamPromiseFinished', 'nodeStreamPromisePipeline'],
     'node:timers': ['Timeout']
   }).map(([moduleName, names]) => [moduleName, new Set(names)])
@@ -275,6 +292,12 @@ function relativeImport(fromFile, targetFile) {
   return relative.startsWith('.') ? relative : `./${relative}`
 }
 
+// `import("/abs/path")` types in a signature name this checkout; the ledger is committed, so scrub the checkout root.
+const checkoutRoot = path.resolve(here, '..', '..', '..').split(path.sep).join('/')
+function portableSignature(signature) {
+  return signature.split(checkoutRoot).join('<repo-root>')
+}
+
 function propertyName(member) {
   if (ts.isConstructorDeclaration(member)) return '<constructor>'
   if (!member.name) return null
@@ -287,8 +310,8 @@ function discoverImplementationOverlays() {
     .filter((fileName) => fs.existsSync(fileName))
   const overlayProgram = ts.createProgram(overlayFiles, {
     target: ts.ScriptTarget.ES2022,
-    module: ts.ModuleKind.NodeNext,
-    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
     noEmit: true,
     skipLibCheck: true
   })
@@ -305,6 +328,13 @@ function discoverImplementationOverlays() {
     const exports = new Map()
     for (const exportedSymbol of overlayChecker.getExportsOfModule(moduleSymbol)) {
       let symbol = exportedSymbol
+      // `export type { X }` names no runtime value even when X merges a type with a value.
+      if (
+        exportedSymbol.declarations?.some(
+          (declaration) => ts.isExportSpecifier(declaration) && (declaration.isTypeOnly || declaration.parent.parent.isTypeOnly)
+        )
+      )
+        continue
       if (symbol.flags & ts.SymbolFlags.Alias) {
         try {
           symbol = overlayChecker.getAliasedSymbol(symbol)
@@ -313,6 +343,13 @@ function discoverImplementationOverlays() {
         }
       }
       if (!(symbol.flags & ts.SymbolFlags.Value)) continue
+      // An overlay that re-exports the generated facade (`export * from './generated/facades/x'`) implements
+      // nothing by doing so; counting those names would make the facade re-export itself.
+      if (
+        (symbol.declarations ?? []).length > 0 &&
+        symbol.declarations.every((declaration) => declaration.getSourceFile().fileName.startsWith(`${facadesDir}${path.sep}`))
+      )
+        continue
       const name = exportedSymbol.name
       const escapedModule = moduleName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
       const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -351,12 +388,12 @@ function discoverImplementationOverlays() {
       const supportedCallSignatures = type
         ? overlayChecker
             .getSignaturesOfType(type, ts.SignatureKind.Call)
-            .map((signature) => overlayChecker.signatureToString(signature, declaration))
+            .map((signature) => portableSignature(overlayChecker.signatureToString(signature, declaration)))
         : []
       const supportedConstructSignatures = type
         ? overlayChecker
             .getSignaturesOfType(type, ts.SignatureKind.Construct)
-            .map((signature) => overlayChecker.signatureToString(signature, declaration))
+            .map((signature) => portableSignature(overlayChecker.signatureToString(signature, declaration)))
         : []
       exports.set(name, {
         explicitlyStubbed,
@@ -365,12 +402,16 @@ function discoverImplementationOverlays() {
         supportedConstructSignatures
       })
     }
-    byModule.set(moduleName, { fileName, exports })
+    // An overlay that builds on its facade (`export * from './generated/facades/x'`) is imported BY the facade's
+    // consumers, so the facade cannot import it back: it keeps every name as a stub and the overlay shadows them.
+    const consumesFacade = sourceText.includes(`/generated/facades/${moduleName.slice('node:'.length)}'`)
+    byModule.set(moduleName, { fileName, exports, consumesFacade })
   }
   return byModule
 }
 
 const overlays = discoverImplementationOverlays()
+const unknownOverlayRegistrations = []
 
 for (const [moduleName, overlay] of overlays) {
   const declaredRuntimeExports = new Set(
@@ -379,10 +420,13 @@ for (const [moduleName, overlay] of overlays) {
   const allowedInternal = internalOverlayExports.get(moduleName) ?? new Set()
   for (const name of overlay.exports.keys()) {
     if (declaredRuntimeExports.has(name) || allowedInternal.has(name)) continue
-    throw new Error(
-      `Unknown runtime overlay registration ${moduleName}.${name}; add it to the pinned declaration surface or explicitly classify it as internal`
-    )
+    unknownOverlayRegistrations.push(`${moduleName}.${name}`)
   }
+}
+if (unknownOverlayRegistrations.length > 0) {
+  throw new Error(
+    `Unknown runtime overlay registration ${unknownOverlayRegistrations.join(', ')}; add each to the pinned declaration surface or explicitly classify it as internal`
+  )
 }
 
 function runtimeKind(entry) {
@@ -409,7 +453,7 @@ function renderFacade(moduleName, module) {
   const stubbed = []
   for (const entry of ordinaryRuntimeEntries) {
     const registration = overlay?.exports.get(entry.name)
-    if (registration && !registration.explicitlyStubbed) implemented.push(entry)
+    if (registration && !registration.explicitlyStubbed && !overlay.consumesFacade) implemented.push(entry)
     else stubbed.push(entry)
   }
 

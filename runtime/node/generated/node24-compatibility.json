@@ -1011,8 +1011,10 @@
           "kind": "class",
           "status": "partial",
           "overlay": "buffer.ts",
-          "supportedCallSignatures": [
-            "(value?: ArrayLike<number> | string): Buffer"
+          "supportedConstructSignatures": [
+            "(value: string, encoding?: BufferEncoding): Buffer",
+            "(value: readonly number[] | Uint8Array): Buffer",
+            "(value: ArrayBufferLike, byteOffset?: number, length?: number): Buffer"
           ],
           "members": [
             {
@@ -1140,7 +1142,8 @@
               "name": "readInt32BE",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodSignature"
             },
             {
               "name": "readInt32LE",
@@ -1201,7 +1204,8 @@
               "name": "readUInt32BE",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodSignature"
             },
             {
               "name": "readUint32LE",
@@ -1389,7 +1393,8 @@
               "name": "writeInt32BE",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodSignature"
             },
             {
               "name": "writeInt32LE",
@@ -1450,7 +1455,8 @@
               "name": "writeUInt32BE",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodSignature"
             },
             {
               "name": "writeUint32LE",
@@ -1635,7 +1641,11 @@
         {
           "name": "ChildProcess",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "child_process.ts",
+          "supportedConstructSignatures": [
+            "(options?: import(\"<repo-root>/node-compat/runtime/node/events\").EventEmitterOptions): ChildProcess"
+          ],
           "members": [
             {
               "name": "[Symbol.dispose]",
@@ -1647,7 +1657,8 @@
               "name": "addListener",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "channel",
@@ -1671,61 +1682,71 @@
               "name": "emit",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "exitCode",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "kill",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "killed",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "on",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "once",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "pid",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "prependListener",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "prependOnceListener",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "ref",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "send",
@@ -1737,19 +1758,22 @@
               "name": "signalCode",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "spawnargs",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "spawnfile",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "stderr",
@@ -1779,7 +1803,8 @@
               "name": "unref",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             }
           ]
         },
@@ -1835,102 +1860,122 @@
         {
           "name": "default",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "cluster.ts"
         },
         {
           "name": "Worker",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "cluster.ts",
+          "supportedConstructSignatures": [
+            "(id: number, pid: number, self: boolean): Worker"
+          ],
           "members": [
             {
               "name": "addListener",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "destroy",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "disconnect",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "emit",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "exitedAfterDisconnect",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "id",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "isConnected",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "isDead",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "kill",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "on",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "once",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "prependListener",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "prependOnceListener",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "process",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "send",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             }
           ]
         }
@@ -5928,12 +5973,20 @@
         {
           "name": "createHash",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "crypto.ts",
+          "supportedCallSignatures": [
+            "(algorithm: string): Hash"
+          ]
         },
         {
           "name": "createHmac",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "crypto.ts",
+          "supportedCallSignatures": [
+            "(algorithm: string, key: BinaryLike): Hmac"
+          ]
         },
         {
           "name": "createPrivateKey",
@@ -6185,7 +6238,11 @@
         {
           "name": "getFips",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "crypto.ts",
+          "supportedCallSignatures": [
+            "(): number"
+          ]
         },
         {
           "name": "getHashes",
@@ -6205,31 +6262,39 @@
         {
           "name": "Hash",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "crypto.ts",
+          "supportedConstructSignatures": [
+            "(algorithm: string): Hash"
+          ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "Constructor"
             },
             {
               "name": "copy",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "digest",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "update",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             }
           ]
         },
@@ -6246,25 +6311,32 @@
         {
           "name": "Hmac",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "crypto.ts",
+          "supportedConstructSignatures": [
+            "(algorithm: string, key: BinaryLike): Hmac"
+          ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "Constructor"
             },
             {
               "name": "digest",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "update",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             }
           ]
         },
@@ -6337,7 +6409,11 @@
         {
           "name": "pbkdf2Sync",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "crypto.ts",
+          "supportedCallSignatures": [
+            "(password: BinaryLike, salt: BinaryLike, iterations: number, keyLength: number, digest: string): Buffer"
+          ]
         },
         {
           "name": "privateDecrypt",
@@ -6370,7 +6446,8 @@
           "status": "partial",
           "overlay": "crypto.ts",
           "supportedCallSignatures": [
-            "(size: number, callback?: RandomBytesCallback): Buffer"
+            "(size: number): Buffer",
+            "(size: number, callback: RandomBytesCallback): void"
           ]
         },
         {
@@ -6381,7 +6458,11 @@
         {
           "name": "randomFillSync",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "crypto.ts",
+          "supportedCallSignatures": [
+            "<T extends Uint8Array>(buffer: T, offset?: number, size?: number): T"
+          ]
         },
         {
           "name": "randomInt",
@@ -6426,7 +6507,11 @@
         {
           "name": "Sign",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "crypto.ts",
+          "supportedConstructSignatures": [
+            "(): Sign"
+          ],
           "members": [
             {
               "name": "<constructor>",
@@ -6438,13 +6523,15 @@
               "name": "sign",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "update",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             }
           ]
         },
@@ -6456,7 +6543,11 @@
         {
           "name": "timingSafeEqual",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "crypto.ts",
+          "supportedCallSignatures": [
+            "(left: Uint8Array, right: Uint8Array): boolean"
+          ]
         },
         {
           "name": "verify",
@@ -6909,161 +7000,209 @@
         {
           "name": "channel",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "diagnostics_channel.ts",
+          "supportedCallSignatures": [
+            "(name: ChannelName): Channel<unknown, unknown>"
+          ]
         },
         {
           "name": "Channel",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "diagnostics_channel.ts",
+          "supportedConstructSignatures": [
+            "<StoreType = unknown, ContextType = StoreType>(name: ChannelName): Channel<StoreType, ContextType>"
+          ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "Constructor"
             },
             {
               "name": "bindStore",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "hasSubscribers",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "GetAccessor"
             },
             {
               "name": "name",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "publish",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "runStores",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "subscribe",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "unbindStore",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "unsubscribe",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             }
           ]
         },
         {
           "name": "hasSubscribers",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "diagnostics_channel.ts",
+          "supportedCallSignatures": [
+            "(name: ChannelName): boolean"
+          ]
         },
         {
           "name": "subscribe",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "diagnostics_channel.ts",
+          "supportedCallSignatures": [
+            "(name: ChannelName, listener: ChannelListener): void"
+          ]
         },
         {
           "name": "tracingChannel",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "diagnostics_channel.ts",
+          "supportedCallSignatures": [
+            "<StoreType = unknown, ContextType extends object = Record<string, unknown>>(nameOrChannels: string | TracingChannelCollection<StoreType, ContextType>): TracingChannel<StoreType, ContextType>"
+          ]
         },
         {
           "name": "TracingChannel",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "diagnostics_channel.ts",
+          "supportedConstructSignatures": [
+            "<StoreType = unknown, ContextType extends object = Record<string, unknown>>(nameOrChannels: string | TracingChannelCollection<StoreType, ContextType>): TracingChannel<StoreType, ContextType>"
+          ],
           "members": [
             {
               "name": "asyncEnd",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "asyncStart",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "end",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "error",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "hasSubscribers",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "GetAccessor"
             },
             {
               "name": "start",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "subscribe",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "traceCallback",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "tracePromise",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "traceSync",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "unsubscribe",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             }
           ]
         },
         {
           "name": "unsubscribe",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "diagnostics_channel.ts",
+          "supportedCallSignatures": [
+            "(name: ChannelName, listener: ChannelListener): boolean"
+          ]
         }
       ]
     },
@@ -7160,7 +7299,8 @@
         {
           "name": "ADDRGETNETWORKPARAMS",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "ALL",
@@ -7170,67 +7310,80 @@
         {
           "name": "BADFAMILY",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "BADFLAGS",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "BADHINTS",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "BADNAME",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "BADQUERY",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "BADRESP",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "BADSTR",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "CANCELLED",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "CONNREFUSED",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "DESTRUCTION",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "EOF",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "FILE",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "FORMERR",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "getDefaultResultOrder",
@@ -7245,7 +7398,8 @@
         {
           "name": "LOADIPHLPAPI",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "lookup",
@@ -7260,42 +7414,50 @@
         {
           "name": "NODATA",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "NOMEM",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "NONAME",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "NOTFOUND",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "NOTIMP",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "NOTINITIALIZED",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "promises",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "REFUSED",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "resolve",
@@ -7502,7 +7664,8 @@
         {
           "name": "SERVFAIL",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "setDefaultResultOrder",
@@ -7517,7 +7680,8 @@
         {
           "name": "TIMEOUT",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns.ts"
         },
         {
           "name": "V4MAPPED",
@@ -7582,72 +7746,86 @@
         {
           "name": "ADDRGETNETWORKPARAMS",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "BADFAMILY",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "BADFLAGS",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "BADHINTS",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "BADNAME",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "BADQUERY",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "BADRESP",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "BADSTR",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "CANCELLED",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "CONNREFUSED",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "DESTRUCTION",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "EOF",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "FILE",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "FORMERR",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "getDefaultResultOrder",
@@ -7662,12 +7840,17 @@
         {
           "name": "LOADIPHLPAPI",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "lookup",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts",
+          "supportedCallSignatures": [
+            "(_hostname: string, _options?: LookupOptions | number): Promise<LookupAddress>"
+          ]
         },
         {
           "name": "lookupService",
@@ -7677,37 +7860,44 @@
         {
           "name": "NODATA",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "NOMEM",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "NONAME",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "NOTFOUND",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "NOTIMP",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "NOTINITIALIZED",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "REFUSED",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "resolve",
@@ -7737,7 +7927,11 @@
         {
           "name": "resolveCname",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts",
+          "supportedCallSignatures": [
+            "(_hostname: string): Promise<string[]>"
+          ]
         },
         {
           "name": "resolveMx",
@@ -7757,7 +7951,11 @@
         {
           "name": "resolvePtr",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts",
+          "supportedCallSignatures": [
+            "(_hostname: string): Promise<string[]>"
+          ]
         },
         {
           "name": "Resolver",
@@ -7894,7 +8092,11 @@
         {
           "name": "resolveSrv",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts",
+          "supportedCallSignatures": [
+            "(_hostname: string): Promise<SrvRecord[]>"
+          ]
         },
         {
           "name": "resolveTlsa",
@@ -7904,7 +8106,11 @@
         {
           "name": "resolveTxt",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts",
+          "supportedCallSignatures": [
+            "(_hostname: string): Promise<string[][]>"
+          ]
         },
         {
           "name": "reverse",
@@ -7914,7 +8120,8 @@
         {
           "name": "SERVFAIL",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         },
         {
           "name": "setDefaultResultOrder",
@@ -7929,7 +8136,8 @@
         {
           "name": "TIMEOUT",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "dns/promises.ts"
         }
       ]
     },
@@ -8036,7 +8244,7 @@
           "status": "partial",
           "overlay": "events.ts",
           "supportedCallSignatures": [
-            "(signal: any, resource: (event?: any) => void): AbortDisposable"
+            "(signal: AbortSignal, resource: (event?: Event) => void): AbortDisposable"
           ]
         },
         {
@@ -8310,7 +8518,7 @@
           "status": "partial",
           "overlay": "events.ts",
           "supportedCallSignatures": [
-            "(emitter: EventEmitter, name: EventName): any[]"
+            "(emitter: EventEmitter, name: EventName): Listener[]"
           ]
         },
         {
@@ -8346,7 +8554,7 @@
           "status": "partial",
           "overlay": "events.ts",
           "supportedCallSignatures": [
-            "(emitter: EventEmitter, name: EventName): Promise<any[]>"
+            "(emitter: EventEmitter, name: EventName): Promise<unknown[]>"
           ]
         },
         {
@@ -8603,7 +8811,11 @@
         {
           "name": "createReadStream",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "fs.ts",
+          "supportedCallSignatures": [
+            "(path: string | URL, options?: ReadStreamOptions): ReadStream"
+          ]
         },
         {
           "name": "createWriteStream",
@@ -8734,7 +8946,11 @@
         {
           "name": "existsSync",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "fs.ts",
+          "supportedCallSignatures": [
+            "(path: string | URL): boolean"
+          ]
         },
         {
           "name": "fchmod",
@@ -8960,13 +9176,18 @@
         {
           "name": "ReadStream",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "fs.ts",
+          "supportedConstructSignatures": [
+            "(path: string | URL, options?: ReadStreamOptions): ReadStream"
+          ],
           "members": [
             {
               "name": "addListener",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "bytesRead",
@@ -8984,13 +9205,15 @@
               "name": "on",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "once",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "path",
@@ -9008,13 +9231,15 @@
               "name": "prependListener",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "prependOnceListener",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             }
           ]
         },
@@ -9109,7 +9334,11 @@
         {
           "name": "statSync",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "fs.ts",
+          "supportedCallSignatures": [
+            "(path: string | URL, options?: unknown): Stats"
+          ]
         },
         {
           "name": "symlink",
@@ -9887,7 +10116,7 @@
           "status": "partial",
           "overlay": "http.ts",
           "supportedCallSignatures": [
-            "(requestListener: RequestListener): Server"
+            "(optionsOrListener: ServerOptions | RequestListener, requestListener?: RequestListener): Server"
           ]
         },
         {
@@ -9896,7 +10125,7 @@
           "status": "partial",
           "overlay": "http.ts",
           "supportedCallSignatures": [
-            "(url: URL | string, options: RequestOptions, callback: ClientResponseListener): ClientRequest"
+            "(url: string | WhatwgURL, options: RequestOptions, callback: ClientResponseListener): ClientRequest"
           ]
         },
         {
@@ -9910,7 +10139,7 @@
           "status": "partial",
           "overlay": "http.ts",
           "supportedConstructSignatures": [
-            "(connId?: number, method?: string, url?: string, httpVersion?: string, rawHead?: string, body?: string): IncomingMessage"
+            "(connId: number, method: string, url: string, httpVersion: string, rawHead: string, body: string): IncomingMessage"
           ],
           "members": [
             {
@@ -10011,7 +10240,7 @@
               "kind": "PropertyDeclaration",
               "scope": "instance",
               "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "overlayKind": "GetAccessor"
             },
             {
               "name": "statusCode",
@@ -10326,7 +10555,7 @@
           "status": "partial",
           "overlay": "http.ts",
           "supportedConstructSignatures": [
-            "(connId?: number, isHead?: boolean, keepAliveRequested?: boolean, http10?: boolean): ServerResponse"
+            "(connId: number, isHead: boolean, keepAliveRequested: boolean, http10: boolean, request: IncomingMessage): ServerResponse"
           ],
           "members": [
             {
@@ -10378,7 +10607,8 @@
               "name": "writeEarlyHints",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "MethodDeclaration"
             },
             {
               "name": "writeHead",
@@ -10476,7 +10706,8 @@
         {
           "name": "constants",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "http2.ts"
         },
         {
           "name": "createSecureServer",
@@ -10861,7 +11092,8 @@
         {
           "name": "sensitiveHeaders",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "http2.ts"
         }
       ]
     },
@@ -10925,7 +11157,8 @@
         {
           "name": "globalAgent",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "https.ts"
         },
         {
           "name": "request",
@@ -12286,7 +12519,11 @@
         {
           "name": "availableParallelism",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "os.ts",
+          "supportedCallSignatures": [
+            "(): number"
+          ]
         },
         {
           "name": "constants",
@@ -12296,7 +12533,11 @@
         {
           "name": "cpus",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "os.ts",
+          "supportedCallSignatures": [
+            "(): CpuInfo[]"
+          ]
         },
         {
           "name": "devNull",
@@ -12441,55 +12682,60 @@
         {
           "name": "basename",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts",
+          "supportedCallSignatures": [
+            "(path: string, suffix?: string): string"
+          ]
         },
         {
           "name": "default",
           "kind": "value",
           "status": "partial",
           "composition": "generated-export-equals",
+          "overlay": "path.ts",
           "members": [
             {
               "name": "basename",
               "kind": "MethodSignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "delimiter",
               "kind": "PropertySignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "dirname",
               "kind": "MethodSignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "extname",
               "kind": "MethodSignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "format",
               "kind": "MethodSignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "isAbsolute",
               "kind": "MethodSignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "join",
               "kind": "MethodSignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "matchesGlob",
@@ -12501,81 +12747,102 @@
               "name": "normalize",
               "kind": "MethodSignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "parse",
               "kind": "MethodSignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "posix",
               "kind": "PropertySignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "relative",
               "kind": "MethodSignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "resolve",
               "kind": "MethodSignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "sep",
               "kind": "PropertySignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "toNamespacedPath",
               "kind": "MethodSignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "win32",
               "kind": "PropertySignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             }
           ]
         },
         {
           "name": "delimiter",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts"
         },
         {
           "name": "dirname",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts",
+          "supportedCallSignatures": [
+            "(path: string): string"
+          ]
         },
         {
           "name": "extname",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts",
+          "supportedCallSignatures": [
+            "(path: string): string"
+          ]
         },
         {
           "name": "format",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts",
+          "supportedCallSignatures": [
+            "(pathObject: FormatInputPathObject): string"
+          ]
         },
         {
           "name": "isAbsolute",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts",
+          "supportedCallSignatures": [
+            "(path: string): boolean"
+          ]
         },
         {
           "name": "join",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts",
+          "supportedCallSignatures": [
+            "(...paths: string[]): string"
+          ]
         },
         {
           "name": "matchesGlob",
@@ -12585,42 +12852,65 @@
         {
           "name": "normalize",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts",
+          "supportedCallSignatures": [
+            "(path: string): string"
+          ]
         },
         {
           "name": "parse",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts",
+          "supportedCallSignatures": [
+            "(path: string): ParsedPath"
+          ]
         },
         {
           "name": "posix",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts"
         },
         {
           "name": "relative",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts",
+          "supportedCallSignatures": [
+            "(from: string, to: string): string"
+          ]
         },
         {
           "name": "resolve",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts",
+          "supportedCallSignatures": [
+            "(...paths: string[]): string"
+          ]
         },
         {
           "name": "sep",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts"
         },
         {
           "name": "toNamespacedPath",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts",
+          "supportedCallSignatures": [
+            "(path: string): string"
+          ]
         },
         {
           "name": "win32",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "path.ts"
         }
       ]
     },
@@ -13752,7 +14042,7 @@
               "name": "exit",
               "kind": "MethodSignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "exitCode",
@@ -13908,7 +14198,7 @@
               "name": "pid",
               "kind": "PropertySignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "platform",
@@ -13920,7 +14210,7 @@
               "name": "ppid",
               "kind": "PropertySignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             },
             {
               "name": "prependListener",
@@ -14112,7 +14402,7 @@
               "name": "versions",
               "kind": "PropertySignature",
               "scope": "static",
-              "status": "stubbed"
+              "status": "partial"
             }
           ]
         },
@@ -14169,7 +14459,11 @@
         {
           "name": "exit",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "process.ts",
+          "supportedCallSignatures": [
+            "(code?: number): never"
+          ]
         },
         {
           "name": "exitCode",
@@ -14299,7 +14593,8 @@
         {
           "name": "pid",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "process.ts"
         },
         {
           "name": "platform",
@@ -14310,7 +14605,8 @@
         {
           "name": "ppid",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "process.ts"
         },
         {
           "name": "prependListener",
@@ -14473,7 +14769,8 @@
         {
           "name": "versions",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "process.ts"
         }
       ]
     },
@@ -15429,7 +15726,7 @@
           "status": "partial",
           "overlay": "stream.ts",
           "supportedCallSignatures": [
-            "(signal: any, resource: (event?: any) => void): AbortDisposable"
+            "(signal: AbortSignal, resource: (event?: Event) => void): AbortDisposable"
           ]
         },
         {
@@ -15438,7 +15735,7 @@
           "status": "partial",
           "overlay": "stream.ts",
           "supportedCallSignatures": [
-            "(_signal: any, stream: any): any"
+            "<S extends StreamLike>(signal: AbortSignal, stream: S): S"
           ]
         },
         {
@@ -15912,7 +16209,7 @@
           "status": "partial",
           "overlay": "stream.ts",
           "supportedCallSignatures": [
-            "(stream: any, optionsOrCallback: any, maybeCallback?: any): () => void"
+            "(stream: StreamLike, optionsOrCallback: unknown, maybeCallback?: (error?: Error | null) => void): () => void"
           ]
         },
         {
@@ -15930,7 +16227,7 @@
           "status": "partial",
           "overlay": "stream.ts",
           "supportedCallSignatures": [
-            "(emitter: EventEmitter, name: EventName): any[]"
+            "(emitter: EventEmitter, name: EventName): Listener[]"
           ]
         },
         {
@@ -15948,7 +16245,7 @@
           "status": "partial",
           "overlay": "stream.ts",
           "supportedCallSignatures": [
-            "(stream: any): boolean"
+            "(stream: unknown): boolean"
           ]
         },
         {
@@ -15957,7 +16254,7 @@
           "status": "partial",
           "overlay": "stream.ts",
           "supportedCallSignatures": [
-            "(stream: any): boolean"
+            "(stream: unknown): boolean"
           ]
         },
         {
@@ -15966,7 +16263,7 @@
           "status": "partial",
           "overlay": "stream.ts",
           "supportedCallSignatures": [
-            "(stream: any): boolean"
+            "(stream: unknown): boolean"
           ]
         },
         {
@@ -15993,7 +16290,7 @@
           "status": "partial",
           "overlay": "stream.ts",
           "supportedCallSignatures": [
-            "(emitter: EventEmitter, name: EventName): Promise<any[]>"
+            "(emitter: EventEmitter, name: EventName): Promise<unknown[]>"
           ]
         },
         {
@@ -16011,7 +16308,7 @@
           "status": "partial",
           "overlay": "stream.ts",
           "supportedCallSignatures": [
-            "(first: unknown, second?: unknown, third?: unknown, fourth?: unknown, fifth?: unknown, sixth?: unknown, seventh?: unknown, eighth?: unknown, ninth?: unknown, tenth?: unknown): any"
+            "(first: unknown, second?: unknown, third?: unknown, fourth?: unknown, fifth?: unknown, sixth?: unknown, seventh?: unknown, eighth?: unknown, ninth?: unknown, tenth?: unknown): Stream"
           ]
         },
         {
@@ -16489,8 +16786,7 @@
               "name": "_construct",
               "kind": "MethodDeclaration",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "_destroy",
@@ -16745,7 +17041,7 @@
           "status": "partial",
           "overlay": "stream/consumers.ts",
           "supportedCallSignatures": [
-            "(stream: any): Promise<ArrayBuffer>"
+            "(stream: Readable): Promise<ArrayBuffer>"
           ]
         },
         {
@@ -16754,7 +17050,7 @@
           "status": "partial",
           "overlay": "stream/consumers.ts",
           "supportedCallSignatures": [
-            "(stream: any): Promise<Blob>"
+            "(stream: Readable): Promise<Blob>"
           ]
         },
         {
@@ -16763,7 +17059,7 @@
           "status": "partial",
           "overlay": "stream/consumers.ts",
           "supportedCallSignatures": [
-            "(stream: any): Promise<Buffer>"
+            "(stream: Readable): Promise<Buffer>"
           ]
         },
         {
@@ -16772,7 +17068,7 @@
           "status": "partial",
           "overlay": "stream/consumers.ts",
           "supportedCallSignatures": [
-            "(stream: any): Promise<unknown>"
+            "(stream: Readable): Promise<unknown>"
           ]
         },
         {
@@ -16781,7 +17077,7 @@
           "status": "partial",
           "overlay": "stream/consumers.ts",
           "supportedCallSignatures": [
-            "(stream: any): Promise<string>"
+            "(stream: Readable): Promise<string>"
           ]
         }
       ]
@@ -16811,7 +17107,7 @@
           "status": "partial",
           "overlay": "stream/promises.ts",
           "supportedCallSignatures": [
-            "(first: unknown, second?: unknown, third?: unknown, fourth?: unknown, fifth?: unknown, sixth?: unknown, seventh?: unknown, eighth?: unknown, ninth?: unknown, tenth?: unknown): Promise<any>"
+            "(first: unknown, second?: unknown, third?: unknown, fourth?: unknown, fifth?: unknown, sixth?: unknown, seventh?: unknown, eighth?: unknown, ninth?: unknown, tenth?: unknown): Promise<void>"
           ]
         }
       ]
@@ -16880,22 +17176,20 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(init: any): ByteLengthQueuingStrategy"
+            "(init: QueuingStrategyInit): ByteLengthQueuingStrategy"
           ],
           "members": [
             {
               "name": "highWaterMark",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "size",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -16905,29 +17199,26 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(_format: string): CompressionStream"
+            "(format: CompressionFormat): CompressionStream"
           ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "Constructor"
+              "status": "stubbed"
             },
             {
               "name": "readable",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "writable",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -16937,22 +17228,20 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(init: any): CountQueuingStrategy"
+            "(init: QueuingStrategyInit): CountQueuingStrategy"
           ],
           "members": [
             {
               "name": "highWaterMark",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "size",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -16962,29 +17251,26 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(_format: string): DecompressionStream"
+            "(format: CompressionFormat): DecompressionStream"
           ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "Constructor"
+              "status": "stubbed"
             },
             {
               "name": "readable",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "writable",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -16994,43 +17280,38 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(stream: any): ReadableByteStreamController"
+            "(): ReadableByteStreamController"
           ],
           "members": [
             {
               "name": "byobRequest",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "close",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "desiredSize",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "GetAccessor"
+              "status": "stubbed"
             },
             {
               "name": "enqueue",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "error",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -17040,64 +17321,58 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(underlyingSource?: any, strategy?: any): ReadableStream"
+            "(underlyingSource: UnderlyingByteSource, strategy?: { highWaterMark?: number; }): ReadableStream<Uint8Array<ArrayBuffer>>",
+            "<R = any>(underlyingSource: UnderlyingDefaultSource<R>, strategy?: QueuingStrategy<R>): ReadableStream<R>",
+            "<R = any>(underlyingSource?: UnderlyingSource<R>, strategy?: QueuingStrategy<R>): ReadableStream<R>"
           ],
           "members": [
             {
               "name": "[Symbol.asyncIterator]",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "cancel",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "getReader",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "locked",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "pipeThrough",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "pipeTo",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "tee",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "values",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -17107,22 +17382,20 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(stream: ReadableStream): ReadableStreamBYOBReader"
+            "(stream: ReadableStream<Uint8Array<ArrayBuffer>>): ReadableStreamBYOBReader"
           ],
           "members": [
             {
               "name": "read",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "releaseLock",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -17132,29 +17405,26 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(view?: any): ReadableStreamBYOBRequest"
+            "(): ReadableStreamBYOBRequest"
           ],
           "members": [
             {
               "name": "respond",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "respondWithNewView",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "view",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -17164,36 +17434,32 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(stream: any): ReadableStreamDefaultController"
+            "(): ReadableStreamDefaultController"
           ],
           "members": [
             {
               "name": "close",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "desiredSize",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "GetAccessor"
+              "status": "stubbed"
             },
             {
               "name": "enqueue",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "error",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -17203,22 +17469,20 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(stream: ReadableStream): ReadableStreamDefaultReader"
+            "<R = any>(stream: ReadableStream<R>): ReadableStreamDefaultReader<R>"
           ],
           "members": [
             {
               "name": "read",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "releaseLock",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -17228,50 +17492,44 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(label?: string, options?: any): TextDecoderStream"
+            "(label?: string, options?: TextDecoderOptions): TextDecoderStream"
           ],
           "members": [
             {
               "name": "[Symbol.toStringTag]",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "GetAccessor"
+              "status": "stubbed"
             },
             {
               "name": "encoding",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "fatal",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "ignoreBOM",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "readable",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "writable",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -17288,29 +17546,25 @@
               "name": "[Symbol.toStringTag]",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "GetAccessor"
+              "status": "stubbed"
             },
             {
               "name": "encoding",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "readable",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "writable",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -17320,22 +17574,20 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(transformer?: any, writableStrategy?: any, readableStrategy?: any): TransformStream"
+            "<I = any, O = any>(transformer?: Transformer<I, O>, writableStrategy?: QueuingStrategy<I>, readableStrategy?: QueuingStrategy<O>): TransformStream<I, O>"
           ],
           "members": [
             {
               "name": "readable",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "writable",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -17345,36 +17597,32 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(readableController: ReadableStreamDefaultController): TransformStreamDefaultController"
+            "(): TransformStreamDefaultController"
           ],
           "members": [
             {
               "name": "desiredSize",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "GetAccessor"
+              "status": "stubbed"
             },
             {
               "name": "enqueue",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "error",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "terminate",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -17384,36 +17632,32 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(underlyingSink?: any, _strategy?: any): WritableStream"
+            "<W = any>(underlyingSink?: UnderlyingSink<W>, strategy?: QueuingStrategy<W>): WritableStream<W>"
           ],
           "members": [
             {
               "name": "abort",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "close",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "getWriter",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "locked",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "PropertyDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -17423,15 +17667,14 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(stream: any): WritableStreamDefaultController"
+            "(): WritableStreamDefaultController"
           ],
           "members": [
             {
               "name": "error",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             }
           ]
         },
@@ -17441,57 +17684,50 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(stream: WritableStream): WritableStreamDefaultWriter"
+            "<W = any>(stream: WritableStream<W>): WritableStreamDefaultWriter<W>"
           ],
           "members": [
             {
               "name": "abort",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "close",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "closed",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "GetAccessor"
+              "status": "stubbed"
             },
             {
               "name": "desiredSize",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "GetAccessor"
+              "status": "stubbed"
             },
             {
               "name": "ready",
               "kind": "PropertySignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "GetAccessor"
+              "status": "stubbed"
             },
             {
               "name": "releaseLock",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             },
             {
               "name": "write",
               "kind": "MethodSignature",
               "scope": "instance",
-              "status": "partial",
-              "overlayKind": "MethodDeclaration"
+              "status": "stubbed"
             }
           ]
         }
@@ -17868,7 +18104,8 @@
           "status": "partial",
           "overlay": "timers.ts",
           "supportedCallSignatures": [
-            "(handle: Timeout | number | null | undefined): void"
+            "(id: number | undefined): void",
+            "(timeout: NodeJS.Timeout | string | number | undefined): void"
           ]
         },
         {
@@ -17877,7 +18114,8 @@
           "status": "partial",
           "overlay": "timers.ts",
           "supportedCallSignatures": [
-            "(handle: Timeout | number | null | undefined): void"
+            "(id: number | undefined): void",
+            "(timeout: NodeJS.Timeout | string | number | undefined): void"
           ]
         },
         {
@@ -17896,7 +18134,9 @@
           "status": "partial",
           "overlay": "timers.ts",
           "supportedCallSignatures": [
-            "(callback: () => void, delay?: number): Timeout"
+            "(handler: TimerHandler, timeout?: number, ...arguments: any[]): number",
+            "<TArgs extends any[]>(callback: (...args: TArgs) => void, delay?: number, ...args: TArgs): NodeJS.Timeout",
+            "(callback: (_: void) => void, delay?: number): NodeJS.Timeout"
           ]
         },
         {
@@ -17905,7 +18145,9 @@
           "status": "partial",
           "overlay": "timers.ts",
           "supportedCallSignatures": [
-            "(callback: () => void, delay?: number): Timeout"
+            "(handler: TimerHandler, timeout?: number, ...arguments: any[]): number",
+            "<TArgs extends any[]>(callback: (...args: TArgs) => void, delay?: number, ...args: TArgs): NodeJS.Timeout",
+            "(callback: (_: void) => void, delay?: number): NodeJS.Timeout"
           ]
         }
       ]
@@ -18007,7 +18249,7 @@
           "status": "partial",
           "overlay": "tls.ts",
           "supportedCallSignatures": [
-            "(_options: ConnectionOptions): TLSSocket"
+            "(_options: ConnectionOptions, _secureConnectListener?: () => void): TLSSocket"
           ]
         },
         {
@@ -18198,7 +18440,8 @@
               "name": "encrypted",
               "kind": "PropertyDeclaration",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "PropertyDeclaration"
             },
             {
               "name": "exportKeyingMaterial",
@@ -18595,7 +18838,11 @@
         {
           "name": "URL",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "url.ts",
+          "supportedConstructSignatures": [
+            "(url: string | URL, base?: string | URL): URL"
+          ],
           "members": [
             {
               "name": "<constructor>",
@@ -18795,7 +19042,11 @@
         {
           "name": "URLSearchParams",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "url.ts",
+          "supportedConstructSignatures": [
+            "(init?: string[][] | Record<string, string> | string | URLSearchParams): URLSearchParams"
+          ],
           "members": [
             {
               "name": "[Symbol.iterator]",
@@ -20690,7 +20941,8 @@
         {
           "name": "constants",
           "kind": "value",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts"
         },
         {
           "name": "crc32",
@@ -20795,17 +21047,29 @@
         {
           "name": "deflateRawSync",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(input: InputType, options?: ZlibOptions): Buffer"
+          ]
         },
         {
           "name": "deflateSync",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(input: InputType, options?: ZlibOptions): Buffer"
+          ]
         },
         {
           "name": "gunzip",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(input: InputType, callback: ZlibCallback): void"
+          ]
         },
         {
           "name": "Gunzip",
@@ -20823,12 +21087,20 @@
         {
           "name": "gunzipSync",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(input: InputType): Buffer"
+          ]
         },
         {
           "name": "gzip",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(input: InputType, options: ZlibOptions, callback: ZlibCallback): void"
+          ]
         },
         {
           "name": "Gzip",
@@ -20846,7 +21118,11 @@
         {
           "name": "gzipSync",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(input: InputType, options?: ZlibOptions): Buffer"
+          ]
         },
         {
           "name": "inflate",
@@ -20891,12 +21167,20 @@
         {
           "name": "inflateRawSync",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(input: InputType): Buffer"
+          ]
         },
         {
           "name": "inflateSync",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(input: InputType): Buffer"
+          ]
         },
         {
           "name": "unzip",
@@ -20919,7 +21203,11 @@
         {
           "name": "unzipSync",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(input: InputType): Buffer"
+          ]
         },
         {
           "name": "Z_ASCII",

@@ -1,19 +1,9 @@
 // Generated from the pinned Node 24 declaration inventory. Do not edit.
 // Canonical builtin: node:os
 import { nodeNotImplemented } from "../../not-implemented"
-export { arch, endianness, platform, release, type } from "../../os"
-
-export function availableParallelism(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:os", "availableParallelism")
-}
+export { arch, availableParallelism, cpus, endianness, platform, release, type } from "../../os"
 
 export const constants: unknown = undefined
-
-export function cpus(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:os", "cpus")
-}
 
 export const devNull: unknown = undefined
 

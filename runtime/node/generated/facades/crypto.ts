@@ -1,7 +1,7 @@
 // Generated from the pinned Node 24 declaration inventory. Do not edit.
 // Canonical builtin: node:crypto
 import { nodeNotImplemented } from "../../not-implemented"
-export { randomBytes } from "../../crypto"
+export { createHash, createHmac, getFips, Hash, Hmac, pbkdf2Sync, randomBytes, randomFillSync, Sign, timingSafeEqual } from "../../crypto"
 
 export function argon2(...args: unknown[]): never {
   void args
@@ -62,16 +62,6 @@ export function createDiffieHellmanGroup(...args: unknown[]): never {
 export function createECDH(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:crypto", "createECDH")
-}
-
-export function createHash(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:crypto", "createHash")
-}
-
-export function createHmac(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:crypto", "createHmac")
 }
 
 export function createPrivateKey(...args: unknown[]): never {
@@ -194,11 +184,6 @@ export function getDiffieHellman(...args: unknown[]): never {
   return nodeNotImplemented("node:crypto", "getDiffieHellman")
 }
 
-export function getFips(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:crypto", "getFips")
-}
-
 export function getHashes(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:crypto", "getHashes")
@@ -214,13 +199,6 @@ export function hash(...args: unknown[]): never {
   return nodeNotImplemented("node:crypto", "hash")
 }
 
-export class Hash {
-  constructor(...args: unknown[]) {
-    void args
-    nodeNotImplemented("node:crypto", "Hash")
-  }
-}
-
 export function hkdf(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:crypto", "hkdf")
@@ -229,13 +207,6 @@ export function hkdf(...args: unknown[]): never {
 export function hkdfSync(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:crypto", "hkdfSync")
-}
-
-export class Hmac {
-  constructor(...args: unknown[]) {
-    void args
-    nodeNotImplemented("node:crypto", "Hmac")
-  }
 }
 
 export class KeyObject {
@@ -248,11 +219,6 @@ export class KeyObject {
 export function pbkdf2(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:crypto", "pbkdf2")
-}
-
-export function pbkdf2Sync(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:crypto", "pbkdf2Sync")
 }
 
 export function privateDecrypt(...args: unknown[]): never {
@@ -283,11 +249,6 @@ export function publicEncrypt(...args: unknown[]): never {
 export function randomFill(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:crypto", "randomFill")
-}
-
-export function randomFillSync(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:crypto", "randomFillSync")
 }
 
 export function randomInt(...args: unknown[]): never {
@@ -330,19 +291,7 @@ export function sign(...args: unknown[]): never {
   return nodeNotImplemented("node:crypto", "sign")
 }
 
-export class Sign {
-  constructor(...args: unknown[]) {
-    void args
-    nodeNotImplemented("node:crypto", "Sign")
-  }
-}
-
 export const subtle: unknown = undefined
-
-export function timingSafeEqual(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:crypto", "timingSafeEqual")
-}
 
 export function verify(...args: unknown[]): never {
   void args

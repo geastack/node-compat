@@ -37,10 +37,11 @@ try {
     'resource:true,7,advanced',
     'destroyed:true',
     'abort:1',
-    'capture:rejected',
     'iterator:false,first,2',
     'iterator-close:true',
-    'iterator-return:true'
+    'iterator-return:true',
+    // Node reports a captured rejection after the iterator reactions queued before it (checked against Node 24).
+    'capture:rejected'
   ])
   assert.doesNotMatch(`${run.stdout}\n${run.stderr}`, /ERR_GEA_NODE_NOT_IMPLEMENTED/)
   console.log('Verified node:events symbols, abort listener, async resource, rejection capture, and async iterator')

@@ -12,7 +12,7 @@ export function nodeStreamPromiseFinished(stream: unknown, options: FinishedOpti
   return finishedPromise(stream, options)
 }
 
-export function nodeStreamPromisePipeline(
+export async function nodeStreamPromisePipeline(
   first: unknown,
   second?: unknown,
   third?: unknown,
@@ -24,7 +24,8 @@ export function nodeStreamPromisePipeline(
   ninth?: unknown,
   tenth?: unknown
 ): Promise<void> {
-  return pipelinePromise(first, second, third, fourth, fifth, sixth, seventh, eighth, ninth, tenth)
+  // Node's `stream/promises.pipeline` resolves with nothing (the stream it ends in is not its result).
+  await pipelinePromise(first, second, third, fourth, fifth, sixth, seventh, eighth, ninth, tenth)
 }
 
 export {

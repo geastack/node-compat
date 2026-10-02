@@ -1,6 +1,7 @@
 // Generated from the pinned Node 24 declaration inventory. Do not edit.
 // Canonical builtin: node:https
 import { nodeNotImplemented } from "../../not-implemented"
+export { globalAgent } from "../../https"
 
 export class Agent {
   constructor(...args: unknown[]) {
@@ -18,8 +19,6 @@ export function get(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:https", "get")
 }
-
-export const globalAgent: unknown = undefined
 
 export function request(...args: unknown[]): never {
   void args

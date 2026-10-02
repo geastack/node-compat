@@ -1,7 +1,7 @@
 // Generated from the pinned Node 24 declaration inventory. Do not edit.
 // Canonical builtin: node:fs
 import { nodeNotImplemented } from "../../not-implemented"
-export { constants, promises } from "../../fs"
+export { constants, createReadStream, existsSync, promises, ReadStream, statSync } from "../../fs"
 
 export function access(...args: unknown[]): never {
   void args
@@ -73,11 +73,6 @@ export function cpSync(...args: unknown[]): never {
   return nodeNotImplemented("node:fs", "cpSync")
 }
 
-export function createReadStream(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:fs", "createReadStream")
-}
-
 export function createWriteStream(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:fs", "createWriteStream")
@@ -100,11 +95,6 @@ export class Dirent {
 export function exists(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:fs", "exists")
-}
-
-export function existsSync(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:fs", "existsSync")
 }
 
 export function fchmod(...args: unknown[]): never {
@@ -322,13 +312,6 @@ export function readlinkSync(...args: unknown[]): never {
   return nodeNotImplemented("node:fs", "readlinkSync")
 }
 
-export class ReadStream {
-  constructor(...args: unknown[]) {
-    void args
-    nodeNotImplemented("node:fs", "ReadStream")
-  }
-}
-
 export function readSync(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:fs", "readSync")
@@ -411,11 +394,6 @@ export class StatsFs {
     void args
     nodeNotImplemented("node:fs", "StatsFs")
   }
-}
-
-export function statSync(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:fs", "statSync")
 }
 
 export function symlink(...args: unknown[]): never {

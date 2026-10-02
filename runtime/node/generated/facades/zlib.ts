@@ -1,7 +1,7 @@
 // Generated from the pinned Node 24 declaration inventory. Do not edit.
 // Canonical builtin: node:zlib
 import { nodeNotImplemented } from "../../not-implemented"
-export { deflate, inflate } from "../../zlib"
+export { constants, deflate, deflateRawSync, deflateSync, gunzip, gunzipSync, gzip, gzipSync, inflate, inflateRawSync, inflateSync, unzipSync } from "../../zlib"
 
 export function brotliCompress(...args: unknown[]): never {
   void args
@@ -36,8 +36,6 @@ export function brotliDecompressSync(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:zlib", "brotliDecompressSync")
 }
-
-export const constants: unknown = undefined
 
 export function crc32(...args: unknown[]): never {
   void args
@@ -118,21 +116,6 @@ export class DeflateRaw {
   }
 }
 
-export function deflateRawSync(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "deflateRawSync")
-}
-
-export function deflateSync(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "deflateSync")
-}
-
-export function gunzip(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "gunzip")
-}
-
 export class Gunzip {
   constructor(...args: unknown[]) {
     void args
@@ -140,26 +123,11 @@ export class Gunzip {
   }
 }
 
-export function gunzipSync(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "gunzipSync")
-}
-
-export function gzip(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "gzip")
-}
-
 export class Gzip {
   constructor(...args: unknown[]) {
     void args
     nodeNotImplemented("node:zlib", "Gzip")
   }
-}
-
-export function gzipSync(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "gzipSync")
 }
 
 export class Inflate {
@@ -181,16 +149,6 @@ export class InflateRaw {
   }
 }
 
-export function inflateRawSync(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "inflateRawSync")
-}
-
-export function inflateSync(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "inflateSync")
-}
-
 export function unzip(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:zlib", "unzip")
@@ -201,11 +159,6 @@ export class Unzip {
     void args
     nodeNotImplemented("node:zlib", "Unzip")
   }
-}
-
-export function unzipSync(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "unzipSync")
 }
 
 export const Z_ASCII: unknown = undefined
