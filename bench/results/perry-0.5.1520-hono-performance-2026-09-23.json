@@ -1,0 +1,1082 @@
+{
+  "utc": "2026-09-23T14:12:39Z",
+  "settings": {
+    "output": "bench/results/perry-0.5.1520-hono-performance-2026-09-23.json",
+    "binary_name": "server-perry-source",
+    "hono_entry": "apps/hono-hello/server.ts",
+    "skip_parity": true,
+    "rounds": 3,
+    "duration": "8s",
+    "skip_bench": false
+  },
+  "node": "v24.21.0",
+  "perry": "perry 0.5.1520",
+  "machine": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Xeon(R) CPU E3-1231 v3 @ 3.40GHz\nCPU family:                              6\nModel:                                   60\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                3\nCPU(s) scaling MHz:                      60%\nCPU max MHz:                             3800.0000\nCPU min MHz:                             800.0000\nBogoMIPS:                                6784.29\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid xsaveopt dtherm ida arat pln pts vnmi md_clear flush_l1d ibpb_exit_to_user\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: VMX disabled\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Unknown: No mitigations\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Retpolines; IBPB conditional; IBRS_FW; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace\n",
+  "start_load": "0.67 1.44 1.31 1/276 2026827",
+  "server_cpus": "0",
+  "load_cpus": "4-7",
+  "connections": 64,
+  "load_threads": 4,
+  "sha256": {
+    "apps/http-parity/server.ts": "674ec022fc87153ca88ffaf2474ed35c264eeeb17503170fbc13d96ba11daa14",
+    "apps/http-parity/dist/server-perry-source": "ed7594536613adb0269baea1320cdc1d819da4adbb963b26b2119fa99338b410",
+    "apps/hono-hello/server.ts": "7de6949757315948121a51903d71cd82a57b4c127a2cad14f4e13e49510a7e90",
+    "apps/hono-hello/dist/server-perry-source": "abba14b1a9b61fd165ab49a815e654bf0d25c8f677d3ede8027b36bdbf75dd15",
+    "apps/hono-hello/package.json": "c363c0df68d13a7b6da03c4cfa4d926f822e683fa563e9d596d93c35a0f0fed6",
+    "apps/http-parity/driver.mjs": "594471b6aa2e0320f865af42cac4648e83330ff7a9666ef1026c154505421160",
+    "bench/perry-http.py": "d512724997be30ab66f238e8ef0ba7220782fc7c102ce9e59e4253b84e1d746b"
+  },
+  "hono": [
+    {
+      "server": "perry",
+      "round": 1,
+      "startup_ms": 105.21763656288385,
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "11"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:12:39 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello Hono!"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Content-Type",
+              "application/json"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:12:39 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        },
+        "/missing": {
+          "status": 404,
+          "headers": [
+            [
+              "Content-Length",
+              "13"
+            ],
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:12:39 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "404 Not Found"
+        },
+        "/body/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "12"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:12:39 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Perry parity"
+        }
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3900/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    20.98ms    6.62ms  60.55ms   86.99%\n    Req/Sec   768.00    111.08     0.97k    58.75%\n  Latency Distribution\n     50%   18.69ms\n     75%   19.49ms\n     90%   33.25ms\n     99%   47.29ms\n  6119 requests in 2.01s, 1.02MB read\nRequests/sec:   3041.48\nTransfer/sec:    516.81KB\n",
+        "valid": true,
+        "rps": 3041.48
+      },
+      "output": "hono-native listening on http://127.0.0.1:3900\n",
+      "exit": -15
+    },
+    {
+      "server": "node",
+      "round": 1,
+      "startup_ms": 207.20634702593088,
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "11"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:12:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello Hono!"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:12:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        },
+        "/missing": {
+          "status": 404,
+          "headers": [
+            [
+              "content-type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "13"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:12:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "404 Not Found"
+        },
+        "/body/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "12"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:12:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Perry parity"
+        }
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3900/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     5.25ms   17.16ms 208.54ms   96.86%\n    Req/Sec     6.88k     3.69k   33.58k    87.65%\n  Latency Distribution\n     50%    2.03ms\n     75%    2.44ms\n     90%    4.55ms\n     99%  110.24ms\n  55447 requests in 2.10s, 9.25MB read\nRequests/sec:  26402.24\nTransfer/sec:      4.41MB\n",
+        "valid": true,
+        "rps": 26402.24
+      },
+      "output": "hono-native listening on http://127.0.0.1:3900\n",
+      "exit": -15
+    },
+    {
+      "server": "node",
+      "round": 2,
+      "startup_ms": 207.2371868416667,
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "11"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:13:16 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello Hono!"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:13:16 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        },
+        "/missing": {
+          "status": 404,
+          "headers": [
+            [
+              "content-type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "13"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:13:16 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "404 Not Found"
+        },
+        "/body/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "12"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:13:16 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Perry parity"
+        }
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3900/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     4.89ms   16.16ms 201.07ms   96.92%\n    Req/Sec     7.29k     3.90k   35.07k    87.65%\n  Latency Distribution\n     50%    1.85ms\n     75%    2.45ms\n     90%    4.09ms\n     99%  102.75ms\n  58824 requests in 2.10s, 9.82MB read\nRequests/sec:  28012.36\nTransfer/sec:      4.68MB\n",
+        "valid": true,
+        "rps": 28012.36
+      },
+      "output": "hono-native listening on http://127.0.0.1:3900\n",
+      "exit": -15
+    },
+    {
+      "server": "perry",
+      "round": 2,
+      "startup_ms": 104.80722691863775,
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "11"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:13:35 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello Hono!"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Content-Type",
+              "application/json"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:13:35 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        },
+        "/missing": {
+          "status": 404,
+          "headers": [
+            [
+              "Content-Length",
+              "13"
+            ],
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:13:35 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "404 Not Found"
+        },
+        "/body/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "12"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:13:35 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Perry parity"
+        }
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3900/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    21.23ms    6.52ms  59.54ms   87.73%\n    Req/Sec   757.11     92.15     0.97k    73.75%\n  Latency Distribution\n     50%   18.98ms\n     75%   19.65ms\n     90%   33.06ms\n     99%   46.97ms\n  6032 requests in 2.02s, 1.00MB read\nRequests/sec:   2991.22\nTransfer/sec:    508.27KB\n",
+        "valid": true,
+        "rps": 2991.22
+      },
+      "output": "hono-native listening on http://127.0.0.1:3900\n",
+      "exit": -15
+    },
+    {
+      "server": "perry",
+      "round": 3,
+      "startup_ms": 104.83691096305847,
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "11"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:13:53 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello Hono!"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Content-Type",
+              "application/json"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:13:53 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        },
+        "/missing": {
+          "status": 404,
+          "headers": [
+            [
+              "Content-Length",
+              "13"
+            ],
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:13:53 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "404 Not Found"
+        },
+        "/body/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "12"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:13:53 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Perry parity"
+        }
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3900/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    21.15ms    6.64ms  62.01ms   86.88%\n    Req/Sec   759.86    104.81     0.96k    63.75%\n  Latency Distribution\n     50%   18.80ms\n     75%   19.62ms\n     90%   33.58ms\n     99%   45.94ms\n  6057 requests in 2.01s, 1.01MB read\nRequests/sec:   3011.15\nTransfer/sec:    511.66KB\n",
+        "valid": true,
+        "rps": 3011.15
+      },
+      "output": "hono-native listening on http://127.0.0.1:3900\n",
+      "exit": -15
+    },
+    {
+      "server": "node",
+      "round": 3,
+      "startup_ms": 207.2824714705348,
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "11"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:14:11 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello Hono!"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:14:11 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        },
+        "/missing": {
+          "status": 404,
+          "headers": [
+            [
+              "content-type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "13"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:14:11 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "404 Not Found"
+        },
+        "/body/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "12"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:14:11 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Perry parity"
+        }
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3900/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     4.87ms   15.84ms 193.54ms   96.96%\n    Req/Sec     7.20k     2.64k   16.56k    81.71%\n  Latency Distribution\n     50%    1.90ms\n     75%    2.30ms\n     90%    3.98ms\n     99%  101.73ms\n  58748 requests in 2.10s, 9.80MB read\nRequests/sec:  27979.75\nTransfer/sec:      4.67MB\n",
+        "valid": true,
+        "rps": 27979.75
+      },
+      "output": "hono-native listening on http://127.0.0.1:3900\n",
+      "exit": -15
+    }
+  ],
+  "samples": [
+    {
+      "server": "perry",
+      "round": 1,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    22.71ms    8.17ms  68.97ms   86.16%\n    Req/Sec   715.28    113.93     0.96k    69.69%\n  Latency Distribution\n     50%   19.41ms\n     75%   20.87ms\n     90%   35.38ms\n     99%   51.89ms\n  22796 requests in 8.02s, 3.78MB read\nRequests/sec:   2842.38\nTransfer/sec:    482.98KB\n",
+      "valid": true,
+      "rps": 2842.38,
+      "memory": "26e73000000-7ffd48dfe000 ---p 00000000 00:00 0                           [rollup]\nRss:              145528 kB\nPss:              143700 kB\nPss_Dirty:        125660 kB\nPss_Anon:         125660 kB\nPss_File:          18040 kB\nPss_Shmem:             0 kB\nShared_Clean:       1952 kB\nShared_Dirty:          0 kB\nPrivate_Clean:     17916 kB\nPrivate_Dirty:    125660 kB\nReferenced:       145528 kB\nAnonymous:        125660 kB\nKSM:                   0 kB\nLazyFree:              0 kB\nAnonHugePages:     77824 kB\nShmemPmdMapped:        0 kB\nFilePmdMapped:         0 kB\nShared_Hugetlb:        0 kB\nPrivate_Hugetlb:       0 kB\nSwap:                  0 kB\nSwapPss:               0 kB\nLocked:                0 kB\n"
+    },
+    {
+      "server": "perry",
+      "round": 1,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    25.39ms   10.46ms  82.52ms   85.63%\n    Req/Sec   647.90    119.86     0.97k    65.73%\n  Latency Distribution\n     50%   21.17ms\n     75%   22.81ms\n     90%   38.67ms\n     99%   62.92ms\n  20714 requests in 8.10s, 3.40MB read\nRequests/sec:   2557.22\nTransfer/sec:    429.53KB\n",
+      "valid": true,
+      "rps": 2557.22,
+      "memory": "26e73000000-7ffd48dfe000 ---p 00000000 00:00 0                           [rollup]\nRss:              167400 kB\nPss:              165572 kB\nPss_Dirty:        147532 kB\nPss_Anon:         147532 kB\nPss_File:          18040 kB\nPss_Shmem:             0 kB\nShared_Clean:       1952 kB\nShared_Dirty:          0 kB\nPrivate_Clean:     17916 kB\nPrivate_Dirty:    147532 kB\nReferenced:       167400 kB\nAnonymous:        147532 kB\nKSM:                   0 kB\nLazyFree:              0 kB\nAnonHugePages:     92160 kB\nShmemPmdMapped:        0 kB\nFilePmdMapped:         0 kB\nShared_Hugetlb:        0 kB\nPrivate_Hugetlb:       0 kB\nSwap:                  0 kB\nSwapPss:               0 kB\nLocked:                0 kB\n"
+    },
+    {
+      "server": "node",
+      "round": 1,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.99ms    1.44ms  64.10ms   99.40%\n    Req/Sec     8.33k   683.32    15.30k    95.65%\n  Latency Distribution\n     50%    1.92ms\n     75%    1.97ms\n     90%    2.05ms\n     99%    2.38ms\n  266807 requests in 8.10s, 44.53MB read\nRequests/sec:  32939.96\nTransfer/sec:      5.50MB\n",
+      "valid": true,
+      "rps": 32939.96,
+      "memory": "00400000-7ffe63868000 ---p 00000000 00:00 0                              [rollup]\nRss:              115048 kB\nPss:              111466 kB\nPss_Dirty:         57404 kB\nPss_Anon:          57380 kB\nPss_File:          54086 kB\nPss_Shmem:             0 kB\nShared_Clean:       4508 kB\nShared_Dirty:          0 kB\nPrivate_Clean:     53136 kB\nPrivate_Dirty:     57404 kB\nReferenced:       115048 kB\nAnonymous:         57380 kB\nKSM:                   0 kB\nLazyFree:              0 kB\nAnonHugePages:         0 kB\nShmemPmdMapped:        0 kB\nFilePmdMapped:         0 kB\nShared_Hugetlb:        0 kB\nPrivate_Hugetlb:       0 kB\nSwap:                  0 kB\nSwapPss:               0 kB\nLocked:                0 kB\n"
+    },
+    {
+      "server": "node",
+      "round": 1,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     2.43ms    2.50ms  91.97ms   99.27%\n    Req/Sec     7.00k   450.91     8.86k    90.94%\n  Latency Distribution\n     50%    2.24ms\n     75%    2.28ms\n     90%    2.45ms\n     99%    3.39ms\n  222814 requests in 8.01s, 36.55MB read\nRequests/sec:  27809.19\nTransfer/sec:      4.56MB\n",
+      "valid": true,
+      "rps": 27809.19,
+      "memory": "00400000-7ffe63868000 ---p 00000000 00:00 0                              [rollup]\nRss:              116016 kB\nPss:              112434 kB\nPss_Dirty:         58376 kB\nPss_Anon:          58348 kB\nPss_File:          54086 kB\nPss_Shmem:             0 kB\nShared_Clean:       4508 kB\nShared_Dirty:          0 kB\nPrivate_Clean:     53132 kB\nPrivate_Dirty:     58376 kB\nReferenced:       116016 kB\nAnonymous:         58348 kB\nKSM:                   0 kB\nLazyFree:              0 kB\nAnonHugePages:         0 kB\nShmemPmdMapped:        0 kB\nFilePmdMapped:         0 kB\nShared_Hugetlb:        0 kB\nPrivate_Hugetlb:       0 kB\nSwap:                  0 kB\nSwapPss:               0 kB\nLocked:                0 kB\n"
+    },
+    {
+      "server": "node",
+      "round": 2,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     2.53ms    3.15ms 104.51ms   99.05%\n    Req/Sec     6.89k     1.25k   27.22k    95.33%\n  Latency Distribution\n     50%    2.30ms\n     75%    2.37ms\n     90%    2.46ms\n     99%    5.10ms\n  220055 requests in 8.10s, 36.10MB read\nRequests/sec:  27168.54\nTransfer/sec:      4.46MB\n",
+      "valid": true,
+      "rps": 27168.54,
+      "memory": "00400000-7ffee78fc000 ---p 00000000 00:00 0                              [rollup]\nRss:              114672 kB\nPss:              111064 kB\nPss_Dirty:         57004 kB\nPss_Anon:          56980 kB\nPss_File:          54084 kB\nPss_Shmem:             0 kB\nShared_Clean:       4532 kB\nShared_Dirty:          0 kB\nPrivate_Clean:     53136 kB\nPrivate_Dirty:     57004 kB\nReferenced:       114672 kB\nAnonymous:         56980 kB\nKSM:                   0 kB\nLazyFree:              0 kB\nAnonHugePages:         0 kB\nShmemPmdMapped:        0 kB\nFilePmdMapped:         0 kB\nShared_Hugetlb:        0 kB\nPrivate_Hugetlb:       0 kB\nSwap:                  0 kB\nSwapPss:               0 kB\nLocked:                0 kB\n"
+    },
+    {
+      "server": "node",
+      "round": 2,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.91ms    0.91ms  53.31ms   98.48%\n    Req/Sec     8.52k     1.36k   32.45k    99.07%\n  Latency Distribution\n     50%    1.89ms\n     75%    1.92ms\n     90%    1.98ms\n     99%    2.16ms\n  272217 requests in 8.10s, 45.43MB read\nRequests/sec:  33608.14\nTransfer/sec:      5.61MB\n",
+      "valid": true,
+      "rps": 33608.14,
+      "memory": "00400000-7ffee78fc000 ---p 00000000 00:00 0                              [rollup]\nRss:              114936 kB\nPss:              111335 kB\nPss_Dirty:         57272 kB\nPss_Anon:          57244 kB\nPss_File:          54091 kB\nPss_Shmem:             0 kB\nShared_Clean:       4532 kB\nShared_Dirty:          0 kB\nPrivate_Clean:     53132 kB\nPrivate_Dirty:     57272 kB\nReferenced:       114936 kB\nAnonymous:         57244 kB\nKSM:                   0 kB\nLazyFree:              0 kB\nAnonHugePages:         0 kB\nShmemPmdMapped:        0 kB\nFilePmdMapped:         0 kB\nShared_Hugetlb:        0 kB\nPrivate_Hugetlb:       0 kB\nSwap:                  0 kB\nSwapPss:               0 kB\nLocked:                0 kB\n"
+    },
+    {
+      "server": "perry",
+      "round": 2,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    24.43ms    8.20ms  70.73ms   86.34%\n    Req/Sec   660.02    106.27   808.00     64.69%\n  Latency Distribution\n     50%   21.29ms\n     75%   21.92ms\n     90%   39.14ms\n     99%   51.56ms\n  21034 requests in 8.03s, 3.45MB read\nRequests/sec:   2619.34\nTransfer/sec:    439.97KB\n",
+      "valid": true,
+      "rps": 2619.34,
+      "memory": "21dd4c00000-7ffd7dc5c000 ---p 00000000 00:00 0                           [rollup]\nRss:              139860 kB\nPss:              138032 kB\nPss_Dirty:        119704 kB\nPss_Anon:         119704 kB\nPss_File:          18328 kB\nPss_Shmem:             0 kB\nShared_Clean:       1952 kB\nShared_Dirty:          0 kB\nPrivate_Clean:     18204 kB\nPrivate_Dirty:    119704 kB\nReferenced:       139860 kB\nAnonymous:        119704 kB\nKSM:                   0 kB\nLazyFree:              0 kB\nAnonHugePages:     63488 kB\nShmemPmdMapped:        0 kB\nFilePmdMapped:         0 kB\nShared_Hugetlb:        0 kB\nPrivate_Hugetlb:       0 kB\nSwap:                  0 kB\nSwapPss:               0 kB\nLocked:                0 kB\n"
+    },
+    {
+      "server": "perry",
+      "round": 2,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    24.37ms   11.04ms  80.42ms   86.92%\n    Req/Sec   682.70    134.27     0.94k    72.50%\n  Latency Distribution\n     50%   19.83ms\n     75%   21.60ms\n     90%   36.76ms\n     99%   64.91ms\n  21757 requests in 8.02s, 3.61MB read\nRequests/sec:   2713.80\nTransfer/sec:    461.13KB\n",
+      "valid": true,
+      "rps": 2713.8,
+      "memory": "21dd4c00000-7ffd7dc5c000 ---p 00000000 00:00 0                           [rollup]\nRss:              166052 kB\nPss:              164224 kB\nPss_Dirty:        145812 kB\nPss_Anon:         145812 kB\nPss_File:          18412 kB\nPss_Shmem:             0 kB\nShared_Clean:       1952 kB\nShared_Dirty:          0 kB\nPrivate_Clean:     18288 kB\nPrivate_Dirty:    145812 kB\nReferenced:       166052 kB\nAnonymous:        145812 kB\nKSM:                   0 kB\nLazyFree:              0 kB\nAnonHugePages:     69632 kB\nShmemPmdMapped:        0 kB\nFilePmdMapped:         0 kB\nShared_Hugetlb:        0 kB\nPrivate_Hugetlb:       0 kB\nSwap:                  0 kB\nSwapPss:               0 kB\nLocked:                0 kB\n"
+    },
+    {
+      "server": "perry",
+      "round": 3,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    22.74ms    8.06ms  67.34ms   86.06%\n    Req/Sec   712.97    106.82     1.20k    73.12%\n  Latency Distribution\n     50%   19.58ms\n     75%   20.98ms\n     90%   35.32ms\n     99%   51.01ms\n  22730 requests in 8.03s, 3.77MB read\nRequests/sec:   2829.84\nTransfer/sec:    480.85KB\n",
+      "valid": true,
+      "rps": 2829.84,
+      "memory": "54e0ec00000-7ffc78bf3000 ---p 00000000 00:00 0                           [rollup]\nRss:              148164 kB\nPss:              146358 kB\nPss_Dirty:        127976 kB\nPss_Anon:         127976 kB\nPss_File:          18382 kB\nPss_Shmem:             0 kB\nShared_Clean:       1932 kB\nShared_Dirty:          0 kB\nPrivate_Clean:     18256 kB\nPrivate_Dirty:    127976 kB\nReferenced:       148164 kB\nAnonymous:        127976 kB\nKSM:                   0 kB\nLazyFree:              0 kB\nAnonHugePages:     73728 kB\nShmemPmdMapped:        0 kB\nFilePmdMapped:         0 kB\nShared_Hugetlb:        0 kB\nPrivate_Hugetlb:       0 kB\nSwap:                  0 kB\nSwapPss:               0 kB\nLocked:                0 kB\n"
+    },
+    {
+      "server": "perry",
+      "round": 3,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    25.89ms   10.83ms  81.41ms   85.81%\n    Req/Sec   636.39    125.34   808.00     58.44%\n  Latency Distribution\n     50%   21.39ms\n     75%   23.21ms\n     90%   39.05ms\n     99%   63.55ms\n  20281 requests in 8.01s, 3.33MB read\nRequests/sec:   2530.48\nTransfer/sec:    425.04KB\n",
+      "valid": true,
+      "rps": 2530.48,
+      "memory": "54e0ec00000-7ffc78bf3000 ---p 00000000 00:00 0                           [rollup]\nRss:              164956 kB\nPss:              163150 kB\nPss_Dirty:        144768 kB\nPss_Anon:         144768 kB\nPss_File:          18382 kB\nPss_Shmem:             0 kB\nShared_Clean:       1932 kB\nShared_Dirty:          0 kB\nPrivate_Clean:     18256 kB\nPrivate_Dirty:    144768 kB\nReferenced:       164956 kB\nAnonymous:        144768 kB\nKSM:                   0 kB\nLazyFree:              0 kB\nAnonHugePages:     81920 kB\nShmemPmdMapped:        0 kB\nFilePmdMapped:         0 kB\nShared_Hugetlb:        0 kB\nPrivate_Hugetlb:       0 kB\nSwap:                  0 kB\nSwapPss:               0 kB\nLocked:                0 kB\n"
+    },
+    {
+      "server": "node",
+      "round": 3,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     2.00ms    1.48ms  63.65ms   98.38%\n    Req/Sec     8.32k     1.37k   31.41k    97.51%\n  Latency Distribution\n     50%    1.93ms\n     75%    1.98ms\n     90%    2.05ms\n     99%    2.42ms\n  265687 requests in 8.10s, 44.34MB read\nRequests/sec:  32801.64\nTransfer/sec:      5.47MB\n",
+      "valid": true,
+      "rps": 32801.64,
+      "memory": "00400000-7ffe949e8000 ---p 00000000 00:00 0                              [rollup]\nRss:              116084 kB\nPss:              112448 kB\nPss_Dirty:         58380 kB\nPss_Anon:          58356 kB\nPss_File:          54092 kB\nPss_Shmem:             0 kB\nShared_Clean:       4568 kB\nShared_Dirty:          0 kB\nPrivate_Clean:     53136 kB\nPrivate_Dirty:     58380 kB\nReferenced:       116084 kB\nAnonymous:         58356 kB\nKSM:                   0 kB\nLazyFree:              0 kB\nAnonHugePages:         0 kB\nShmemPmdMapped:        0 kB\nFilePmdMapped:         0 kB\nShared_Hugetlb:        0 kB\nPrivate_Hugetlb:       0 kB\nSwap:                  0 kB\nSwapPss:               0 kB\nLocked:                0 kB\n"
+    },
+    {
+      "server": "node",
+      "round": 3,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     2.41ms    2.33ms  87.44ms   99.25%\n    Req/Sec     6.99k   612.93    12.97k    93.48%\n  Latency Distribution\n     50%    2.27ms\n     75%    2.28ms\n     90%    2.44ms\n     99%    3.26ms\n  224142 requests in 8.10s, 36.77MB read\nRequests/sec:  27672.35\nTransfer/sec:      4.54MB\n",
+      "valid": true,
+      "rps": 27672.35,
+      "memory": "00400000-7ffe949e8000 ---p 00000000 00:00 0                              [rollup]\nRss:              117444 kB\nPss:              113808 kB\nPss_Dirty:         59744 kB\nPss_Anon:          59716 kB\nPss_File:          54092 kB\nPss_Shmem:             0 kB\nShared_Clean:       4568 kB\nShared_Dirty:          0 kB\nPrivate_Clean:     53132 kB\nPrivate_Dirty:     59744 kB\nReferenced:       117444 kB\nAnonymous:         59716 kB\nKSM:                   0 kB\nLazyFree:              0 kB\nAnonHugePages:         0 kB\nShmemPmdMapped:        0 kB\nFilePmdMapped:         0 kB\nShared_Hugetlb:        0 kB\nPrivate_Hugetlb:       0 kB\nSwap:                  0 kB\nSwapPss:               0 kB\nLocked:                0 kB\n"
+    }
+  ],
+  "compiler_path": "/home/ubuntu/perry/target/perry-dev/perry",
+  "compiler_sha256": "6401feb30cb56e965fc99a0c8bc2f9e02e4c0b4e0290f6a129eb65dfb7f7b5c2",
+  "packages": {
+    "hono": "4.12.34",
+    "@hono/node-server": "2.1.1"
+  },
+  "parity": {
+    "status": "skipped",
+    "reason": "See separately recorded 38-case run"
+  },
+  "complete": true
+}

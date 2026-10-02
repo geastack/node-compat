@@ -16,7 +16,13 @@
 #include <algorithm>
 #include <atomic>
 #include <charconv>
+#if defined(__GLIBCXX__) && __has_include(<bits/chrono.h>)
+// Clocks and durations only; libstdc++'s <chrono> also drags in <format> (see
+// gea_runtime.h).
+#include <bits/chrono.h>
+#else
 #include <chrono>
+#endif
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -28,6 +34,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -40,6 +47,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>
+#include <pthread.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -48,7 +56,10 @@
 #include <spawn.h>
 #include <climits>
 #if defined(__APPLE__)
+#include <sys/event.h>
 #include <mach-o/dyld.h>
+#include <malloc/malloc.h>
+#include <sys/mman.h>
 #endif
 
 extern char **environ;
@@ -72,25 +83,53 @@ extern char **environ;
 // would be a second authority on which one this reactor uses.
 // ---------------------------------------------------------------------------
 namespace gea::node {
-inline std::deque<std::function<void()>> &microtasks() {
-  static std::deque<std::function<void()>> queue;
+// Promise jobs, the bulk of this queue, arrive as `gea::detail::PromiseJob`:
+// moving one through here relocates it instead of cloning a std::function.
+inline std::deque<gea::detail::PromiseJob> &microtasks() {
+  static std::deque<gea::detail::PromiseJob> queue;
   return queue;
 }
-inline void queue_microtask(std::function<void()> callback) { microtasks().push_back(std::move(callback)); }
+inline void queue_microtask(gea::detail::PromiseJob callback) {
+  if (callback) microtasks().push_back(std::move(callback));
+}
+inline std::deque<std::function<void()>> &next_ticks();
 inline void drain_microtasks() {
-  // Popped before it runs: a microtask that enqueues another must not see its
-  // own entry still in the queue, and the drain has to reach the new one.
+  // A drain entered from inside a microtask finds the running job still at the
+  // head of the queue (see below). Nothing in this runtime does that -- a
+  // blocking wait inside a job aborts, see `hostCallbackDepth` -- and the
+  // outer drain reaches whatever is queued behind the running job anyway, in
+  // the same order, so it does nothing.
+  static bool draining = false;
+  if (draining) return;
+  // Every microtask is a host callback: a blocking `.awaited()` reached from
+  // one is a nested pump, which the runtime refuses (`hostCallbackDepth`).
+  gea::detail::HostCallbackScope scope;
+  draining = true;
+  struct Reset {
+    ~Reset() { draining = false; }
+  } reset;
   while (!microtasks().empty()) {
     // Node's next-tick queue outranks both Promise reactions and host
     // `queueMicrotask` callbacks. A callback may enqueue more ticks, so the
     // priority boundary is every individual microtask, not just the start of
-    // one reactor turn.
-    drain_next_ticks();
-    std::function<void()> task = std::move(microtasks().front());
-    microtasks().pop_front();
-    task();
+    // one reactor turn. Checked before the call: nearly every drain finds the
+    // queue empty, and entering `drain_next_ticks` costs a scope and a loop.
+    if (!next_ticks().empty()) drain_next_ticks();
+    // Run where it was queued. Moving the job out first relocated it through
+    // an indirect call per microtask -- every await and every generator step
+    // -- for a closure that is destroyed right after. A deque keeps
+    // references to its other elements across `push_back`, so a job that
+    // enqueues more work is safe; the entry is destroyed (by `invokeAndReset`)
+    // BEFORE it is popped, because destroying a job can release objects that
+    // enqueue, and a `push_back` from inside `pop_front` would modify the
+    // container while it is being modified.
+    struct Retire {
+      std::deque<gea::detail::PromiseJob> &jobs;
+      ~Retire() { jobs.pop_front(); }
+    } retire{microtasks()};
+    microtasks().front().invokeAndReset();
   }
-  drain_next_ticks();
+  if (!next_ticks().empty()) drain_next_ticks();
 }
 inline std::deque<std::function<void()>> &next_ticks() {
   static std::deque<std::function<void()>> queue;
@@ -98,6 +137,7 @@ inline std::deque<std::function<void()>> &next_ticks() {
 }
 inline void queue_next_tick(std::function<void()> callback) { next_ticks().push_back(std::move(callback)); }
 inline void drain_next_ticks() {
+  gea::detail::HostCallbackScope scope;
   while (!next_ticks().empty()) {
     std::function<void()> task = std::move(next_ticks().front());
     next_ticks().pop_front();
@@ -322,7 +362,15 @@ inline double add(std::function<void()> callback, double delayMs, bool repeats) 
   return id;
 }
 
+// The due timers of the pass `fireDue` is running, collected before any of
+// them runs; clearing one of them takes it out of this set as well.
+inline std::unordered_set<double> &firingDue() {
+  static std::unordered_set<double> ids;
+  return ids;
+}
+
 inline void remove(double id) {
+  firingDue().erase(id);
   auto &timers = registry();
   timers.erase(std::remove_if(timers.begin(), timers.end(), [&](const Timer &timer) { return timer.id == id; }),
                timers.end());
@@ -358,9 +406,18 @@ inline void fireDue() {
   std::sort(due.begin(), due.end(), [](const Timer &a, const Timer &b) {
     return a.dueMs != b.dueMs ? a.dueMs < b.dueMs : a.id < b.id;
   });
+  gea::detail::HostCallbackScope scope;
+  firingDue().clear();
+  for (const Timer &timer : due) firingDue().insert(timer.id);
   for (Timer &timer : due) {
+    // A callback that ran earlier in this pass may have cleared this one.
+    if (firingDue().erase(timer.id) == 0) continue;
     if (timer.callback) timer.callback();
+    // Node runs the microtask checkpoint after EACH timer callback, so a
+    // promise job queued by the first of two due timers runs before the second.
+    gea::node::drain_microtasks();
   }
+  firingDue().clear();
 }
 
 }  // namespace gea::node::timers
@@ -406,9 +463,22 @@ inline constexpr std::size_t kMaxProbe = 64;
 inline std::atomic<std::uint64_t> g_chunk_table[kChunkTableSize];
 
 // POD, zero-initialized — safe to touch during static initialization.
-inline thread_local void *g_free[kClassCount];
-inline thread_local char *g_bump[kClassCount];
-inline thread_local char *g_bump_end[kClassCount];
+//
+// Plain statics under GEA_RUNTIME_SINGLE_THREADED (the reactor build): every
+// `thread_local` read on macOS is a `_tlv_get_addr` call, and `release` made
+// one per free even with the pool off, just to read the one-entry cache.
+#if defined(GEA_RUNTIME_SINGLE_THREADED) && GEA_RUNTIME_SINGLE_THREADED
+#define GEA_NODE_ALLOC_THREAD_LOCAL
+#else
+#define GEA_NODE_ALLOC_THREAD_LOCAL thread_local
+#endif
+inline GEA_NODE_ALLOC_THREAD_LOCAL void *g_free[kClassCount];
+inline GEA_NODE_ALLOC_THREAD_LOCAL char *g_bump[kClassCount];
+inline GEA_NODE_ALLOC_THREAD_LOCAL char *g_bump_end[kClassCount];
+// Set once the first chunk is registered. While it is clear no block can be
+// a pool block, so `release` is a bare `free` -- the whole story with the
+// pool off (see `poolDisabled`).
+inline bool g_any_chunk = false;
 
 /**
  * Per-size-class allocation census, printed at exit under `GEA_ALLOC_CENSUS=1`.
@@ -548,27 +618,82 @@ inline void reportAllocCensus() {
   reportCallerCensus();
 }
 
+#if defined(GEA_PROFILE_ALLOCATIONS)
+/**
+ * The runtime's own allocation profile (`gea::detail::allocationProfile`),
+ * printed at exit under a `-DGEA_PROFILE_ALLOCATIONS=1` build: which TYPES
+ * are allocated, buffered as cycle candidates and destroyed by the collector.
+ * The caller census above says where allocations come from; this says what
+ * the collector spends its tracing on, per struct, which is the question an
+ * acyclic-type or buffering change has to be measured against.
+ */
+inline void reportRuntimeAllocationProfile() {
+  const auto &all = gea::detail::allocationProfile();
+  std::fprintf(stderr,
+               "gea-runtime-profile: created=%llu destroyed=%llu bytes=%llu collections=%llu full=%llu candidates=%llu "
+               "visited=%llu edges=%llu retained=%llu unreachable=%llu matureSkipped=%llu deferrals=%llu\n",
+               static_cast<unsigned long long>(all.created), static_cast<unsigned long long>(all.destroyed),
+               static_cast<unsigned long long>(all.bytes), static_cast<unsigned long long>(all.collections),
+               static_cast<unsigned long long>(all.fullCollections), static_cast<unsigned long long>(all.candidates),
+               static_cast<unsigned long long>(all.visited), static_cast<unsigned long long>(all.edges),
+               static_cast<unsigned long long>(all.retained), static_cast<unsigned long long>(all.unreachable),
+               static_cast<unsigned long long>(all.matureSkipped), static_cast<unsigned long long>(all.deferrals));
+  std::vector<const gea::detail::AllocationTypeProfile *> types;
+  for (const auto *type = all.types; type != nullptr; type = type->next) types.push_back(type);
+  std::sort(types.begin(), types.end(), [](const auto *left, const auto *right) {
+    return left->created + left->candidates > right->created + right->candidates;
+  });
+  for (const auto *type : types) {
+    if (type->created == 0 && type->candidates == 0) continue;
+    std::fprintf(stderr, "  created=%llu live=%llu candidates=%llu cycleDestroyed=%llu deferrals=%llu block=%zu %s\n",
+                 static_cast<unsigned long long>(type->created), static_cast<unsigned long long>(type->created - type->destroyed),
+                 static_cast<unsigned long long>(type->candidates), static_cast<unsigned long long>(type->cycleDestroyed),
+                 static_cast<unsigned long long>(type->deferrals), type->blockBytes, type->name);
+  }
+  // What is still alive at exit, by bytes held: a steady-state program's live
+  // set is its working set, so anything here that scales with the operation
+  // count is a leak (the mongodb driver kept ~2 objects per operation).
+  std::sort(types.begin(), types.end(), [](const auto *left, const auto *right) {
+    return (left->created - left->destroyed) * left->blockBytes > (right->created - right->destroyed) * right->blockBytes;
+  });
+  std::size_t shown = 0;
+  for (const auto *type : types) {
+    const std::uint64_t live = type->created - type->destroyed;
+    if (live == 0 || shown++ == 40) break;
+    std::fprintf(stderr, "  live-at-exit=%llu bytes=%llu block=%zu %s\n", static_cast<unsigned long long>(live),
+                 static_cast<unsigned long long>(live * type->blockBytes), type->blockBytes, type->name);
+  }
+  Dl_info info{};
+  const void *base = nullptr;
+  if (::dladdr(reinterpret_cast<void *>(&reportRuntimeAllocationProfile), &info) && info.dli_fbase) base = info.dli_fbase;
+  for (const auto *census = gea::detail::allocationSiteCensuses(); census != nullptr; census = census->next) {
+    std::vector<std::pair<std::uint64_t, const gea::detail::AllocationSiteKey *>> rows;
+    for (const auto &entry : census->sites) rows.emplace_back(entry.second, &entry.first);
+    std::sort(rows.begin(), rows.end(), [](const auto &left, const auto &right) { return left.first > right.first; });
+    std::fprintf(stderr, "gea-runtime-sites: base=0x%llx sites=%zu %s\n", static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(base)),
+                 rows.size(), census->type);
+    std::size_t printed = 0;
+    for (const auto &row : rows) {
+      if (printed++ == 60) break;
+      std::fprintf(stderr, "    %llu", static_cast<unsigned long long>(row.first));
+      for (const void *frame : row.second->frames)
+        std::fprintf(stderr, " %llx", static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(frame) - reinterpret_cast<std::uintptr_t>(base)));
+      std::fprintf(stderr, "\n");
+    }
+  }
+}
+inline const bool g_runtime_profile_installed = (::atexit(&reportRuntimeAllocationProfile), true);
+#endif
+
 inline bool poolDisabled() {
-#ifdef __APPLE__
-  // Apple's prebuilt libc++.dylib has INTERNALIZED free() calls (e.g. inside
-  // the out-of-line std::string::__grow_by_and_replace): a buffer allocated by
-  // this pool via an inlined operator new gets freed by the dylib's raw free()
-  // — "pointer being freed was not allocated", SIGABRT. No operator override
-  // can intercept those, so pooling is unsafe on macOS (a malloc-zone
-  // replacement would be the correct mechanism there). Linux interposition via
-  // the executable's exported operators is fully consistent — pool stays on.
-  static const bool disabled = [] {
-    const char *p = std::getenv("GEA_POOL_ALLOC");  // opt-in for experiments only
-    return !(p && *p == '1');
-  }();
-  return disabled;
-#else
+  // On macOS the pool is only safe because `registerPoolZone` below hands the
+  // system allocator a way to recognize pool blocks; on Linux the exported
+  // operators alone are consistent for every image in the process.
   static const bool disabled = [] {
     const char *p = std::getenv("GEA_NO_POOL_ALLOC");
     return p && *p == '1';
   }();
   return disabled;
-#endif
 }
 
 inline std::size_t chunkSlot(std::uintptr_t base) {
@@ -599,6 +724,133 @@ inline std::size_t lookupChunkClass(std::uintptr_t base) {
   return 0;
 }
 
+// A chunk is carved out of memory the system allocator has never owned. On
+// macOS that is what makes the zone below sound: libmalloc resolves a freed
+// pointer by asking every registered zone for its size, starting with the
+// default zone, and a chunk taken from that zone with posix_memalign would let
+// it claim the block first as an interior pointer of the 1 MB allocation.
+inline void *mapChunk() {
+#ifdef __APPLE__
+  void *raw = ::mmap(nullptr, kChunkSize * 2, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+  if (raw == MAP_FAILED) return nullptr;
+  const std::uintptr_t start = reinterpret_cast<std::uintptr_t>(raw);
+  const std::uintptr_t aligned = (start + kChunkSize - 1) & ~(kChunkSize - 1);
+  if (aligned > start) ::munmap(raw, aligned - start);
+  const std::uintptr_t tail = aligned + kChunkSize;
+  if (tail < start + kChunkSize * 2) ::munmap(reinterpret_cast<void *>(tail), start + kChunkSize * 2 - tail);
+  return reinterpret_cast<void *>(aligned);
+#else
+  void *chunk = nullptr;
+  if (posix_memalign(&chunk, kChunkSize, kChunkSize) != 0) return nullptr;
+  return chunk;
+#endif
+}
+
+inline void unmapChunk(void *chunk) {
+#ifdef __APPLE__
+  ::munmap(chunk, kChunkSize);
+#else
+  std::free(chunk);
+#endif
+}
+
+inline void release(void *ptr) noexcept;
+
+/**
+ * macOS: a malloc zone that claims pool blocks, registered before the first
+ * one is handed out.
+ *
+ * Apple's prebuilt libc++.dylib binds its own `operator new`/`delete` and
+ * `free` through two-level namespaces, so the exported override never reaches
+ * it: a `std::string` grown inside the dylib is freed there with the raw
+ * libc `free`, and a pool block reaching that call aborted with "pointer being
+ * freed was not allocated". libmalloc's `free` does not know the block's
+ * origin either -- it asks every registered zone `size(ptr)` and frees through
+ * the one that answers. This zone answers for pool blocks by the same chunk
+ * lookup `release` uses, which routes every foreign `free`, `realloc` and
+ * `malloc_size` of a pool block back to the free lists. It never becomes the
+ * default zone: nothing is allocated through it except by way of `operator
+ * new`, so the system allocator keeps serving its own callers.
+ */
+#ifdef __APPLE__
+inline std::size_t poolBlockSize(const void *ptr) {
+  if (!g_any_chunk || ptr == nullptr) return 0;
+  const std::uintptr_t base = reinterpret_cast<std::uintptr_t>(ptr) & ~(kChunkSize - 1);
+  const std::size_t klass = lookupChunkClass(base);
+  return klass == 0 ? 0 : klass * kGranule;
+}
+
+inline void *allocate(std::size_t size) noexcept;
+
+inline void registerPoolZone() {
+  static const bool registered = [] {
+    struct Callbacks {
+      static size_t size(malloc_zone_t *, const void *ptr) { return poolBlockSize(ptr); }
+      static void *malloc(malloc_zone_t *, size_t size) { return allocate(size); }
+      static void *calloc(malloc_zone_t *, size_t count, size_t size) {
+        const std::size_t bytes = count * size;
+        void *block = allocate(bytes);
+        std::memset(block, 0, bytes);
+        return block;
+      }
+      static void *valloc(malloc_zone_t *, size_t size) {
+        void *block = nullptr;
+        return posix_memalign(&block, static_cast<std::size_t>(::getpagesize()), size) == 0 ? block : nullptr;
+      }
+      static void free(malloc_zone_t *, void *ptr) { release(ptr); }
+      static void freeDefiniteSize(malloc_zone_t *, void *ptr, size_t) { release(ptr); }
+      static void *realloc(malloc_zone_t *, void *ptr, size_t size) {
+        const std::size_t old = poolBlockSize(ptr);
+        if (old == 0) return std::realloc(ptr, size);
+        void *block = allocate(size);
+        std::memcpy(block, ptr, old < size ? old : size);
+        release(ptr);
+        return block;
+      }
+      static void destroy(malloc_zone_t *) {}
+      static size_t goodSize(malloc_zone_t *, size_t size) { return (size + kGranule - 1) / kGranule * kGranule; }
+      static boolean_t check(malloc_zone_t *) { return 1; }
+      static void print(malloc_zone_t *, boolean_t) {}
+      static void log(malloc_zone_t *, void *) {}
+      static void forceLock(malloc_zone_t *) {}
+      static void forceUnlock(malloc_zone_t *) {}
+      static void statistics(malloc_zone_t *, malloc_statistics_t *stats) { *stats = malloc_statistics_t{}; }
+      static boolean_t zoneLocked(malloc_zone_t *) { return 0; }
+      static kern_return_t enumerator(task_t, void *, unsigned, vm_address_t, memory_reader_t, vm_range_recorder_t) {
+        return KERN_FAILURE;
+      }
+    };
+    static malloc_introspection_t introspection{};
+    introspection.enumerator = &Callbacks::enumerator;
+    introspection.good_size = &Callbacks::goodSize;
+    introspection.check = &Callbacks::check;
+    introspection.print = &Callbacks::print;
+    introspection.log = &Callbacks::log;
+    introspection.force_lock = &Callbacks::forceLock;
+    introspection.force_unlock = &Callbacks::forceUnlock;
+    introspection.statistics = &Callbacks::statistics;
+    introspection.zone_locked = &Callbacks::zoneLocked;
+    static malloc_zone_t zone{};
+    zone.size = &Callbacks::size;
+    zone.malloc = &Callbacks::malloc;
+    zone.calloc = &Callbacks::calloc;
+    zone.valloc = &Callbacks::valloc;
+    zone.free = &Callbacks::free;
+    zone.realloc = &Callbacks::realloc;
+    zone.destroy = &Callbacks::destroy;
+    zone.zone_name = "gea-node-pool";
+    zone.introspect = &introspection;
+    zone.version = 9;
+    zone.free_definite_size = &Callbacks::freeDefiniteSize;
+    malloc_zone_register(&zone);
+    return true;
+  }();
+  (void)registered;
+}
+#else
+inline void registerPoolZone() {}
+#endif
+
 // Free-list links are stored in the first bytes of recycled blocks — memory
 // that previously held arbitrary object types. Read/write them with memcpy
 // (the blessed type-punning form): a raw `*(void **)block` violates strict
@@ -613,12 +865,16 @@ inline void storeFreeLink(void *block, void *next) noexcept { std::memcpy(block,
 
 inline void *allocate(std::size_t size) noexcept {
   const std::size_t klass = (size + kGranule - 1) / kGranule;  // 1-based class index
-  if (allocCensusEnabled()) {
+  // Both answers are fixed for the process; read them once rather than
+  // through two guarded static initializers per allocation.
+  static const bool census = allocCensusEnabled();
+  static const bool pooled = !poolDisabled();
+  if (census) {
     if (klass >= 1 && klass <= kClassCount) ++g_census[klass];
     else ++g_census_large;
     if (allocCensusLevel() >= 2) recordCallerSite();
   }
-  if (klass >= 1 && klass <= kClassCount && !poolDisabled()) {
+  if (pooled && klass >= 1 && klass <= kClassCount) {
     void *&head = g_free[klass - 1];
     if (head) {
       void *block = head;
@@ -629,13 +885,15 @@ inline void *allocate(std::size_t size) noexcept {
     char *&bump = g_bump[klass - 1];
     char *&end = g_bump_end[klass - 1];
     if (bump == nullptr || static_cast<std::size_t>(end - bump) < bytes) {
-      void *chunk = nullptr;
-      if (posix_memalign(&chunk, kChunkSize, kChunkSize) == 0 && chunk) {
+      void *chunk = mapChunk();
+      if (chunk) {
         if (registerChunk(reinterpret_cast<std::uintptr_t>(chunk), klass)) {
+          registerPoolZone();
+          g_any_chunk = true;
           bump = static_cast<char *>(chunk);
           end = bump + kChunkSize;
         } else {
-          std::free(chunk);  // table saturated — stop pooling this class
+          unmapChunk(chunk);  // table saturated — stop pooling this class
         }
       }
     }
@@ -652,11 +910,15 @@ inline void *allocate(std::size_t size) noexcept {
 
 // The steady-state request path frees from the same couple of hot chunks, so a
 // one-entry cache in front of the table probe catches almost every release.
-inline thread_local std::uintptr_t g_last_chunk_base;
-inline thread_local std::size_t g_last_chunk_class;
+inline GEA_NODE_ALLOC_THREAD_LOCAL std::uintptr_t g_last_chunk_base;
+inline GEA_NODE_ALLOC_THREAD_LOCAL std::size_t g_last_chunk_class;
 
 inline void release(void *ptr) noexcept {
   if (!ptr) return;
+  if (!g_any_chunk) {
+    std::free(ptr);
+    return;
+  }
   const std::uintptr_t base = reinterpret_cast<std::uintptr_t>(ptr) & ~(kChunkSize - 1);
   std::size_t klass;
   if (base == g_last_chunk_base && g_last_chunk_class != 0) {
@@ -720,6 +982,11 @@ public:
   ~EventLoop() {
     if (epollFd_ >= 0) ::close(epollFd_);
   }
+#elif defined(__APPLE__)
+  EventLoop() : kqueueFd_(::kqueue()) {}
+  ~EventLoop() {
+    if (kqueueFd_ >= 0) ::close(kqueueFd_);
+  }
 #endif
 
   void addBorrowed(IoWatcher *watcher) {
@@ -743,6 +1010,18 @@ public:
       ::epoll_ctl(epollFd_, EPOLL_CTL_DEL, watcher->fd(), nullptr);
       epollInterest_.erase(watcher);
     }
+#elif defined(__APPLE__)
+    if (kqueueFd_ >= 0) {
+      const auto found = kqueueInterest_.find(watcher);
+      if (found != kqueueInterest_.end()) {
+        struct kevent changes[2];
+        int count = 0;
+        if (found->second & POLLIN) EV_SET(&changes[count++], watcher->fd(), EVFILT_READ, EV_DELETE, 0, 0, nullptr);
+        if (found->second & POLLOUT) EV_SET(&changes[count++], watcher->fd(), EVFILT_WRITE, EV_DELETE, 0, 0, nullptr);
+        if (count != 0) (void)::kevent(kqueueFd_, changes, count, nullptr, 0, nullptr);
+        kqueueInterest_.erase(found);
+      }
+    }
 #endif
   }
 
@@ -750,6 +1029,11 @@ public:
 #ifdef __linux__
     if (epollFd_ >= 0) {
       (void)runEpoll(nullptr);
+      return;
+    }
+#elif defined(__APPLE__)
+    if (kqueueFd_ >= 0) {
+      (void)runKqueue(nullptr);
       return;
     }
 #endif
@@ -767,6 +1051,8 @@ public:
     if (!done || done()) return true;
 #ifdef __linux__
     if (epollFd_ >= 0) return runEpoll(&done);
+#elif defined(__APPLE__)
+    if (kqueueFd_ >= 0) return runKqueue(&done);
 #endif
     return runPoll(&done);
   }
@@ -784,6 +1070,7 @@ private:
   // ready-watcher snapshot have both finished. The closing_ membership check
   // prevents any such watcher from being dispatched again in the meantime.
   void dispatchWatcher(IoWatcher *watcher, short revents) {
+    gea::detail::HostCallbackScope scope;
     ++dispatchDepth_;
     watcher->onReady(revents);
     --dispatchDepth_;
@@ -820,6 +1107,12 @@ private:
         return stopRequested(done);  // only unref work remains
       }
 
+      // About to block: the request path's garbage is dead, its live state is
+      // at its smallest, and the queues are empty. The collector's own
+      // safepoint (in `makeRef`) would otherwise run mid-request, several
+      // times per request, re-tracing the request's live objects each time.
+      gea::collectCyclesAtQuiescence();
+      if (!gea::node::microtasks().empty() || !gea::node::next_ticks().empty()) continue;
       const int timeout = timersPending ? gea::node::timers::nextDelayMs() : -1;
       const int events = ::poll(pfds.data(), static_cast<nfds_t>(pfds.size()), timeout);
       if (events < 0) {
@@ -899,6 +1192,8 @@ private:
         return stopRequested(done);
       }
 
+      gea::collectCyclesAtQuiescence();  // see `runPoll`
+      if (!gea::node::microtasks().empty() || !gea::node::next_ticks().empty()) continue;
       const int timeout = timersPending ? gea::node::timers::nextDelayMs() : -1;
       const int count = ::epoll_wait(epollFd_, events, 128, timeout);
       if (count < 0) {
@@ -934,6 +1229,135 @@ private:
       purgeClosedIfSafe();
       if (stopped) return true;
     }
+  }
+#endif
+
+#if defined(__APPLE__)
+  // kqueue backend, the macOS counterpart of `runEpoll`. `poll()` on XNU is
+  // itself built on kqueue: every call registers a knote per descriptor,
+  // waits, and tears them all down again, so a client blocking once per
+  // round trip paid that kernel setup per operation -- the mongodb driver's
+  // system time was a quarter above Node's, whose libuv keeps its kqueue
+  // registrations. Here each watcher's read and write filters stay
+  // registered (level-triggered, as poll is) and only interest CHANGES reach
+  // the kernel, batched into the wait itself. Readiness is translated back
+  // to poll bits exactly as XNU's own poll does over the same knotes: EOF is
+  // POLLHUP, alongside POLLIN for a reader; a write filter adds POLLOUT only
+  // before hang-up; an error is POLLNVAL.
+  bool runKqueue(StopPredicate done) {
+    struct kevent events[128];
+    std::vector<struct kevent> changes;
+    std::vector<std::pair<IoWatcher *, short>> ready;
+    for (;;) {
+      gea::node::drain_microtasks();
+      if (stopRequested(done)) {
+        purgeClosedIfSafe();
+        return true;
+      }
+      changes.clear();
+      bool haveWatchers = false;
+      bool haveReferencedWatcher = false;
+      forEachWatcher([&](IoWatcher *w) {
+        if (isClosing(w)) return;
+        haveWatchers = true;
+        if (w->isReferenced()) haveReferencedWatcher = true;
+        syncKqueueInterest(w, changes);
+      });
+      const bool timersPending = gea::node::timers::hasPending();
+      if ((!haveWatchers || (done == nullptr && !haveReferencedWatcher)) &&
+          !gea::node::timers::hasReferenced()) {
+        applyKqueueChanges(changes);
+        purgeClosedIfSafe();
+        return stopRequested(done);
+      }
+
+      gea::collectCyclesAtQuiescence();  // see `runPoll`
+      if (!gea::node::microtasks().empty() || !gea::node::next_ticks().empty()) {
+        applyKqueueChanges(changes);
+        continue;
+      }
+      struct timespec wait{};
+      const int delay = timersPending ? gea::node::timers::nextDelayMs() : -1;
+      if (delay >= 0) {
+        wait.tv_sec = delay / 1000;
+        wait.tv_nsec = static_cast<long>(delay % 1000) * 1000000L;
+      }
+      const int count = ::kevent(kqueueFd_, changes.data(), static_cast<int>(changes.size()), events, 128,
+                                 delay >= 0 ? &wait : nullptr);
+      if (count < 0) {
+        if (errno == EINTR) continue;
+        purgeClosedIfSafe();
+        return stopRequested(done);
+      }
+
+      // Merge each watcher's read and write readiness into one poll mask
+      // before dispatching, as a poll pass hands each descriptor one revents.
+      ready.clear();
+      for (int i = 0; i < count; ++i) {
+        const struct kevent &event = events[i];
+        auto *watcher = static_cast<IoWatcher *>(event.udata);
+        if (watcher == nullptr) continue;
+        short bits = 0;
+        if (event.flags & EV_ERROR) {
+          // A change that could not be applied is reported in the event list:
+          // only a real error on a live descriptor is readiness.
+          if (event.data == ENOENT || event.data == 0) continue;
+          bits = POLLNVAL;
+        } else {
+          if (event.flags & EV_EOF) bits |= POLLHUP;
+          if (event.filter == EVFILT_READ) bits |= POLLIN;
+          else if (event.filter == EVFILT_WRITE) bits |= POLLOUT;
+        }
+        auto merged = std::find_if(ready.begin(), ready.end(), [&](const auto &entry) { return entry.first == watcher; });
+        if (merged == ready.end()) ready.emplace_back(watcher, bits);
+        else merged->second = static_cast<short>(merged->second | bits);
+      }
+      for (auto &entry : ready) {
+        if (entry.second & POLLHUP) entry.second = static_cast<short>(entry.second & ~POLLOUT);
+      }
+
+      // As in `runEpoll`: the snapshot holds raw watcher pointers, so they
+      // stay alive across timer/microtask callbacks and nested pumps.
+      ++dispatchDepth_;
+      gea::node::timers::fireDue();
+      gea::node::drain_microtasks();
+      if (stopRequested(done)) {
+        --dispatchDepth_;
+        purgeClosedIfSafe();
+        return true;
+      }
+      for (const auto &[watcher, revents] : ready) {
+        if (isClosing(watcher)) continue;
+        dispatchWatcher(watcher, revents);
+        if (stopRequested(done)) break;
+      }
+      gea::node::drain_microtasks();
+      const bool stopped = stopRequested(done);
+      --dispatchDepth_;
+      purgeClosedIfSafe();
+      if (stopped) return true;
+    }
+  }
+
+  // Queue the filter additions/removals that bring `watcher`'s registration
+  // to its current interest; a cheap compare, a change only on a difference.
+  void syncKqueueInterest(IoWatcher *watcher, std::vector<struct kevent> &changes) {
+    const short want = static_cast<short>(watcher->interestedEvents() & (POLLIN | POLLOUT));
+    short &have = kqueueInterest_[watcher];
+    if (have == want) return;
+    const auto toggle = [&](short bit, int16_t filter) {
+      if ((have & bit) == (want & bit)) return;
+      struct kevent change;
+      EV_SET(&change, watcher->fd(), filter, (want & bit) ? EV_ADD : EV_DELETE, 0, 0, watcher);
+      changes.push_back(change);
+    };
+    toggle(POLLIN, EVFILT_READ);
+    toggle(POLLOUT, EVFILT_WRITE);
+    have = want;
+  }
+
+  void applyKqueueChanges(const std::vector<struct kevent> &changes) {
+    if (!changes.empty()) (void)::kevent(kqueueFd_, changes.data(), static_cast<int>(changes.size()), nullptr, 0, nullptr);
   }
 #endif
 
@@ -982,6 +1406,10 @@ private:
 #ifdef __linux__
   int epollFd_ = -1;
   std::unordered_map<IoWatcher *, short> epollInterest_;
+#elif defined(__APPLE__)
+  int kqueueFd_ = -1;
+  // The poll bits each watcher's registered filters currently cover.
+  std::unordered_map<IoWatcher *, short> kqueueInterest_;
 #endif
 };
 
@@ -1088,7 +1516,7 @@ public:
       int socketError = 0;
       socklen_t length = sizeof(socketError);
       (void)::getsockopt(socket_.fd(), SOL_SOCKET, SO_ERROR, &socketError, &length);
-      fail(socketError == 0 ? EIO : socketError);
+      fail(socketError == 0 ? EIO : socketError, "read");
     } else if (!closing_ && (revents & POLLHUP)) {
       closeFromPeer();
     }
@@ -1112,6 +1540,11 @@ public:
   }
 
   const std::string &errorText() const { return errorText_; }
+  // The failing errno (positive POSIX value) and the syscall node names in
+  // its error (`connect`/`read`/`write`), so TypeScript can build node's
+  // `connect ECONNREFUSED 127.0.0.1:27017` shape instead of strerror text.
+  int errorNumber() const { return errorNumber_; }
+  const char *errorSyscall() const { return errorSyscall_; }
   const std::string &remoteAddress() const { return remoteAddress_; }
   const std::string &remoteFamily() const { return remoteFamily_; }
   int remotePort() const { return port_; }
@@ -1216,7 +1649,7 @@ private:
     }
     connecting_ = false;
     if (socketError != 0) {
-      fail(socketError);
+      fail(socketError, "connect");
       return;
     }
     connected_ = true;
@@ -1237,7 +1670,7 @@ private:
       }
       if (count < 0 && errno == EINTR) continue;
       if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return true;
-      fail(count < 0 ? errno : EPIPE);
+      fail(count < 0 ? errno : EPIPE, "write");
       return false;
     }
     if (!outBuffer_.empty()) events_.push_back(static_cast<int>(ClientEvent::drain));
@@ -1265,6 +1698,11 @@ private:
       if (count > 0) {
         chunks_.emplace_back(bytes, bytes + count);
         events_.push_back(static_cast<int>(ClientEvent::data));
+        // A short read drained the socket: asking again only buys an EAGAIN,
+        // one wasted syscall per readable event (libuv stops here too). The
+        // loop's poll is level-triggered, so bytes that land meanwhile report
+        // readable on the next turn.
+        if (static_cast<std::size_t>(count) < sizeof(bytes)) return;
         continue;
       }
       if (count == 0) {
@@ -1273,7 +1711,7 @@ private:
       }
       if (errno == EINTR) continue;
       if (errno == EAGAIN || errno == EWOULDBLOCK) return;
-      fail(errno);
+      fail(errno, "read");
       return;
     }
   }
@@ -1288,9 +1726,11 @@ private:
     }
   }
 
-  void fail(int error) {
+  void fail(int error, const char *syscall) {
     if (closing_) return;
     errorText_ = std::strerror(error);
+    errorNumber_ = error;
+    errorSyscall_ = syscall;
     events_.push_back(static_cast<int>(ClientEvent::error));
     events_.push_back(static_cast<int>(ClientEvent::close));
     closing_ = true;
@@ -1325,6 +1765,8 @@ private:
   std::deque<int> events_;
   std::deque<std::vector<std::uint8_t>> chunks_;
   std::string errorText_;
+  int errorNumber_ = 0;
+  const char *errorSyscall_ = "";
   std::string outBuffer_;
   std::size_t outSent_ = 0;
   std::function<void()> onClosed_;
@@ -1337,6 +1779,15 @@ inline ClientConnection *findClientConnection(double id) {
 
 inline std::string &lastNetCreateError() {
   static thread_local std::string error;
+  return error;
+}
+
+// errno of the last synchronous net_create failure (0 when the failure was not
+// a socket syscall, e.g. a resolver error). node reports a refused or
+// unreachable connect as `connect <CODE> <address>:<port>` whether it failed
+// synchronously or on completion, so TypeScript needs the number either way.
+inline int &lastNetCreateErrno() {
+  static thread_local int error = 0;
   return error;
 }
 
@@ -1374,6 +1825,7 @@ inline double net_create_native(std::string host, double requestedPort, double r
                          std::function<void()> notify) {
   ::signal(SIGPIPE, SIG_IGN);
   lastNetCreateError().clear();
+  lastNetCreateErrno() = 0;
   if (requestedPort < 0 || requestedPort > 65535 || requestedLocalPort < 0 || requestedLocalPort > 65535) {
     lastNetCreateError() = "Invalid TCP port";
     return 0;
@@ -1429,7 +1881,10 @@ inline double net_create_native(std::string host, double requestedPort, double r
   }
   ::freeaddrinfo(resolved);
   if (selectedFd < 0) {
-    if (lastNetCreateError().empty()) lastNetCreateError() = std::strerror(lastError);
+    if (lastNetCreateError().empty()) {
+      lastNetCreateError() = std::strerror(lastError);
+      lastNetCreateErrno() = lastError;
+    }
     return 0;
   }
 
@@ -1443,6 +1898,321 @@ inline double net_create_native(std::string host, double requestedPort, double r
 }
 
 inline std::string net_create_error() { return lastNetCreateError(); }
+
+inline double net_create_errno() { return static_cast<double>(lastNetCreateErrno()); }
+
+inline double net_error_errno(double id) {
+  ClientConnection *connection = findClientConnection(id);
+  return connection ? static_cast<double>(connection->errorNumber()) : 0.0;
+}
+
+inline std::string net_error_syscall(double id) {
+  ClientConnection *connection = findClientConnection(id);
+  return connection ? std::string(connection->errorSyscall()) : std::string();
+}
+
+// libuv's error names for the errnos a TCP client can see. node spells a
+// system error's `code` with these (`ECONNREFUSED`), and its `errno` is the
+// negated POSIX value on every unix, which TypeScript computes.
+inline std::string net_errno_name(double requested) {
+  switch (static_cast<int>(requested)) {
+#define GEA_NODE_ERRNO_NAME(name) \
+  case name:                      \
+    return #name;
+    GEA_NODE_ERRNO_NAME(EACCES)
+    GEA_NODE_ERRNO_NAME(EADDRINUSE)
+    GEA_NODE_ERRNO_NAME(EADDRNOTAVAIL)
+    GEA_NODE_ERRNO_NAME(EAFNOSUPPORT)
+    GEA_NODE_ERRNO_NAME(EAGAIN)
+    GEA_NODE_ERRNO_NAME(EALREADY)
+    GEA_NODE_ERRNO_NAME(EBADF)
+    GEA_NODE_ERRNO_NAME(ECANCELED)
+    GEA_NODE_ERRNO_NAME(ECONNABORTED)
+    GEA_NODE_ERRNO_NAME(ECONNREFUSED)
+    GEA_NODE_ERRNO_NAME(ECONNRESET)
+    GEA_NODE_ERRNO_NAME(EHOSTDOWN)
+    GEA_NODE_ERRNO_NAME(EHOSTUNREACH)
+    GEA_NODE_ERRNO_NAME(EINTR)
+    GEA_NODE_ERRNO_NAME(EINVAL)
+    GEA_NODE_ERRNO_NAME(EIO)
+    GEA_NODE_ERRNO_NAME(EISCONN)
+    GEA_NODE_ERRNO_NAME(EMFILE)
+    GEA_NODE_ERRNO_NAME(EMSGSIZE)
+    GEA_NODE_ERRNO_NAME(ENETDOWN)
+    GEA_NODE_ERRNO_NAME(ENETUNREACH)
+    GEA_NODE_ERRNO_NAME(ENFILE)
+    GEA_NODE_ERRNO_NAME(ENOBUFS)
+    GEA_NODE_ERRNO_NAME(ENOMEM)
+    GEA_NODE_ERRNO_NAME(ENOTCONN)
+    GEA_NODE_ERRNO_NAME(ENOTSOCK)
+    GEA_NODE_ERRNO_NAME(EPERM)
+    GEA_NODE_ERRNO_NAME(EPIPE)
+    GEA_NODE_ERRNO_NAME(EPROTO)
+    GEA_NODE_ERRNO_NAME(EPROTONOSUPPORT)
+    GEA_NODE_ERRNO_NAME(ETIMEDOUT)
+#undef GEA_NODE_ERRNO_NAME
+    default:
+      return "UNKNOWN";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Non-blocking name resolution for node:net's lookup (node's dns.lookup).
+//
+// getaddrinfo has no non-blocking form on either platform, so -- like libuv's
+// threadpool -- each lookup runs on a short-lived detached POSIX thread that
+// writes one byte to a pipe when it is done. The read end is a watcher on the
+// shared reactor, so completion is delivered on the loop thread exactly like a
+// socket event: `notify` runs from onReady and TypeScript pulls the results
+// with primitive accessors. pthread (not std::thread) so a failed spawn is an
+// error code, not an exception; it falls back to resolving inline.
+//
+// The state is shared between the thread and the registry; whichever lets go
+// last closes both pipe ends, so the worker's write never hits a closed pipe
+// even when the lookup was released (cancelled) while it was still running.
+// ---------------------------------------------------------------------------
+struct ResolveState {
+  int readFd = -1;
+  int writeFd = -1;
+  std::string host;
+  int family = AF_UNSPEC;
+  int hints = 0;
+  int status = 0;       // getaddrinfo status (0 = ok)
+  int systemError = 0;  // errno when status == EAI_SYSTEM
+  std::vector<std::pair<std::string, int>> addresses;
+  std::atomic<bool> done{false};
+
+  ~ResolveState() {
+    if (readFd >= 0) ::close(readFd);
+    if (writeFd >= 0) ::close(writeFd);
+  }
+
+  void resolve() {
+    addrinfo query{};
+    query.ai_family = family;
+    query.ai_socktype = SOCK_STREAM;
+    query.ai_flags = hints;
+    addrinfo *resolved = nullptr;
+    status = ::getaddrinfo(host.c_str(), nullptr, &query, &resolved);
+    if (status == EAI_SYSTEM) systemError = errno;
+    if (status == 0) {
+      for (addrinfo *candidate = resolved; candidate; candidate = candidate->ai_next) {
+        if (candidate->ai_family != AF_INET && candidate->ai_family != AF_INET6) continue;
+        char numeric[NI_MAXHOST]{};
+        if (::getnameinfo(candidate->ai_addr, candidate->ai_addrlen, numeric, sizeof(numeric), nullptr, 0,
+                          NI_NUMERICHOST) != 0)
+          continue;
+        addresses.emplace_back(numeric, candidate->ai_family == AF_INET6 ? 6 : 4);
+      }
+      ::freeaddrinfo(resolved);
+    }
+    done.store(true, std::memory_order_release);
+    const char byte = 1;
+    while (::write(writeFd, &byte, 1) < 0 && errno == EINTR) {
+    }
+  }
+};
+
+class ResolveWatcher;
+
+struct ResolveEntry {
+  std::shared_ptr<ResolveState> state;
+  ResolveWatcher *watcher = nullptr;  // null once completed or released
+};
+
+inline std::unordered_map<std::uint64_t, ResolveEntry> &resolveRegistry() {
+  static std::unordered_map<std::uint64_t, ResolveEntry> map;
+  return map;
+}
+
+class ResolveWatcher final : public IoWatcher {
+public:
+  ResolveWatcher(EventLoop &loop, std::uint64_t id, std::shared_ptr<ResolveState> state, std::function<void()> notify)
+      : loop_(loop), id_(id), state_(std::move(state)), notify_(std::move(notify)) {}
+
+  int fd() const noexcept override { return state_->readFd; }
+  short interestedEvents() const noexcept override { return finished_ ? 0 : POLLIN; }
+
+  void onReady(short revents) override {
+    if (finished_) return;
+    if (!state_->done.load(std::memory_order_acquire) && !(revents & (POLLERR | POLLHUP | POLLNVAL))) return;
+    char byte = 0;
+    (void)::read(state_->readFd, &byte, 1);
+    finished_ = true;
+    loop_.close(this);
+    const auto found = resolveRegistry().find(id_);
+    if (found != resolveRegistry().end()) found->second.watcher = nullptr;
+    auto notify = std::move(notify_);
+    if (notify) notify();
+  }
+
+  // Released before completion: stop watching; the worker finishes into the
+  // shared state and the last owner closes the pipe.
+  void cancel() {
+    if (finished_) return;
+    finished_ = true;
+    loop_.close(this);
+  }
+
+private:
+  EventLoop &loop_;
+  std::uint64_t id_;
+  std::shared_ptr<ResolveState> state_;
+  std::function<void()> notify_;
+  bool finished_ = false;
+};
+
+inline void *resolveThreadMain(void *argument) {
+  auto *owned = static_cast<std::shared_ptr<ResolveState> *>(argument);
+  (*owned)->resolve();
+  delete owned;
+  return nullptr;
+}
+
+inline double net_resolve_native(std::string host, double requestedFamily, double requestedHints,
+                                 std::function<void()> notify) {
+  static std::uint64_t nextId = 0;
+  auto state = std::make_shared<ResolveState>();
+  state->host = std::move(host);
+  state->family = requestedFamily == 4 ? AF_INET : requestedFamily == 6 ? AF_INET6 : AF_UNSPEC;
+  state->hints = static_cast<int>(requestedHints);
+  int fds[2] = {-1, -1};
+  if (::pipe(fds) != 0) {
+    // No pipe: resolve inline and complete on the next microtask, so the
+    // callback still never runs synchronously inside the caller.
+    state->resolve();
+  } else {
+    state->readFd = fds[0];
+    state->writeFd = fds[1];
+    for (int fd : fds) {
+      const int flags = ::fcntl(fd, F_GETFD, 0);
+      if (flags >= 0) ::fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+    }
+  }
+  const std::uint64_t id = ++nextId;
+  ResolveEntry &entry = resolveRegistry()[id];
+  entry.state = state;
+  if (state->readFd < 0) {
+    gea::node::queue_microtask([notify = std::move(notify)]() mutable {
+      if (notify) notify();
+    });
+    return static_cast<double>(id);
+  }
+  auto watcher = std::make_unique<ResolveWatcher>(clientEventLoop(), id, state, std::move(notify));
+  entry.watcher = watcher.get();
+  clientEventLoop().adopt(std::move(watcher));
+  pthread_t thread;
+  auto *argument = new std::shared_ptr<ResolveState>(state);
+  if (::pthread_create(&thread, nullptr, resolveThreadMain, argument) == 0) {
+    ::pthread_detach(thread);
+  } else {
+    delete argument;
+    state->resolve();  // writes the completion byte; the watcher fires next pass
+  }
+  return static_cast<double>(id);
+}
+
+inline ResolveState *findResolveState(double id) {
+  const auto found = resolveRegistry().find(static_cast<std::uint64_t>(id));
+  return found == resolveRegistry().end() ? nullptr : found->second.state.get();
+}
+
+// -1 when the lookup failed; the error accessors below then describe it.
+inline double net_resolve_count(double id) {
+  ResolveState *state = findResolveState(id);
+  if (state == nullptr || !state->done.load(std::memory_order_acquire) || state->status != 0) return -1;
+  return static_cast<double>(state->addresses.size());
+}
+
+inline std::string net_resolve_address(double id, double index) {
+  ResolveState *state = findResolveState(id);
+  if (state == nullptr || index < 0 || index >= static_cast<double>(state->addresses.size())) return {};
+  return state->addresses[static_cast<std::size_t>(index)].first;
+}
+
+inline double net_resolve_family(double id, double index) {
+  ResolveState *state = findResolveState(id);
+  if (state == nullptr || index < 0 || index >= static_cast<double>(state->addresses.size())) return 0;
+  return static_cast<double>(state->addresses[static_cast<std::size_t>(index)].second);
+}
+
+// node's `code` for a failed dns.lookup: EAI_NONAME/EAI_NODATA are reported
+// as ENOTFOUND, every other resolver error by its libuv name.
+inline std::string net_resolve_error_code(double id) {
+  ResolveState *state = findResolveState(id);
+  if (state == nullptr) return "ECANCELLED";
+  switch (state->status) {
+    case 0:
+      return state->addresses.empty() ? "ENOTFOUND" : "";
+    case EAI_NONAME:
+#if defined(EAI_NODATA) && EAI_NODATA != EAI_NONAME
+    case EAI_NODATA:
+#endif
+      return "ENOTFOUND";
+    case EAI_AGAIN:
+      return "EAI_AGAIN";
+    case EAI_BADFLAGS:
+      return "EAI_BADFLAGS";
+    case EAI_FAIL:
+      return "EAI_FAIL";
+    case EAI_FAMILY:
+      return "EAI_FAMILY";
+    case EAI_MEMORY:
+      return "EAI_MEMORY";
+    case EAI_SERVICE:
+      return "EAI_SERVICE";
+    case EAI_SOCKTYPE:
+      return "EAI_SOCKTYPE";
+    case EAI_SYSTEM:
+      return net_errno_name(static_cast<double>(state->systemError));
+    default:
+      return "EAI_FAIL";
+  }
+}
+
+// node's `errno` for the same error: libuv's UV_EAI_* numbers.
+inline double net_resolve_errno(double id) {
+  ResolveState *state = findResolveState(id);
+  if (state == nullptr) return -3003;  // UV_EAI_CANCELED
+  switch (state->status) {
+    case 0:
+      return state->addresses.empty() ? -3008 : 0;
+    case EAI_NONAME:
+      return -3008;
+#if defined(EAI_NODATA) && EAI_NODATA != EAI_NONAME
+    case EAI_NODATA:
+      return -3007;
+#endif
+    case EAI_AGAIN:
+      return -3001;
+    case EAI_BADFLAGS:
+      return -3002;
+    case EAI_FAIL:
+      return -3004;
+    case EAI_FAMILY:
+      return -3005;
+    case EAI_MEMORY:
+      return -3006;
+    case EAI_SERVICE:
+      return -3010;
+    case EAI_SOCKTYPE:
+      return -3011;
+    case EAI_SYSTEM:
+      return -static_cast<double>(state->systemError);
+    default:
+      return -3004;
+  }
+}
+
+inline void net_resolve_release(double id) {
+  const auto found = resolveRegistry().find(static_cast<std::uint64_t>(id));
+  if (found == resolveRegistry().end()) return;
+  if (found->second.watcher != nullptr) found->second.watcher->cancel();
+  resolveRegistry().erase(found);
+}
+
+// dns.ADDRCONFIG, the hint node adds to an unpinned-family lookup.
+inline double net_addrconfig_hint() { return static_cast<double>(AI_ADDRCONFIG); }
 
 inline double net_next_event(double id) {
   ClientConnection *connection = findClientConnection(id);
@@ -1993,7 +2763,61 @@ public:
   virtual void responseComplete(bool keepAlive) = 0;
   virtual void hardDestroy() = 0;
   virtual std::string peerName() const = 0;
+  /** Run the request `HandlerDispatchGate` parked on this connection. */
+  virtual void dispatchDeferred() = 0;
 };
+
+// Request handlers never nest.
+//
+// Historically geatsc had no suspension primitive for `await`: an awaiting
+// handler completed the await by pumping this reactor until the promise
+// settled (`gea::detail::waitForPromise`), so its frame stayed on the C++
+// stack for as long as it waited. An `await` is now a real suspension
+// (`co_await`, and a nested pump from inside a callback aborts), so a handler
+// leaves the stack at its first await and this gate is only ever open while a
+// handler runs synchronously; it is kept as the fail-safe for that window. A request parsed from
+// inside that pump used to be dispatched right there, ON TOP of the waiting
+// handler -- and the stack makes the waits LIFO: the outer handler cannot
+// resume, even once its promise has settled, until the inner one returns. The
+// moment the inner handler waits on something only the outer can release, the
+// process spins forever. The mongodb driver hits this on the second concurrent
+// request: `ConnectionPool.checkOut` queues behind `maxConnecting`, while the
+// handshake that would free a slot is an `await` in the frame underneath.
+//
+// So a request that completes while any handler is on the stack is parked
+// here, in arrival order, and dispatched as soon as the last handler frame
+// returns. Requests run one after another -- which is what a blocking await
+// makes of them anyway -- instead of starving each other. I/O, timers and
+// microtasks still run inside the pump: only NEW handler entries wait.
+struct HandlerDispatchGate {
+  int active = 0;  // handler frames currently on the C++ stack
+  bool draining = false;
+  std::deque<std::uint64_t> deferred;  // connection ids holding a parsed request
+};
+
+inline HandlerDispatchGate &handlerDispatchGate() {
+  static HandlerDispatchGate gate;
+  return gate;
+}
+
+inline std::unordered_map<std::uint64_t, HttpConnectionBase *> &connectionRegistry();
+
+// Dispatch parked requests once no handler frame remains. A dispatched handler
+// may park further requests from its own pump; they join the same queue and
+// this loop takes them next, so the stack never grows with the queue.
+inline void drainDeferredHandlers() {
+  HandlerDispatchGate &gate = handlerDispatchGate();
+  if (gate.draining) return;
+  gate.draining = true;
+  while (gate.active == 0 && !gate.deferred.empty()) {
+    const std::uint64_t id = gate.deferred.front();
+    gate.deferred.pop_front();
+    // A connection destroyed while its request waited left the registry.
+    auto found = connectionRegistry().find(id);
+    if (found != connectionRegistry().end()) found->second->dispatchDeferred();
+  }
+  gate.draining = false;
+}
 
 // `headEnd` inputs. The response object knows these; the reactor does not.
 inline constexpr int kHeadNoBody = 1;        // HEAD, 1xx, 204, 304: no framing header, no body
@@ -2587,6 +3411,33 @@ private:
 
   void dispatchCurrent() {
     busy_ = true;
+    // Another handler is waiting on the stack: park this request (the parsed
+    // fields stay put -- `busy_` stops the parser) until it returns.
+    HandlerDispatchGate &gate = handlerDispatchGate();
+    if (gate.active > 0) {
+      deferred_ = true;
+      gate.deferred.push_back(id_);
+      return;
+    }
+    ++gate.active;
+    runHandler();
+    --gate.active;
+    if (gate.active == 0) drainDeferredHandlers();
+  }
+
+  void dispatchDeferred() override {
+    if (!deferred_) return;
+    deferred_ = false;
+    const bool wasProcessing = processing_;
+    processing_ = true;
+    dispatchCurrent();
+    processInput();  // a pipelined request buffered behind the parked one
+    processing_ = wasProcessing;
+    if (!processing_) flushAndMaybeClose();
+  }
+
+  // The handler call itself; never throws (a throw becomes this request's 500).
+  void runHandler() {
     double flags = keepAlive_ ? 1.0 : 0.0;
     if (firstRequest_) flags += 2.0;
     firstRequest_ = false;
@@ -2668,6 +3519,7 @@ private:
   bool peerClosed_ = false;   // read side saw EOF
   bool processing_ = false;   // inside the reactor's processInput pass
   bool firstRequest_ = true;
+  bool deferred_ = false;     // parked in `HandlerDispatchGate` with a parsed request
 
   // The header block being serialized by `headBegin`/`headField`/`headEnd`.
   // `headMark_` is where it starts in `outbuf_` until body bytes release it.

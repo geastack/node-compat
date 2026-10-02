@@ -1,118 +1,193 @@
+// Differential correctness for `correctness/native/*.ts`: each probe runs
+// under node (`npx tsx`) and as a native binary built by node-compat's
+// `scripts/build.mjs`, and the two stdouts (and exit codes) must match.
+// The mongodb probes talk to a mongod at 127.0.0.1:27017 (the
+// `geastack-mongod-ping` docker container).
+//
+// The driver compiles from its published package source: a probe that imports
+// `mongodb` is built with `--source-project node_modules/mongodb/tsconfig.json`
+// and a larger V8 heap (the emit needs ~8 GB). There is no vendored checkout.
+//
+// usage: node scripts/native-mongodb-correctness.mjs [probe...] [mode]
+//   probe      basename under correctness/native (with or without `.ts`);
+//              default: every probe
+//   mode       (default) compile + link, then diff
+//              --emit-only   compile and emit C++ only; no link, no run
+//              --link-only   link an earlier --emit-only emission, then diff
+//              --skip-build  diff against the binaries already built
+//
+// Output lands in dist/correctness/<probe>/ (dist is the app's ignored build
+// output), binary dist/correctness/<probe>/<probe>, build report beside it.
 import { spawn, spawnSync } from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeCompatRoot = path.resolve(appRoot, '../..')
+const probeDir = path.join(appRoot, 'correctness/native')
+const buildRoot = path.join(appRoot, 'dist/correctness')
+const mongodbSourceProject = path.join(appRoot, 'node_modules/mongodb/tsconfig.json')
 const runTimeoutMs = 30_000
+const buildTimeoutMs = Number(process.env.MONGODB_CORRECTNESS_BUILD_TIMEOUT_MS ?? 30 * 60_000)
 
-const probes = {
-  ping: {
-    entry: path.join(appRoot, 'correctness/native/mongodb-cmap-ping.ts'),
-    outDir: path.join(appRoot, 'dist'),
-    expectedOutput: 'PING:1'
-  },
-  crud: {
-    entry: path.join(appRoot, 'correctness/native/mongodb-source-crud.ts'),
-    outDir: path.join(appRoot, 'dist'),
-    expectedOutput: '0123456789abcdef01234567:created:false:updated:true:1:absent'
-  }
-}
+const modes = ['--emit-only', '--link-only', '--skip-build']
+const args = process.argv.slice(2)
+const selectedModes = args.filter((value) => modes.includes(value))
+const unknownFlags = args.filter((value) => value.startsWith('-') && !modes.includes(value))
+const available = fs
+  .readdirSync(probeDir)
+  .filter((name) => name.endsWith('.ts'))
+  .map((name) => name.slice(0, -3))
+  .sort()
 
-function usage() {
+function usage(message) {
+  if (message) console.error(message)
   console.error(
-    'usage: node scripts/native-mongodb-correctness.mjs <ping|crud> [--emit-only|--run]'
+    `usage: node scripts/native-mongodb-correctness.mjs [probe...] [${modes.join('|')}]\n` +
+      `probes: ${available.join(', ')}`
   )
   process.exit(2)
 }
 
-const probeName = process.argv[2]
-if (probeName !== 'ping' && probeName !== 'crud') usage()
+if (unknownFlags.length > 0) usage(`unknown option(s): ${unknownFlags.join(' ')}`)
+if (selectedModes.length > 1) usage(`choose one of ${modes.join(', ')}`)
+const mode = selectedModes[0] ?? null
+const requested = args.filter((value) => !value.startsWith('-')).map((value) => value.replace(/\.ts$/, ''))
+const missing = requested.filter((name) => !available.includes(name))
+if (missing.length > 0) usage(`unknown probe(s): ${missing.join(', ')}`)
+const probes = requested.length > 0 ? requested : available
 
-const emitOnly = process.argv.includes('--emit-only')
-const runAfterBuild = process.argv.includes('--run')
-if (emitOnly && runAfterBuild) usage()
+// The same TMPDIR discipline as scripts/run-with-work-env.mjs: compiler
+// scratch goes to the app's ignored build output, never the system tmp.
+const scratch = path.join(appRoot, 'dist')
+fs.mkdirSync(scratch, { recursive: true })
+const baseEnv = { ...process.env, TMPDIR: scratch, TMP: scratch, TEMP: scratch }
 
-const unknownArguments = process.argv.slice(3).filter((value) => {
-  return value !== '--emit-only' && value !== '--run'
-})
-if (unknownArguments.length > 0) usage()
-
-const probe = probes[probeName]
-const executablePath = path.join(probe.outDir, `mongodb-${probeName}`)
-
-const build = spawnSync(process.execPath, [
-  path.join(nodeCompatRoot, 'scripts/build.mjs'),
-  probe.entry,
-  '--from-source=mongodb,bson,mongodb-connection-string-url',
-  '--source-project', path.join(nodeCompatRoot, 'vendored-sources/mongodb/tsconfig.json'),
-  '--globals', '--out', probe.outDir, '--exe', executablePath,
-  ...(emitOnly ? ['--emit-only'] : [])
-], { cwd: appRoot, env: process.env, stdio: 'inherit' })
-if (build.error || build.status !== 0) {
-  console.error(`MONGODB_NATIVE_CORRECTNESS_BUILD_ERROR:${probeName}:${build.error?.message ?? build.status ?? build.signal}`)
-  process.exit(build.status ?? 1)
-}
-
-if (emitOnly) {
-  console.log(`MONGODB_NATIVE_CORRECTNESS_EMIT_OK:${probeName}:${probe.outDir}`)
-  process.exit(0)
-}
-
-console.log(`MONGODB_NATIVE_CORRECTNESS_BUILD_OK:${probeName}:${executablePath}`)
-
-if (runAfterBuild) {
-  try {
-    await runProbe(probeName, probe, executablePath)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error(`MONGODB_NATIVE_CORRECTNESS_RUN_ERROR:${probeName}:${message}`)
-    process.exit(1)
-  }
-}
-
-async function runProbe(name, definition, executable) {
-  const child = spawn(executable, [], {
+function buildProbe(name) {
+  const entry = path.join(probeDir, `${name}.ts`)
+  const outDir = path.join(buildRoot, name)
+  const executable = path.join(outDir, name)
+  const report = path.join(outDir, 'report.json')
+  const importsMongodb = /from\s+['"]mongodb['"]/.test(fs.readFileSync(entry, 'utf8'))
+  const nodeOptions = [baseEnv.NODE_OPTIONS, importsMongodb ? '--max-old-space-size=8192' : null]
+    .filter(Boolean)
+    .join(' ')
+  const buildArgs = [
+    path.join(nodeCompatRoot, 'scripts/build.mjs'),
+    entry,
+    ...(importsMongodb ? ['--source-project', mongodbSourceProject] : []),
+    '--out', outDir,
+    '--exe', executable,
+    '--report', report,
+    ...(mode === '--emit-only' ? ['--emit-only'] : []),
+    ...(mode === '--link-only' ? ['--link-only'] : [])
+  ]
+  console.log(`[correctness] build ${name}${mode ? ` ${mode}` : ''}`)
+  const started = Date.now()
+  const build = spawnSync(process.execPath, buildArgs, {
     cwd: appRoot,
-    env: process.env,
-    stdio: ['ignore', 'pipe', 'pipe']
+    env: { ...baseEnv, ...(nodeOptions ? { NODE_OPTIONS: nodeOptions } : {}) },
+    stdio: 'inherit',
+    timeout: buildTimeoutMs
   })
-
-  let stdout = ''
-  let timedOut = false
-  child.stdout.on('data', (chunk) => {
-    const text = chunk.toString()
-    stdout = `${stdout}${text}`.slice(-65_536)
-    process.stdout.write(chunk)
-  })
-  child.stderr.on('data', (chunk) => {
-    process.stderr.write(chunk)
-  })
-
-  const timeout = setTimeout(() => {
-    timedOut = true
-    child.kill('SIGKILL')
-  }, runTimeoutMs)
-
-  const { code, signal } = await new Promise((resolve, reject) => {
-    child.once('error', reject)
-    child.once('close', (code, signal) => resolve({ code, signal }))
-  }).finally(() => clearTimeout(timeout))
-
-  if (timedOut) {
-    throw new Error(`native ${name} probe exceeded ${runTimeoutMs}ms`)
+  const seconds = ((Date.now() - started) / 1000).toFixed(1)
+  if (build.error || build.status !== 0) {
+    return { ok: false, detail: `build failed after ${seconds}s: ${build.error?.message ?? build.signal ?? `exit ${build.status}`}` }
   }
-  if (code !== 0) {
-    throw new Error(`native ${name} probe exited with ${code ?? signal ?? 'unknown status'}`)
-  }
-
-  const outputLines = stdout.split(/\r?\n/)
-  if (!outputLines.includes(definition.expectedOutput)) {
-    throw new Error(
-      `native ${name} probe did not print ${JSON.stringify(definition.expectedOutput)}`
-    )
-  }
-
-  console.log(`MONGODB_NATIVE_CORRECTNESS_RUN_OK:${name}`)
+  return { ok: true, detail: `built in ${seconds}s`, executable }
 }
+
+function run(command, commandArgs, label) {
+  return new Promise((resolve) => {
+    const child = spawn(command, commandArgs, { cwd: appRoot, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
+    let stdout = ''
+    let stderr = ''
+    let timedOut = false
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk
+    })
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk
+    })
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill('SIGKILL')
+    }, runTimeoutMs)
+    child.once('error', (error) => {
+      clearTimeout(timer)
+      resolve({ label, code: null, signal: null, stdout, stderr: `${stderr}${error.message}`, timedOut })
+    })
+    child.once('close', (code, signal) => {
+      clearTimeout(timer)
+      resolve({ label, code, signal, stdout, stderr, timedOut })
+    })
+  })
+}
+
+function describe(result) {
+  if (result.timedOut) return `timed out after ${runTimeoutMs}ms`
+  return result.signal ? `signal ${result.signal}` : `exit ${result.code}`
+}
+
+function diffLines(expected, actual) {
+  const left = expected.split('\n')
+  const right = actual.split('\n')
+  const lines = []
+  for (let index = 0; index < Math.max(left.length, right.length); index++) {
+    if (left[index] === right[index]) continue
+    if (left[index] !== undefined) lines.push(`  ${index + 1} node:   ${JSON.stringify(left[index])}`)
+    if (right[index] !== undefined) lines.push(`  ${index + 1} native: ${JSON.stringify(right[index])}`)
+  }
+  return lines.join('\n')
+}
+
+const results = []
+for (const name of probes) {
+  let executable = path.join(buildRoot, name, name)
+  if (mode !== '--skip-build') {
+    const build = buildProbe(name)
+    if (!build.ok) {
+      results.push({ name, status: 'BUILD_ERROR', detail: build.detail })
+      continue
+    }
+    if (mode === '--emit-only') {
+      results.push({ name, status: 'EMIT_OK', detail: build.detail })
+      continue
+    }
+    executable = build.executable
+  }
+  if (!fs.existsSync(executable)) {
+    results.push({ name, status: 'BUILD_ERROR', detail: `no binary at ${path.relative(appRoot, executable)}` })
+    continue
+  }
+
+  const entry = path.join(probeDir, `${name}.ts`)
+  const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx'
+  const reference = await run(npx, ['tsx', entry], 'node')
+  const native = await run(executable, [], 'native')
+  const problems = []
+  if (reference.timedOut || reference.code !== 0) {
+    problems.push(`node reference ${describe(reference)}\n${reference.stderr.trimEnd()}`)
+  }
+  if (native.timedOut || native.code !== reference.code || native.signal !== reference.signal) {
+    problems.push(`native ${describe(native)} (node: ${describe(reference)})\n${native.stderr.trimEnd()}`)
+  }
+  if (native.stdout !== reference.stdout) {
+    problems.push(`stdout differs:\n${diffLines(reference.stdout, native.stdout)}`)
+  }
+  results.push({
+    name,
+    status: problems.length === 0 ? 'OK' : 'MISMATCH',
+    detail: problems.length === 0 ? `${reference.stdout.split('\n').filter(Boolean).length} line(s) identical` : problems.join('\n'),
+    stdout: reference.stdout
+  })
+}
+
+for (const result of results) {
+  console.log(`MONGODB_NATIVE_CORRECTNESS_${result.status}:${result.name}: ${result.detail}`)
+  if (result.status === 'OK' && result.stdout) process.stdout.write(result.stdout.replace(/^/gm, '  | '))
+}
+const failed = results.filter((result) => result.status !== 'OK' && result.status !== 'EMIT_OK')
+console.log(`MONGODB_NATIVE_CORRECTNESS_SUMMARY: ${results.length - failed.length}/${results.length} passed`)
+process.exit(failed.length === 0 ? 0 : 1)

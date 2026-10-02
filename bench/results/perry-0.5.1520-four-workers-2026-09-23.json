@@ -1,0 +1,1557 @@
+{
+  "utc": "2026-09-23T16:15:57Z",
+  "settings": {
+    "output": "bench/results/perry-0.5.1520-four-workers-2026-09-23.json",
+    "rounds": 3,
+    "duration": "8s",
+    "check_only": false
+  },
+  "perry": "perry 0.5.1520",
+  "machine": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Xeon(R) CPU E3-1231 v3 @ 3.40GHz\nCPU family:                              6\nModel:                                   60\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                3\nCPU(s) scaling MHz:                      73%\nCPU max MHz:                             3800.0000\nCPU min MHz:                             800.0000\nBogoMIPS:                                6784.29\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid xsaveopt dtherm ida arat pln pts vnmi md_clear flush_l1d ibpb_exit_to_user\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: VMX disabled\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Unknown: No mitigations\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Retpolines; IBPB conditional; IBRS_FW; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace\n",
+  "server_cpus": "0-3",
+  "load_cpus": "4-7",
+  "workers": 4,
+  "connections": 64,
+  "load_threads": 4,
+  "scheduling": "default SCHED_RR",
+  "start_load": "0.11 0.27 0.37 1/273 2036242",
+  "compiler_sha256": "6401feb30cb56e965fc99a0c8bc2f9e02e4c0b4e0290f6a129eb65dfb7f7b5c2",
+  "sha256": {
+    "apps/raw-http-hello/server.ts": "9ac7f0a8e89c7105e5adb6d3b43a1b78b129367e0d90974a95ca73a25066f7cf",
+    "apps/raw-http-hello/server.cluster.ts": "1b679dc2534d82bc9810fa712489cae32c13b8e04445b6ba11f10c551cf57e05",
+    "apps/raw-http-hello/dist/server-perry-cluster": "12bca1ccc82147fa11a76da5f5e44dd68e824f43f03f7069d37b326817153fd3",
+    "apps/hono-hello/server.ts": "7de6949757315948121a51903d71cd82a57b4c127a2cad14f4e13e49510a7e90",
+    "apps/hono-hello/server.cluster.ts": "743dbc03a3363bbdb1bdf6f68c498f94972523e4ca2c5415c797099164cfb3ec",
+    "apps/hono-hello/dist/server-perry-cluster": "7697ac4ab21b50d8f1a8622810fb0e334f0bb2de048d338253a3db03ba14ad64",
+    "bench/perry-cluster-http.py": "9bd09c3f95fc6fccbd4c5eb1c425b6398fabb8d952ed2ade15ff9eb31de2e153"
+  },
+  "checks": [
+    {
+      "server": "perry-raw",
+      "round": 1,
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "apps/raw-http-hello/dist/server-perry-cluster"
+      ],
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=utf-8"
+            ],
+            [
+              "Content-Length",
+              "19"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:15:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello, World! GET /"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "application/json; charset=utf-8"
+            ],
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:15:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        }
+      },
+      "worker_verification": {
+        "primary_pid": 2036243,
+        "workers": [
+          {
+            "pid": 2036244,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              49250,
+              49280,
+              49306,
+              49344,
+              49380,
+              49410,
+              49442,
+              49480,
+              49506,
+              49530,
+              49568,
+              49586,
+              49630,
+              49652,
+              49692,
+              49718
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/raw-http-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036247,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              49254,
+              49282,
+              49318,
+              49352,
+              49382,
+              49414,
+              49458,
+              49482,
+              49508,
+              49532,
+              49572,
+              49600,
+              49632,
+              49654,
+              49694,
+              49732
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/raw-http-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036250,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              49258,
+              49298,
+              49324,
+              49366,
+              49388,
+              49420,
+              49470,
+              49488,
+              49516,
+              49546,
+              49578,
+              49616,
+              49636,
+              49670,
+              49696,
+              49734
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/raw-http-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036254,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              49248,
+              49264,
+              49304,
+              49336,
+              49378,
+              49394,
+              49430,
+              49478,
+              49504,
+              49528,
+              49552,
+              49584,
+              49628,
+              49648,
+              49676,
+              49706
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/raw-http-hello/dist/server-perry-cluster "
+          }
+        ],
+        "verified_connections": 64
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3101/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   799.67us  739.11us  16.50ms   99.19%\n    Req/Sec    21.34k     4.02k   56.44k    98.77%\n  Latency Distribution\n     50%  710.00us\n     75%  780.00us\n     90%    0.97ms\n     99%    1.18ms\n  171946 requests in 2.10s, 30.01MB read\nRequests/sec:  81908.50\nTransfer/sec:     14.29MB\n",
+        "rps": 81908.5,
+        "valid": true
+      },
+      "output": "listening on http://127.0.0.1:3101\nlistening on http://127.0.0.1:3101\nlistening on http://127.0.0.1:3101\nlistening on http://127.0.0.1:3101\n",
+      "exit": -15
+    },
+    {
+      "server": "perry-hono",
+      "round": 1,
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "apps/hono-hello/dist/server-perry-cluster"
+      ],
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "11"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:16:16 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello Hono!"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Content-Type",
+              "application/json"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:16:16 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        },
+        "/missing": {
+          "status": 404,
+          "headers": [
+            [
+              "Content-Length",
+              "13"
+            ],
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:16:16 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "404 Not Found"
+        },
+        "/body/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "14"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:16:16 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "cluster parity"
+        }
+      },
+      "worker_verification": {
+        "primary_pid": 2036286,
+        "workers": [
+          {
+            "pid": 2036287,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              42152,
+              42192,
+              42224,
+              42264,
+              42306,
+              42330,
+              42366,
+              42402,
+              42444,
+              42486,
+              42520,
+              42538,
+              42584,
+              42616,
+              42660,
+              42684
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/hono-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036290,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              42136,
+              42156,
+              42206,
+              42226,
+              42270,
+              42308,
+              42342,
+              42368,
+              42406,
+              42458,
+              42494,
+              42526,
+              42548,
+              42594,
+              42624,
+              42670
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/hono-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036293,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              42142,
+              42168,
+              42210,
+              42234,
+              42286,
+              42312,
+              42354,
+              42384,
+              42418,
+              42474,
+              42496,
+              42528,
+              42556,
+              42596,
+              42628,
+              42674
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/hono-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036296,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              42144,
+              42184,
+              42220,
+              42250,
+              42298,
+              42314,
+              42362,
+              42388,
+              42432,
+              42476,
+              42512,
+              42534,
+              42570,
+              42608,
+              42644,
+              42676
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/hono-hello/dist/server-perry-cluster "
+          }
+        ],
+        "verified_connections": 64
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3900/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     9.96ms    6.46ms  62.24ms   94.99%\n    Req/Sec     1.75k   236.78     2.16k    81.93%\n  Latency Distribution\n     50%    7.88ms\n     75%   10.44ms\n     90%   12.72ms\n     99%   45.09ms\n  14463 requests in 2.10s, 2.40MB read\nRequests/sec:   6885.11\nTransfer/sec:      1.14MB\n",
+        "rps": 6885.11,
+        "valid": true
+      },
+      "output": "hono-native listening on http://127.0.0.1:3900\nhono-native listening on http://127.0.0.1:3900\nhono-native listening on http://127.0.0.1:3900\nhono-native listening on http://127.0.0.1:3900\n",
+      "exit": -15
+    },
+    {
+      "server": "perry-hono",
+      "round": 2,
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "apps/hono-hello/dist/server-perry-cluster"
+      ],
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "11"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:16:35 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello Hono!"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Content-Type",
+              "application/json"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:16:35 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        },
+        "/missing": {
+          "status": 404,
+          "headers": [
+            [
+              "Content-Length",
+              "13"
+            ],
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:16:35 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "404 Not Found"
+        },
+        "/body/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "14"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:16:35 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "cluster parity"
+        }
+      },
+      "worker_verification": {
+        "primary_pid": 2036335,
+        "workers": [
+          {
+            "pid": 2036336,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              57250,
+              57286,
+              57308,
+              57344,
+              57376,
+              57424,
+              57462,
+              57496,
+              57530,
+              57574,
+              57604,
+              57642,
+              57682,
+              57732,
+              57764,
+              57800
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/hono-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036339,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              57216,
+              57256,
+              57290,
+              57318,
+              57352,
+              57392,
+              57430,
+              57472,
+              57500,
+              57544,
+              57580,
+              57606,
+              57652,
+              57698,
+              57746,
+              57772
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/hono-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036342,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              57232,
+              57262,
+              57294,
+              57330,
+              57366,
+              57402,
+              57444,
+              57488,
+              57502,
+              57556,
+              57582,
+              57622,
+              57668,
+              57706,
+              57748,
+              57780
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/hono-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036345,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              57240,
+              57274,
+              57296,
+              57338,
+              57372,
+              57414,
+              57448,
+              57490,
+              57516,
+              57558,
+              57592,
+              57630,
+              57672,
+              57720,
+              57754,
+              57786
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/hono-hello/dist/server-perry-cluster "
+          }
+        ],
+        "verified_connections": 64
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3900/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    10.03ms    6.58ms  60.95ms   94.52%\n    Req/Sec     1.74k   227.27     2.03k    83.75%\n  Latency Distribution\n     50%    7.91ms\n     75%   10.22ms\n     90%   13.06ms\n     99%   44.72ms\n  13880 requests in 2.01s, 2.30MB read\nRequests/sec:   6893.49\nTransfer/sec:      1.14MB\n",
+        "rps": 6893.49,
+        "valid": true
+      },
+      "output": "hono-native listening on http://127.0.0.1:3900\nhono-native listening on http://127.0.0.1:3900\nhono-native listening on http://127.0.0.1:3900\nhono-native listening on http://127.0.0.1:3900\n",
+      "exit": -15
+    },
+    {
+      "server": "perry-raw",
+      "round": 2,
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "apps/raw-http-hello/dist/server-perry-cluster"
+      ],
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=utf-8"
+            ],
+            [
+              "Content-Length",
+              "19"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:16:53 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello, World! GET /"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "application/json; charset=utf-8"
+            ],
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:16:53 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        }
+      },
+      "worker_verification": {
+        "primary_pid": 2036384,
+        "workers": [
+          {
+            "pid": 2036385,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              35744,
+              35784,
+              35822,
+              35850,
+              35892,
+              35932,
+              35972,
+              36008,
+              36042,
+              36074,
+              36104,
+              36152,
+              36196,
+              36240,
+              36268,
+              36290
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/raw-http-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036388,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              35750,
+              35800,
+              35828,
+              35864,
+              35900,
+              35934,
+              35974,
+              36022,
+              36054,
+              36078,
+              36118,
+              36166,
+              36208,
+              36248,
+              36278,
+              36302
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/raw-http-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036391,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              35764,
+              35802,
+              35840,
+              35878,
+              35910,
+              35950,
+              35986,
+              36028,
+              36062,
+              36092,
+              36122,
+              36182,
+              36216,
+              36254,
+              36282,
+              36304
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/raw-http-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036395,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              35732,
+              35774,
+              35814,
+              35846,
+              35880,
+              35916,
+              35958,
+              36000,
+              36032,
+              36070,
+              36096,
+              36138,
+              36190,
+              36224,
+              36260,
+              36288
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/raw-http-hello/dist/server-perry-cluster "
+          }
+        ],
+        "verified_connections": 64
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3101/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   789.04us  681.72us  15.12ms   99.31%\n    Req/Sec    21.47k     2.34k   36.28k    97.56%\n  Latency Distribution\n     50%  705.00us\n     75%  751.00us\n     90%    0.95ms\n     99%    1.13ms\n  175238 requests in 2.10s, 30.58MB read\nRequests/sec:  83442.69\nTransfer/sec:     14.56MB\n",
+        "rps": 83442.69,
+        "valid": true
+      },
+      "output": "listening on http://127.0.0.1:3101\nlistening on http://127.0.0.1:3101\nlistening on http://127.0.0.1:3101\nlistening on http://127.0.0.1:3101\n",
+      "exit": -15
+    },
+    {
+      "server": "perry-raw",
+      "round": 3,
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "apps/raw-http-hello/dist/server-perry-cluster"
+      ],
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=utf-8"
+            ],
+            [
+              "Content-Length",
+              "19"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:17:12 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello, World! GET /"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "application/json; charset=utf-8"
+            ],
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:17:12 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        }
+      },
+      "worker_verification": {
+        "primary_pid": 2036430,
+        "workers": [
+          {
+            "pid": 2036431,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              37264,
+              37326,
+              37362,
+              37404,
+              37434,
+              37474,
+              37502,
+              37534,
+              37564,
+              37598,
+              37636,
+              37682,
+              37714,
+              37766,
+              37810,
+              37848
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/raw-http-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036434,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              37280,
+              37334,
+              37372,
+              37418,
+              37446,
+              37488,
+              37506,
+              37538,
+              37570,
+              37606,
+              37640,
+              37686,
+              37728,
+              37776,
+              37816,
+              37864
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/raw-http-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036437,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              37294,
+              37338,
+              37388,
+              37420,
+              37452,
+              37492,
+              37514,
+              37542,
+              37582,
+              37616,
+              37654,
+              37698,
+              37738,
+              37792,
+              37832,
+              37878
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/raw-http-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036440,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              37254,
+              37310,
+              37350,
+              37394,
+              37430,
+              37468,
+              37498,
+              37520,
+              37554,
+              37590,
+              37628,
+              37668,
+              37708,
+              37750,
+              37804,
+              37840
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/raw-http-hello/dist/server-perry-cluster "
+          }
+        ],
+        "verified_connections": 64
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3101/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   804.43us  785.57us  16.78ms   99.19%\n    Req/Sec    21.35k     1.20k   27.28k    91.57%\n  Latency Distribution\n     50%  706.00us\n     75%  748.00us\n     90%    0.95ms\n     99%    1.15ms\n  176227 requests in 2.10s, 30.76MB read\nRequests/sec:  83931.73\nTransfer/sec:     14.65MB\n",
+        "rps": 83931.73,
+        "valid": true
+      },
+      "output": "listening on http://127.0.0.1:3101\nlistening on http://127.0.0.1:3101\nlistening on http://127.0.0.1:3101\nlistening on http://127.0.0.1:3101\n",
+      "exit": -15
+    },
+    {
+      "server": "perry-hono",
+      "round": 3,
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "apps/hono-hello/dist/server-perry-cluster"
+      ],
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "11"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:17:30 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello Hono!"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Content-Type",
+              "application/json"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:17:30 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        },
+        "/missing": {
+          "status": 404,
+          "headers": [
+            [
+              "Content-Length",
+              "13"
+            ],
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:17:30 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "404 Not Found"
+        },
+        "/body/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "14"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:17:30 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "cluster parity"
+        }
+      },
+      "worker_verification": {
+        "primary_pid": 2036475,
+        "workers": [
+          {
+            "pid": 2036476,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              46408,
+              46434,
+              46476,
+              46528,
+              46570,
+              46610,
+              46632,
+              46676,
+              46724,
+              46766,
+              46800,
+              46840,
+              46886,
+              46920,
+              46940,
+              46984
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/hono-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036479,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              46386,
+              46412,
+              46444,
+              46490,
+              46536,
+              46580,
+              46622,
+              46646,
+              46692,
+              46736,
+              46768,
+              46814,
+              46852,
+              46896,
+              46924,
+              46948
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/hono-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036482,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              46398,
+              46418,
+              46458,
+              46500,
+              46546,
+              46584,
+              46624,
+              46662,
+              46708,
+              46748,
+              46782,
+              46818,
+              46868,
+              46908,
+              46930,
+              46962
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/hono-hello/dist/server-perry-cluster "
+          },
+          {
+            "pid": 2036485,
+            "cpus": "0-3",
+            "verified_connections": 16,
+            "client_ports": [
+              46402,
+              46432,
+              46474,
+              46512,
+              46562,
+              46594,
+              46628,
+              46664,
+              46716,
+              46760,
+              46786,
+              46828,
+              46874,
+              46910,
+              46932,
+              46972
+            ],
+            "command": "/home/ubuntu/Projects/Code/github/geastack/node-compat/apps/hono-hello/dist/server-perry-cluster "
+          }
+        ],
+        "verified_connections": 64
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3900/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     9.68ms    6.58ms  65.38ms   92.11%\n    Req/Sec     1.81k   512.06     5.84k    92.59%\n  Latency Distribution\n     50%    7.76ms\n     75%   10.10ms\n     90%   12.67ms\n     99%   45.05ms\n  14578 requests in 2.10s, 2.42MB read\nRequests/sec:   6941.24\nTransfer/sec:      1.15MB\n",
+        "rps": 6941.24,
+        "valid": true
+      },
+      "output": "hono-native listening on http://127.0.0.1:3900\nhono-native listening on http://127.0.0.1:3900\nhono-native listening on http://127.0.0.1:3900\nhono-native listening on http://127.0.0.1:3900\n",
+      "exit": -15
+    }
+  ],
+  "samples": [
+    {
+      "server": "perry-raw",
+      "round": 1,
+      "workers": 4,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   763.30us  176.62us   7.14ms   87.68%\n    Req/Sec    21.11k   606.70    26.81k    92.26%\n  Latency Distribution\n     50%  712.00us\n     75%  770.00us\n     90%    0.96ms\n     99%    1.09ms\n  678394 requests in 8.10s, 118.39MB read\nRequests/sec:  83752.97\nTransfer/sec:     14.62MB\n",
+      "rps": 83752.97,
+      "valid": true
+    },
+    {
+      "server": "perry-raw",
+      "round": 1,
+      "workers": 4,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   722.96us  126.47us  10.05ms   82.82%\n    Req/Sec    22.19k     1.15k   36.16k    99.38%\n  Latency Distribution\n     50%  679.00us\n     75%  735.00us\n     90%    0.91ms\n     99%    1.02ms\n  711087 requests in 8.10s, 126.81MB read\nRequests/sec:  87787.77\nTransfer/sec:     15.66MB\n",
+      "rps": 87787.77,
+      "valid": true
+    },
+    {
+      "server": "perry-hono",
+      "round": 1,
+      "workers": 4,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    10.66ms    7.34ms  64.46ms   94.12%\n    Req/Sec     1.67k   154.74     2.24k    73.75%\n  Latency Distribution\n     50%    8.26ms\n     75%   10.76ms\n     90%   13.71ms\n     99%   49.34ms\n  53085 requests in 8.02s, 8.81MB read\nRequests/sec:   6618.78\nTransfer/sec:      1.10MB\n",
+      "rps": 6618.78,
+      "valid": true
+    },
+    {
+      "server": "perry-hono",
+      "round": 1,
+      "workers": 4,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    12.29ms    9.53ms  81.98ms   93.33%\n    Req/Sec     1.49k   116.06     1.85k    66.56%\n  Latency Distribution\n     50%    9.15ms\n     75%   12.04ms\n     90%   15.53ms\n     99%   60.08ms\n  47495 requests in 8.02s, 7.79MB read\nRequests/sec:   5922.54\nTransfer/sec:      0.97MB\n",
+      "rps": 5922.54,
+      "valid": true
+    },
+    {
+      "server": "perry-hono",
+      "round": 2,
+      "workers": 4,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    11.20ms    6.87ms  65.10ms   94.56%\n    Req/Sec     1.55k   167.53     1.75k    83.12%\n  Latency Distribution\n     50%    8.98ms\n     75%   11.04ms\n     90%   15.06ms\n     99%   47.48ms\n  49431 requests in 8.01s, 8.11MB read\nRequests/sec:   6167.69\nTransfer/sec:      1.01MB\n",
+      "rps": 6167.69,
+      "valid": true
+    },
+    {
+      "server": "perry-hono",
+      "round": 2,
+      "workers": 4,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    11.51ms    9.53ms  73.59ms   93.29%\n    Req/Sec     1.61k   235.27     5.21k    96.26%\n  Latency Distribution\n     50%    8.55ms\n     75%   10.94ms\n     90%   14.45ms\n     99%   59.92ms\n  51579 requests in 8.10s, 8.56MB read\nRequests/sec:   6367.98\nTransfer/sec:      1.06MB\n",
+      "rps": 6367.98,
+      "valid": true
+    },
+    {
+      "server": "perry-raw",
+      "round": 2,
+      "workers": 4,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   732.37us  201.58us  11.78ms   90.09%\n    Req/Sec    22.04k     2.07k   58.33k    99.69%\n  Latency Distribution\n     50%  683.00us\n     75%  737.00us\n     90%    0.92ms\n     99%    1.04ms\n  703941 requests in 8.10s, 125.54MB read\nRequests/sec:  86914.00\nTransfer/sec:     15.50MB\n",
+      "rps": 86914.0,
+      "valid": true
+    },
+    {
+      "server": "perry-raw",
+      "round": 2,
+      "workers": 4,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   742.17us  125.73us   6.65ms   83.77%\n    Req/Sec    21.63k   645.80    27.52k    95.67%\n  Latency Distribution\n     50%  696.00us\n     75%  745.00us\n     90%    0.94ms\n     99%    1.06ms\n  695136 requests in 8.10s, 121.32MB read\nRequests/sec:  85824.40\nTransfer/sec:     14.98MB\n",
+      "rps": 85824.4,
+      "valid": true
+    },
+    {
+      "server": "perry-raw",
+      "round": 3,
+      "workers": 4,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   761.13us  174.88us   6.78ms   87.54%\n    Req/Sec    21.17k     1.88k   53.81k    99.07%\n  Latency Distribution\n     50%  714.00us\n     75%  760.00us\n     90%    0.96ms\n     99%    1.09ms\n  676082 requests in 8.10s, 117.99MB read\nRequests/sec:  83474.86\nTransfer/sec:     14.57MB\n",
+      "rps": 83474.86,
+      "valid": true
+    },
+    {
+      "server": "perry-raw",
+      "round": 3,
+      "workers": 4,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency   716.77us  117.64us   3.92ms   82.07%\n    Req/Sec    22.38k     1.22k   38.56k    99.38%\n  Latency Distribution\n     50%  675.00us\n     75%  725.00us\n     90%    0.90ms\n     99%    1.01ms\n  717052 requests in 8.10s, 127.88MB read\nRequests/sec:  88527.53\nTransfer/sec:     15.79MB\n",
+      "rps": 88527.53,
+      "valid": true
+    },
+    {
+      "server": "perry-hono",
+      "round": 3,
+      "workers": 4,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    10.65ms    7.26ms  62.79ms   94.19%\n    Req/Sec     1.66k   147.23     2.09k    75.62%\n  Latency Distribution\n     50%    8.27ms\n     75%   10.79ms\n     90%   13.62ms\n     99%   49.06ms\n  53018 requests in 8.02s, 8.80MB read\nRequests/sec:   6612.38\nTransfer/sec:      1.10MB\n",
+      "rps": 6612.38,
+      "valid": true
+    },
+    {
+      "server": "perry-hono",
+      "round": 3,
+      "workers": 4,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3900/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3900/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency    12.15ms    9.29ms  72.13ms   93.46%\n    Req/Sec     1.50k   144.97     1.69k    74.38%\n  Latency Distribution\n     50%    9.10ms\n     75%   11.90ms\n     90%   15.35ms\n     99%   58.80ms\n  47851 requests in 8.01s, 7.85MB read\nRequests/sec:   5974.77\nTransfer/sec:      0.98MB\n",
+      "rps": 5974.77,
+      "valid": true
+    }
+  ],
+  "complete": true
+}

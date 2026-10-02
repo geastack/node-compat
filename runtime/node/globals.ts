@@ -1761,50 +1761,158 @@ type BodyInit =
   | ReadableStream<Uint8Array>
   | null;
 
-// WHATWG Fetch/Web Crypto tail: names hono's own source (`utils/cookie.ts`'s
-// HMAC signing, `client/*.ts`'s WebSocket upgrade and outbound `fetch`)
-// references in code THIS target never calls -- hono-hello signs no cookies
-// and never runs the fetch client. `BufferSource` is `standard-library.ts`'s
-// (needed there for `TextDecoder.decode`); none of the rest has a
-// node-compat implementation behind it, and none is in the compiler's own
-// host tables (unlike `console`/`TextEncoder`/`btoa`, also in
-// `standard-library.ts`), so each is declared honestly as an ambient,
-// UNIMPLEMENTED type: enough shape for the checker, no fabricated behavior.
-// A program that actually reached one of these calls would get an unresolved
-// external, refusing by name at link time -- never a silently wrong answer.
-declare class CryptoKey {
-  readonly algorithm: unknown;
+// Web Crypto, the part node's global `crypto` object carries that libraries
+// this target compiles actually call: `subtle.digest`, raw HMAC keys through
+// `importKey`/`sign`/`verify`, and `getRandomValues`. The MongoDB driver's
+// AWS SigV4 authentication (`cmap/auth/aws4.ts`) is digest + HMAC-SHA256;
+// hono signs cookies with the same pair. Every operation runs on the
+// node-compat crypto runtime `node:crypto` already uses (OpenSSL), through
+// the same host functions, so there is one digest and one HMAC in the
+// program. An algorithm outside that set rejects with node's own
+// `NotSupportedError` rather than computing something else.
+/** @gea-host-inert */
+declare function __gea_node_crypto_validate(algorithm: string): void;
+/** @gea-host-inert */
+declare function __gea_node_crypto_digest(algorithm: string, input: Buffer): Buffer;
+/** @gea-host-inert */
+declare function __gea_node_crypto_hmac(algorithm: string, key: Buffer, input: Buffer): Buffer;
+/** @gea-host-inert */
+declare function __gea_node_crypto_timing_safe_equal(left: Uint8Array, right: Uint8Array): boolean;
+/** @gea-host-inert */
+declare function __gea_node_crypto_random_bytes(size: number): Buffer;
+
+type WebCryptoHashIdentifier = string | { name: string };
+type WebCryptoAlgorithmIdentifier = string | { name: string; hash?: WebCryptoHashIdentifier };
+
+function webCryptoAlgorithmName(algorithm: WebCryptoAlgorithmIdentifier): string {
+  return (typeof algorithm === "string" ? algorithm : algorithm.name).toUpperCase();
+}
+
+function webCryptoUnsupported(message: string): DOMException {
+  return new DOMException(message, "NotSupportedError");
+}
+
+// Web Crypto's digest names to OpenSSL's.
+function webCryptoDigestName(hash: WebCryptoHashIdentifier): string {
+  const name = (typeof hash === "string" ? hash : hash.name).toUpperCase();
+  if (name === "SHA-1") return "sha1";
+  if (name === "SHA-256") return "sha256";
+  if (name === "SHA-384") return "sha384";
+  if (name === "SHA-512") return "sha512";
+  throw webCryptoUnsupported(`Unrecognized hash name: ${name}`);
+}
+
+// `BufferSource` spelled as the carriers it can be. Callers reach this class
+// through lib's `Crypto.subtle` interface, so no call site is attributed to
+// these methods and the compiler cannot narrow lib's `ArrayBufferView` arm to
+// the view actually passed -- and that interface's generated record is a
+// value no typed array becomes without losing its identity. Each view type
+// here is the value itself: mongodb's aws4 `digest('SHA-256', uint8Array)`
+// hands its array straight through.
+type WebCryptoBufferSource =
+  | ArrayBuffer
+  | DataView
+  | Uint8Array
+  | Uint8ClampedArray
+  | Int8Array
+  | Uint16Array
+  | Int16Array
+  | Uint32Array
+  | Int32Array
+  | Float32Array
+  | Float64Array
+  | BigInt64Array
+  | BigUint64Array;
+
+function webCryptoBytes(data: WebCryptoBufferSource): Buffer {
+  return ArrayBuffer.isView(data)
+    ? Buffer.from(data.buffer, data.byteOffset, data.byteLength)
+    : Buffer.from(data);
+}
+
+function webCryptoArrayBuffer(bytes: Buffer): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+class CryptoKey {
+  readonly algorithm: { name: string; hash: { name: string } };
   readonly extractable: boolean;
   readonly type: string;
   readonly usages: string[];
+  // The raw key bytes and their OpenSSL digest name, private to this runtime.
+  readonly secret_: Buffer;
+  readonly digest_: string;
+
+  constructor(hashName: string, digest: string, secret: Buffer, extractable: boolean, usages: string[]) {
+    this.algorithm = { name: "HMAC", hash: { name: hashName } };
+    this.extractable = extractable;
+    this.type = "secret";
+    this.usages = usages;
+    this.secret_ = secret;
+    this.digest_ = digest;
+  }
 }
-declare class SubtleCrypto {
+
+class SubtleCrypto {
+  digest(algorithm: WebCryptoAlgorithmIdentifier, data: WebCryptoBufferSource): Promise<ArrayBuffer> {
+    return new Promise<ArrayBuffer>((resolve) => {
+      const digest = webCryptoDigestName(typeof algorithm === "string" ? algorithm : algorithm.name);
+      resolve(webCryptoArrayBuffer(__gea_node_crypto_digest(digest, webCryptoBytes(data))));
+    });
+  }
+
   importKey(
     format: string,
-    keyData: BufferSource,
-    algorithm: unknown,
+    keyData: WebCryptoBufferSource,
+    algorithm: WebCryptoAlgorithmIdentifier,
     extractable: boolean,
     keyUsages: string[],
-  ): Promise<CryptoKey>;
-  sign(
-    algorithm: unknown,
-    key: CryptoKey,
-    data: BufferSource,
-  ): Promise<ArrayBuffer>;
+  ): Promise<CryptoKey> {
+    return new Promise<CryptoKey>((resolve) => {
+      if (format !== "raw") throw webCryptoUnsupported(`Unsupported key format: ${format}`);
+      if (typeof algorithm === "string" || webCryptoAlgorithmName(algorithm) !== "HMAC" || algorithm.hash === undefined)
+        throw webCryptoUnsupported("Only raw HMAC keys are supported");
+      const hash = algorithm.hash;
+      const hashName = (typeof hash === "string" ? hash : hash.name).toUpperCase();
+      const digest = webCryptoDigestName(hashName);
+      __gea_node_crypto_validate(digest);
+      resolve(new CryptoKey(hashName, digest, Buffer.from(webCryptoBytes(keyData)), extractable, keyUsages.slice()));
+    });
+  }
+
+  sign(algorithm: WebCryptoAlgorithmIdentifier, key: CryptoKey, data: WebCryptoBufferSource): Promise<ArrayBuffer> {
+    return new Promise<ArrayBuffer>((resolve) => {
+      if (webCryptoAlgorithmName(algorithm) !== "HMAC") throw webCryptoUnsupported("Only HMAC signing is supported");
+      resolve(webCryptoArrayBuffer(__gea_node_crypto_hmac(key.digest_, key.secret_, webCryptoBytes(data))));
+    });
+  }
+
   verify(
-    algorithm: unknown,
+    algorithm: WebCryptoAlgorithmIdentifier,
     key: CryptoKey,
-    signature: BufferSource,
-    data: BufferSource,
-  ): Promise<boolean>;
-  // Web Crypto §14.3.3. `@hono/node-server`'s own `utils/crypto.ts` (HMAC
-  // signing helper) calls this directly; same honest-ambient treatment as
-  // every other member here -- no node-compat implementation exists behind
-  // it, so a program that reaches it gets an unresolved external, refusing
-  // by name, rather than a fabricated digest.
-  digest(algorithm: unknown, data: BufferSource): Promise<ArrayBuffer>;
+    signature: WebCryptoBufferSource,
+    data: WebCryptoBufferSource,
+  ): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      if (webCryptoAlgorithmName(algorithm) !== "HMAC") throw webCryptoUnsupported("Only HMAC verification is supported");
+      const expected = __gea_node_crypto_hmac(key.digest_, key.secret_, webCryptoBytes(data));
+      const actual = webCryptoBytes(signature);
+      resolve(expected.length === actual.length && __gea_node_crypto_timing_safe_equal(expected, actual));
+    });
+  }
 }
-declare const crypto: { subtle: SubtleCrypto };
+
+class WebCrypto {
+  readonly subtle: SubtleCrypto = new SubtleCrypto();
+
+  getRandomValues<T extends Uint8Array>(array: T): T {
+    if (array.byteLength > 65536) throw new DOMException("The ArrayBufferView's byte length exceeds 65536", "QuotaExceededError");
+    array.set(__gea_node_crypto_random_bytes(array.length));
+    return array;
+  }
+}
+
+const crypto: WebCrypto = new WebCrypto();
 
 type BinaryType = "blob" | "arraybuffer";
 

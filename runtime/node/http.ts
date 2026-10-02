@@ -33,6 +33,7 @@ import { Buffer, BufferEncoding } from './buffer-types'
 import { nodeNotImplemented } from './not-implemented'
 import { DestroyCallback, Duplex, Readable, StreamCallback, Writable } from './stream'
 import { Socket as NetSocket } from './net'
+import type { URL as WhatwgURL } from './whatwg-url'
 
 // The narrower contract (see `net.ts` for the argument). `serve` stores the
 // dispatch handler; `done` reaches `responseComplete` -> `processInput`, which
@@ -1392,14 +1393,11 @@ export class ClientRequest {
 }
 
 export function get(
-  // Node's real signature accepts `string | URL`. `URL` is only declared by
-  // `runtime/node/globals.ts`, opt-in via `--globals` (see that file's
-  // header) — this module, unlike it, is unconditionally part of every
-  // build, `--globals` or not, so it cannot depend on a name that may not be
-  // in scope. Dropping the `URL` arm costs nothing real: this function
-  // throws unconditionally below (`http.get` is unimplemented), so no
-  // caller ever reaches a codepath that cares which type was declared here.
-  url: string,
+  // Node's real signature: `string | URL`. `URL` is named through a
+  // type-only import of `whatwg-url.ts`, so it is in scope whether or not the
+  // program loads the WHATWG globals and costs no module at run time. The
+  // MongoDB driver's cloud-metadata `get` passes a `URL`.
+  url: string | WhatwgURL,
   options: RequestOptions,
   callback: ClientResponseListener
 ): ClientRequest {

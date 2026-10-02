@@ -10,6 +10,7 @@ import { nodeNotImplemented } from './not-implemented'
 
 /** @gea-host-inert */
 declare function __gea_node_fs_access(path: string, mode: number): boolean
+/** @gea-host-inert */
 declare function __gea_node_fs_read_file(path: string): Buffer
 
 const nodeFsConstants = {
@@ -137,7 +138,12 @@ export class ReadStream extends Readable {
       this.push(bytes.subarray(start, end + 1))
       this.push(null)
     } catch (error) {
-      Promise.resolve().then(() => this.destroy(error instanceof Error ? error : new Error(String(error))))
+      // A block body: `destroy` returns the stream, and an expression body made
+      // this a `Promise<ReadStream>`, boxing every Readable subclass through
+      // the typed `then`.
+      Promise.resolve().then(() => {
+        this.destroy(error instanceof Error ? error : new Error(String(error)))
+      })
     }
   }
 }

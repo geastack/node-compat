@@ -57,7 +57,9 @@ export class TLSSocket extends Socket {
   disableRenegotiation(): void {}
 }
 
-function nodeTlsConnect(_options: ConnectionOptions): TLSSocket {
+// Node's `connect(options, secureConnectListener?)`: the MongoDB driver's
+// client-side-encryption KMS path passes the listener.
+function nodeTlsConnect(_options: ConnectionOptions, _secureConnectListener?: () => void): TLSSocket {
   throw new Error('TLS is not implemented by the gea node-compat runtime')
 }
 

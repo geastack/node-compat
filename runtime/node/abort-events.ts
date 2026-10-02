@@ -131,7 +131,13 @@ class AbortSignal {
     return this.abortedValue;
   }
 
-  get reason(): unknown {
+  // The READ is `any`, as Node and the DOM declare it, even though the storage
+  // above is `unknown`: libraries written against those declarations pass
+  // `this.reason` straight into an `Error`-typed parameter (the MongoDB
+  // driver's abort listeners all do), which an `unknown` getter refuses to
+  // type-check. An abort reason is a genuinely dynamic value, so the read is
+  // the honest dynamic boundary.
+  get reason(): any {
     return this.reasonValue;
   }
 

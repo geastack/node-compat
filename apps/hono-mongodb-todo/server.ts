@@ -73,7 +73,10 @@ function incomingBody(request: IncomingMessage): Promise<string> {
   } catch {}
   return new Promise<string>((resolve, reject): void => {
     let body = ''
-    request.setEncoding('utf8')
+    // One char per octet, the same byte string `readBody()` hands the native
+    // server: the caller rebuilds the bytes with `Buffer.from(body, 'latin1')`,
+    // so a UTF-8 decode here truncated every character above U+00FF.
+    request.setEncoding('latin1')
     request.on('data', (chunk: string): void => {
       body += chunk
     })

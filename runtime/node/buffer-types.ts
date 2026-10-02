@@ -45,13 +45,27 @@ export declare interface Buffer extends Uint8Array<ArrayBuffer> {
   // from it, while `write`/`writeUInt8`/`writeInt32LE`/`writeUInt32LE`/`copy`/
   // `swap32` store into indexed properties of a typed array the program
   // already holds, which is exactly the write this contract denies.
+  //
+  // Those writers carry the narrower `@gea-host-typed-array-element-writes`
+  // instead: they write nothing but the element storage of the typed arrays
+  // they are handed. Checked against `gea_node_buffer.hpp`, which every one of
+  // them lowers to (`bufferHostMembers` in `plugin/index.mjs`): `write` ->
+  // `writeSpan`, the `write{U,}Int*{LE,BE}`/`writeUInt8` family, `copy` (a
+  // `memmove` into `target.data()`) and `swap32` each store only through
+  // `detail::writable( view ).data()` of the receiver or the `target`
+  // argument; the only other effect any of them has is throwing a fresh
+  // RangeError. Add the tag to a new member only after reading its native.
   /** @gea-host-no-property-writes */
   subarray(start?: number, end?: number): Buffer
   /** @gea-host-no-property-writes */
   slice(start?: number, end?: number): Buffer
+  /** @gea-host-typed-array-element-writes */
   write(string: string, encoding?: BufferEncoding): number
+  /** @gea-host-typed-array-element-writes */
   write(string: string, offset: number, encoding?: BufferEncoding): number
+  /** @gea-host-typed-array-element-writes */
   write(string: string, offset: number, length: number | undefined, encoding?: BufferEncoding): number
+  /** @gea-host-typed-array-element-writes */
   copy(target: Uint8Array, targetStart?: number, sourceStart?: number, sourceEnd?: number): number
   /** @gea-host-no-property-writes */
   readUInt8(offset?: number): number
@@ -59,15 +73,27 @@ export declare interface Buffer extends Uint8Array<ArrayBuffer> {
   readInt32LE(offset?: number): number
   /** @gea-host-no-property-writes */
   readUInt32LE(offset?: number): number
+  /** @gea-host-no-property-writes */
+  readInt32BE(offset?: number): number
+  /** @gea-host-no-property-writes */
+  readUInt32BE(offset?: number): number
+  /** @gea-host-typed-array-element-writes */
   writeUInt8(value: number, offset?: number): number
+  /** @gea-host-typed-array-element-writes */
   writeInt32LE(value: number, offset?: number): number
+  /** @gea-host-typed-array-element-writes */
   writeUInt32LE(value: number, offset?: number): number
+  /** @gea-host-typed-array-element-writes */
+  writeInt32BE(value: number, offset?: number): number
+  /** @gea-host-typed-array-element-writes */
+  writeUInt32BE(value: number, offset?: number): number
   /** @gea-host-no-property-writes */
   toString(encoding?: BufferEncoding, start?: number, end?: number): string
   /** @gea-host-no-property-writes */
   equals(other: Uint8Array): boolean
   /** @gea-host-no-property-writes */
   compare(other: Uint8Array): -1 | 0 | 1
+  /** @gea-host-typed-array-element-writes */
   swap32(): Buffer
 
 }
@@ -87,14 +113,15 @@ export interface BufferConstructor {
   // constructor-shaped without adding a callable JS implementation.
   new (value: string, encoding?: BufferEncoding): Buffer
   new (value: readonly number[] | Uint8Array): Buffer
-  new (value: ArrayBuffer, byteOffset?: number, length?: number): Buffer
+  new (value: ArrayBufferLike, byteOffset?: number, length?: number): Buffer
   alloc(size: number, fill?: string | number | Uint8Array, encoding?: BufferEncoding): Buffer
   allocUnsafe(size: number): Buffer
   concat(list: readonly Uint8Array[], totalLength?: number): Buffer
   byteLength(value: string | Uint8Array | ArrayBuffer, encoding?: BufferEncoding): number
   from(value: string, encoding?: BufferEncoding): Buffer
   from(value: readonly number[] | Uint8Array): Buffer
-  from(value: ArrayBuffer, byteOffset?: number, length?: number): Buffer
+  // `ArrayBufferLike`, as node declares it: `view.buffer` is typed that union.
+  from(value: ArrayBufferLike, byteOffset?: number, length?: number): Buffer
   isBuffer(value: unknown): value is Buffer
 }
 

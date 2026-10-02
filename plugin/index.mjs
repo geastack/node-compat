@@ -57,9 +57,13 @@ const bufferMethods = [
   'readUInt8',
   'readInt32LE',
   'readUInt32LE',
+  'readInt32BE',
+  'readUInt32BE',
   'writeUInt8',
   'writeInt32LE',
   'writeUInt32LE',
+  'writeInt32BE',
+  'writeUInt32BE',
   'equals',
   'compare',
   'slice',
@@ -89,23 +93,22 @@ const bufferMethodBinding = (member) => ({
 })
 const bufferDeclarations = fileURLToPath(new URL('../runtime/node/buffer-types.ts', import.meta.url))
 // BSON describes the subset of Node's Buffer surface it uses as a local
-// structural type (`NodeJsBuffer` in `src/utils/node_byte_utils.ts`), which
-// used to be bound here so the package could stay unmodified while the host
-// boundary remained declaration-owned.
+// structural type (`NodeJsBuffer` in `src/utils/node_byte_utils.ts`) and reads
+// the global `Buffer` through a module-scoped `declare const Buffer:
+// NodeJsBufferConstructor`, so every value of that type IS a node Buffer at run
+// time: the same `gea_cpp_typed_array<uint8_t>` carrier the host's own `Buffer`
+// has. Its six members are bound to the host's implementations here so the
+// package stays unmodified while the boundary stays declaration-owned.
 //
-// That binding is GONE, and cannot be restored at this layer. The compiler
-// matches a binding by the ABSOLUTE file name of the declaration
-// (`resolveHostMethod`: `bindings.get(declaration.getSourceFile().fileName)`),
-// and the key here was the checked-in `vendored-sources/bson` path. BSON's
-// source is now acquired per installed version into
-// `node_modules/.cache/geatsc/sources/<hash>/<hash>`, a path that differs per
-// application and per version, and this factory takes no arguments, so it
-// cannot know it. Restoring it needs the binding table to be keyed by
-// something stable -- a package-relative declaration path -- rather than by an
-// absolute file name. Until then a BSON/MongoDB program loses these six
-// methods' native binding; Hono and raw `node:http` are unaffected.
+// The key is PACKAGE-RELATIVE (`<package name>/<path inside the package>`, see
+// `HostMethodBindingTable`): BSON's source is acquired per installed version
+// into `node_modules/.cache/geatsc/sources/<hash>/<hash>`, a path that differs
+// per application and per version, so no absolute file name names it.
+const bsonBufferDeclarations = 'bson/src/utils/node_byte_utils.ts'
+const bsonBufferMethods = ['toString', 'write', 'copy', 'equals', 'compare', 'swap32']
 const bufferMethodBindings = new Map([
-  [bufferDeclarations, new Map(bufferMethods.map((member) => [`Buffer.${member}`, bufferMethodBinding(member)]))]
+  [bufferDeclarations, new Map(bufferMethods.map((member) => [`Buffer.${member}`, bufferMethodBinding(member)]))],
+  [bsonBufferDeclarations, new Map(bsonBufferMethods.map((member) => [`NodeJsBuffer.${member}`, bufferMethodBinding(member)]))]
 ])
 const bufferHostMembers = new Map(
   bufferMethods.map((member) => [
@@ -156,9 +159,22 @@ const processHostMembers = new Map([
   [`${processCarrier}.ppid`, { kind: 'property', emit: '__gea_node_process_ppid()', store: null }],
   [`${processCarrier}.argv`, { kind: 'property', emit: 'gea::node::process::argv()', store: null }],
   [`${processCarrier}.execArgv`, { kind: 'property', emit: 'gea::node::process::exec_argv()', store: null }],
+  [`${processCarrier}.argv0`, { kind: 'property', emit: 'gea::node::process::argv0()', store: null }],
+  [`${processCarrier}.execPath`, { kind: 'property', emit: 'gea::node::process::exec_path()', store: null }],
   [`${processCarrier}.stdout`, { kind: 'property', emit: 'gea::node::process::stdout', store: null }],
   [`${processCarrier}.stderr`, { kind: 'property', emit: 'gea::node::process::stderr', store: null }],
   [`${processCarrier}.versions`, { kind: 'property', emit: 'gea::node::process::versions', store: null }],
+  // The host cell is always `number | undefined`; a read the checker narrowed
+  // after an assignment (`= 3`, `= undefined`) converts from it at the site.
+  [
+    `${processCarrier}.exitCode`,
+    {
+      kind: 'property',
+      emit: 'gea::node::process::exit_code()',
+      store: 'gea::node::process::set_exit_code({value})',
+      resultRepresentation: { kind: 'optional', payload: { kind: 'scalar', domain: 'number' }, absence: 'undefined' }
+    }
+  ],
   [
     `${processCarrier}.hrtime`,
     {
@@ -266,7 +282,9 @@ const nodeOnlyHostFunctions = new Map([
   ['__gea_node_crypto_hmac', 'gea::node::crypto::hmac'],
   ['__gea_node_crypto_pbkdf2', 'gea::node::crypto::pbkdf2'],
   ['__gea_node_crypto_timing_safe_equal', 'gea::node::crypto::timingSafeEqual'],
-  ['__gea_node_crypto_get_fips', 'gea::node::crypto::getFips']
+  ['__gea_node_crypto_get_fips', 'gea::node::crypto::getFips'],
+  ['__gea_node_zlib_inflate', 'gea::node::zlib::inflate'],
+  ['__gea_node_zlib_deflate', 'gea::node::zlib::deflate']
 ])
 
 /**
@@ -414,7 +432,11 @@ const hostPreambles = () =>
       ...[...processHostInvocations.values()].map((invocation) => invocation.emit)
     ].map((spelling) => [
       spelling,
-      spelling.startsWith('gea::node::crypto::') ? [runtimeHeader, '#include "gea_node_crypto.hpp"'] : [runtimeHeader]
+      spelling.startsWith('gea::node::crypto::')
+        ? [runtimeHeader, '#include "gea_node_crypto.hpp"']
+        : spelling.startsWith('gea::node::zlib::')
+          ? [runtimeHeader, '#include "gea_node_zlib.hpp"']
+          : [runtimeHeader]
     ])
   )
 
@@ -428,12 +450,37 @@ const hostPreambles = () =>
  * compiler knowing what a socket is, which is exactly what the seam exists to
  * avoid.
  */
+/**
+ * `require('<path>.node')` -- a Node-API native addon -- rewritten into a call
+ * of `__gea_node_native_addon_unavailable` (`runtime/node/native-addons.ts`),
+ * which throws node's own `ERR_DLOPEN_FAILED`.
+ *
+ * Node loads such a file with `process.dlopen`; this target has no Node ABI to
+ * load it into, so the load fails exactly where node's would when an addon
+ * cannot be opened, and the libraries that wrap an optional addon (`kerberos`,
+ * `mongodb-client-encryption`) already catch that failure. Rewriting the text
+ * is what lets the checker see it: an addon's binary has no declarations, so
+ * the original call is a "cannot find module" error plus a require that
+ * resolves no compiled source. Only a static string specifier ending in
+ * `.node` matches, so no other require is touched.
+ */
+const nativeAddonRequire = /\brequire\(\s*(['"])([^'"\n]+\.node)\1\s*\)/g
+export const nativeAddonRequireTransform = (input) => {
+  if (!input.text.includes('.node')) return null
+  const text = input.text.replace(
+    nativeAddonRequire,
+    (_match, quote, specifier) => `__gea_node_native_addon_unavailable(${quote}${specifier}${quote})`
+  )
+  return text === input.text ? null : text
+}
+
 export function geatscNodePlugin() {
   return {
     name: 'node-compat',
     instantiate: () => ({
       producers: () => [],
       lower: () => false,
+      transformSource: nativeAddonRequireTransform,
       capabilities: {
         // The compiler's own empty capabilities first, then this host's claims.
         //

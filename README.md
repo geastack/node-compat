@@ -103,7 +103,13 @@ erased so the library's hot path monomorphizes to fully typed C++ (see
   `-O3` gives no gain on either compiler. g++ 13 is the other way round (`-Os`
   costs 25%) and is 4-10% behind clang on the same emitted source, so the
   published numbers are clang's. `GEA_OPT_LEVEL` overrides the level,
-  `GEA_LTO=0` drops the LTO.
+  `GEA_LTO=0` drops the LTO. `GEA_LTO=thin` switches a per-file
+  (`--translation-units per-file`) build to ThinLTO: parallel backends
+  (`GEA_LTO_JOBS`, default every core) and a cache in `<out>/lto-cache`, so a
+  relink after a change to a few units takes seconds to a couple of minutes
+  instead of the whole full-LTO link. It stays opt-in: on a cold build it was
+  no clear win and its binaries are 5-8% larger (see `ltoMode` in
+  `scripts/build.mjs`).
 - Binaries link with hidden visibility and dead-stripping
   (`-fvisibility=hidden`, `-Wl,-dead_strip` / `--gc-sections`). OpenSSL is
   linked only when the program reaches `node:crypto`; a server that never

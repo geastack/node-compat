@@ -14,6 +14,8 @@ declare function __gea_node_process_pid(): number
 declare function __gea_node_process_ppid(): number
 /** @gea-host-inert */
 declare function __gea_node_process_exit(code: number): void
+/** @gea-host-inert */
+declare function __gea_node_process_default_exit_status(): number
 
 export interface ProcessEnv {
   [key: string]: string | undefined
@@ -71,8 +73,9 @@ function nodeProcessEmitWarning(message: string, options?: { code?: string }): v
 
 // `process.exit` ends the process now: stdio is flushed and nothing after the
 // call runs. There are no 'exit' listeners to run first on this target.
-function nodeProcessExit(code: number = 0): never {
-  __gea_node_process_exit(code)
+// Without a code it ends with `process.exitCode ?? 0`, like node.
+function nodeProcessExit(code?: number): never {
+  __gea_node_process_exit(code ?? __gea_node_process_default_exit_status())
   throw new Error('process.exit returned')
 }
 

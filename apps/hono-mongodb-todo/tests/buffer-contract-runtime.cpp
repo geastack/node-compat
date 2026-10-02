@@ -48,6 +48,31 @@ int main() {
   assert(equals(*from(std::string("a")), *from(std::string("a"))));
   assert(compare(*from(std::string("a")), *from(std::string("b"))) < 0);
 
+  // `alloc`/`allocUnsafe`/`from`/`concat` now build the ArrayBuffer directly
+  // (see `detail::bufferFromSize`/`bufferFromArrayBuffer`), on both sides of
+  // `gea::ArrayBuffer`'s 64-byte inline threshold -- each result must still be
+  // its own independent block (no accidental sharing between two `alloc`
+  // calls) and must still read back exactly what was written.
+  auto smallAlloc = alloc(16.0, 7.0);
+  auto otherSmallAlloc = alloc(16.0, 9.0);
+  assert(readUInt8(*smallAlloc, 0) == 7 && readUInt8(*otherSmallAlloc, 0) == 9);
+  writeUInt8(*smallAlloc, 1, 0);
+  assert(readUInt8(*otherSmallAlloc, 0) == 9 && isBuffer(*smallAlloc));
+
+  auto largeAlloc = allocUnsafe(300.0);
+  assert(largeAlloc->size() == 300);
+  writeUInt8(*largeAlloc, 0xab, 299);
+  assert(readUInt8(*largeAlloc, 299) == 0xab);
+
+  const View& smallView = *smallAlloc;
+  auto smallCopy = from(smallView);
+  writeUInt8(*smallAlloc, 42, 0);
+  assert(readUInt8(*smallCopy, 0) == 1 && readUInt8(*smallAlloc, 0) == 42);
+
+  const std::vector<gea::Ref<View>> sizedPieces{allocUnsafe(70.0), allocUnsafe(70.0)};
+  auto concatenated = concat(sizedPieces);
+  assert(concatenated->size() == 140 && isBuffer(*concatenated));
+
   expectsThrow([] { alloc(-1); });
   expectsThrow([&] { from(bytes, 5); });
   expectsThrow([&] { readUInt8(*source, source->size()); });

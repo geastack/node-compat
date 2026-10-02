@@ -27,6 +27,27 @@ inline double net_create(std::string host, double port, double family, double hi
 }
 
 std::string net_create_error();
+double net_create_errno();
+double net_error_errno(double id);
+std::string net_error_syscall(double id);
+std::string net_errno_name(double error);
+
+double net_resolve_native(std::string host, double family, double hints, std::function<void()> notify);
+
+template <typename Notify>
+inline double net_resolve(std::string host, double family, double hints, Notify &&notify) {
+  using NotifyType = std::decay_t<Notify>;
+  auto owned = std::make_shared<NotifyType>(std::forward<Notify>(notify));
+  return net_resolve_native(std::move(host), family, hints, [owned]() mutable { (*owned)(); });
+}
+
+double net_resolve_count(double id);
+std::string net_resolve_address(double id, double index);
+double net_resolve_family(double id, double index);
+std::string net_resolve_error_code(double id);
+double net_resolve_errno(double id);
+void net_resolve_release(double id);
+double net_addrconfig_hint();
 double net_next_event(double id);
 std::vector<std::uint8_t> net_read(double id);
 std::string net_error(double id);

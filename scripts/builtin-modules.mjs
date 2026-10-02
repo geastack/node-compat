@@ -9,6 +9,7 @@ const internalSourceNames = new Set([
   'standard-library',
   'not-implemented',
   'node-globals',
+  'native-addons',
   'buffer-types',
   'hono-node-server',
   'whatwg-url',

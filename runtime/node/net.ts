@@ -3,14 +3,11 @@
 // keeps every wire byte off gea_cpp_value.
 
 import { Buffer, BufferEncoding } from './buffer'
-import { EventEmitter, EventHandler, Listener } from './events'
+import { EventEmitter, EventHandler, EventName, Listener } from './events'
 import { Duplex, Writable } from './stream'
 import { nodeNotImplemented } from './not-implemented'
-import {
-  clearTimeout as cancelNodeTimer,
-  setTimeout as scheduleNodeTimer,
-  Timeout
-} from './timers'
+import type { LookupAddress, LookupOptions } from './dns/promises'
+import { clearTimeout as cancelNodeTimer, setTimeout as scheduleNodeTimer, Timeout } from './timers'
 
 // `@gea-host-no-property-writes` is the NARROWER of the two host effect
 // contracts: it states only that the native writes no JavaScript property,
@@ -47,13 +44,44 @@ declare function __gea_node_net_create(
 /** @gea-host-inert */
 declare function __gea_node_net_create_error(): string
 /** @gea-host-inert */
+declare function __gea_node_net_create_errno(): number
+/** @gea-host-inert */
+declare function __gea_node_net_error_errno(id: number): number
+/** @gea-host-inert */
+declare function __gea_node_net_error_syscall(id: number): string
+/** @gea-host-inert */
+declare function __gea_node_net_errno_name(error: number): string
+// Starts a getaddrinfo off the loop thread; `notify` runs on the loop when it
+// completes. Retains its callback, like `net_create`.
+/** @gea-host-no-property-writes */
+declare function __gea_node_net_resolve(
+  host: string,
+  family: number,
+  hints: number,
+  notify: () => void
+): number
+/** @gea-host-inert */
+declare function __gea_node_net_resolve_count(id: number): number
+/** @gea-host-inert */
+declare function __gea_node_net_resolve_address(id: number, index: number): string
+/** @gea-host-inert */
+declare function __gea_node_net_resolve_family(id: number, index: number): number
+/** @gea-host-inert */
+declare function __gea_node_net_resolve_error_code(id: number): string
+/** @gea-host-inert */
+declare function __gea_node_net_resolve_errno(id: number): number
+/** @gea-host-inert */
+declare function __gea_node_net_resolve_release(id: number): void
+/** @gea-host-inert */
+declare function __gea_node_net_addrconfig_hint(): number
+/** @gea-host-inert */
 declare function __gea_node_net_next_event(id: number): number
 /** @gea-host-no-property-writes */
 declare function __gea_node_net_read(id: number): Buffer
 /** @gea-host-inert */
 declare function __gea_node_net_error(id: number): string
 /** @gea-host-no-property-writes */
-declare function __gea_node_net_write(id: number, buffer: Buffer): boolean
+declare function __gea_node_net_write(id: number, buffer: Uint8Array): boolean
 /** @gea-host-inert */
 declare function __gea_node_net_buffer_size(id: number): number
 /** @gea-host-inert */
@@ -131,10 +159,7 @@ declare function __gea_node_net_server_close(id: number): void
 /** @gea-host-inert */
 declare function __gea_node_net_server_set_referenced(id: number, referenced: boolean): void
 /** @gea-host-inert */
-declare function __gea_node_net_server_set_max_connections(
-  id: number,
-  maxConnections: number
-): void
+declare function __gea_node_net_server_set_max_connections(id: number, maxConnections: number): void
 /** @gea-host-inert */
 declare function __gea_node_net_server_connections(id: number): number
 /** @gea-host-inert */
@@ -165,14 +190,140 @@ interface NodeArgumentError extends Error {
   code: string
 }
 
+// node's system-call error: `connect ECONNREFUSED 127.0.0.1:27017`, with the
+// libuv `code`, the negated POSIX `errno`, the `syscall`, and -- for a connect
+// -- the `address`/`port` it was aimed at (`ExceptionWithHostPort`).
+interface NodeSystemError extends Error {
+  code: string
+  errno: number
+  syscall: string
+  address: string
+  port: number
+}
+
+// node's dns.lookup failure: `getaddrinfo ENOTFOUND example.invalid`.
+interface NodeLookupError extends Error {
+  code: string
+  errno: number
+  syscall: string
+  hostname: string
+}
+
+// What node throws when every happy-eyeballs attempt failed: an
+// AggregateError (`NodeAggregateError`) with an empty message, the attempt
+// errors in attempt order, and the FIRST error's code.
+interface NodeConnectAggregateError extends Error {
+  code: string
+  errors: Error[]
+}
+
+function connectError(errnoValue: number, syscall: string, address: string, port: number): Error {
+  const code = __gea_node_net_errno_name(errnoValue)
+  const suffix = syscall === 'connect' ? ` ${address}:${port}` : ''
+  const error = new Error(`${syscall} ${code}${suffix}`) as NodeSystemError
+  error.errno = -errnoValue
+  error.code = code
+  error.syscall = syscall
+  if (syscall === 'connect') {
+    error.address = address
+    error.port = port
+  }
+  return error
+}
+
+function aggregateConnectError(errors: Error[]): Error {
+  const error = new Error('') as NodeConnectAggregateError
+  error.name = 'AggregateError'
+  error.errors = errors
+  if (errors.length > 0) error.code = (errors[0] as NodeSystemError).code
+  return error
+}
+
+export type LookupCallback = (
+  err: Error | null,
+  address: string | LookupAddress[],
+  family?: number
+) => void
+export type LookupFunction = (
+  hostname: string,
+  options: LookupOptions,
+  callback: LookupCallback
+) => void
+
+function lookupFamilyNumber(family: number | 'IPv4' | 'IPv6' | undefined): number {
+  if (family === 'IPv4') return 4
+  if (family === 'IPv6') return 6
+  if (family === 4 || family === 6) return family
+  return 0
+}
+
+// node's default `lookup` (dns.lookup): getaddrinfo in resolver order
+// ('verbatim'), off the loop thread, completing on the loop.
+function reactorLookup(hostname: string, options: LookupOptions, callback: LookupCallback): void {
+  const all = options.all === true
+  let id = 0
+  id = __gea_node_net_resolve(
+    hostname,
+    lookupFamilyNumber(options.family),
+    options.hints ?? 0,
+    () => {
+      const count = __gea_node_net_resolve_count(id)
+      if (count <= 0) {
+        const code = __gea_node_net_resolve_error_code(id)
+        const error = new Error(`getaddrinfo ${code} ${hostname}`) as NodeLookupError
+        error.errno = __gea_node_net_resolve_errno(id)
+        error.code = code
+        error.syscall = 'getaddrinfo'
+        error.hostname = hostname
+        __gea_node_net_resolve_release(id)
+        if (all) callback(error, [])
+        else callback(error, '', 0)
+        return
+      }
+      const addresses: LookupAddress[] = []
+      for (let index = 0; index < count; index += 1) {
+        addresses.push({
+          address: __gea_node_net_resolve_address(id, index),
+          family: __gea_node_net_resolve_family(id, index)
+        })
+      }
+      __gea_node_net_resolve_release(id)
+      if (all) callback(null, addresses)
+      else callback(null, addresses[0].address, addresses[0].family)
+    }
+  )
+}
+
+// One outbound TCP attempt at one resolved address. Happy eyeballs holds
+// several at once; a plain connect holds exactly one.
+class ConnectAttempt {
+  nativeId: number
+  address: string
+  family: number
+  settled: boolean
+  error: Error | null
+
+  constructor(address: string, family: number) {
+    this.nativeId = 0
+    this.address = address
+    this.family = family
+    this.settled = false
+    this.error = null
+  }
+}
+
 function invalidArgumentType(name: string, expected: string): never {
-  const error = new TypeError(`The "${name}" argument must be of type ${expected}.`) as NodeArgumentError
+  const error = new TypeError(
+    `The "${name}" argument must be of type ${expected}.`
+  ) as NodeArgumentError
   error.code = 'ERR_INVALID_ARG_TYPE'
   throw error
 }
 
 function outOfRange(name: string, range: string): never {
-  const error = new RangeError(`The value of "${name}" is out of range. It must be ${range}.`) as NodeArgumentError
+  const error = new RangeError(
+    `The value of "${name}" is out of range. It must be ${range}.`
+  ) as NodeArgumentError
   error.code = 'ERR_OUT_OF_RANGE'
   throw error
 }
@@ -197,7 +348,7 @@ export interface TcpSocketConnectOpts {
   localAddress?: string
   localPort?: number
   hints?: number
-  lookup?: unknown
+  lookup?: LookupFunction
   autoSelectFamily?: boolean
   autoSelectFamilyAttemptTimeout?: number
 }
@@ -258,6 +409,7 @@ export interface AddressInfo {
 type SocketWriteCallback = (error?: Error | null) => void
 
 export type ConnectionListener = (socket: Socket) => void
+type ServerListener = EventHandler | ConnectionListener
 
 export interface TypedSocketHandlers {
   connect: () => void
@@ -278,12 +430,15 @@ export class ReactorSocket {
 
   connect(port: number, host: string, handlers: TypedSocketHandlers): void {
     if (this.nativeId_ !== 0) throw new Error('Socket is already connecting or connected')
-    if (!Number.isInteger(port) || port < 0 || port > 65535) throw new RangeError('Port should be >= 0 and < 65536')
+    if (!Number.isInteger(port) || port < 0 || port > 65535)
+      throw new RangeError('Port should be >= 0 and < 65536')
     this.handlers_ = handlers
     this.nativeId_ = __gea_node_net_create(host, port, 0, 0, '', 0, false, () => this.dispatch())
     if (this.nativeId_ === 0) {
       const message = __gea_node_net_create_error()
-      queueMicrotask((): void => handlers.error(new Error(message.length === 0 ? 'Unable to create socket' : message)))
+      queueMicrotask((): void =>
+        handlers.error(new Error(message.length === 0 ? 'Unable to create socket' : message))
+      )
       return
     }
     __gea_node_net_set_keep_alive(this.nativeId_, true, 0)
@@ -292,7 +447,7 @@ export class ReactorSocket {
 
   write(data: Uint8Array): boolean {
     if (this.nativeId_ === 0) return false
-    return __gea_node_net_write(this.nativeId_, Buffer.from(data))
+    return __gea_node_net_write(this.nativeId_, data)
   }
 
   close(): void {
@@ -309,7 +464,8 @@ export class ReactorSocket {
       if (event === 0) return
       if (event === EVENT_CONNECT) handlers.connect()
       else if (event === EVENT_DATA) handlers.data(__gea_node_net_read(this.nativeId_))
-      else if (event === EVENT_ERROR) handlers.error(new Error(__gea_node_net_error(this.nativeId_)))
+      else if (event === EVENT_ERROR)
+        handlers.error(new Error(__gea_node_net_error(this.nativeId_)))
       else if (event === EVENT_CLOSE) {
         handlers.close()
         this.nativeId_ = 0
@@ -335,6 +491,23 @@ export class Socket extends EventEmitter {
   private pendingFinishCallbacks_: (() => void)[]
   private destroyAfterFinish_: boolean
   private self_: Socket | null
+  // Connection establishment (lookup + one or more racing attempts). A
+  // generation counter retires every callback of an abandoned connect: a
+  // late lookup answer or attempt event from before a destroy() is ignored.
+  private connectGeneration_: number
+  private attempts_: ConnectAttempt[]
+  private attemptTargets_: LookupAddress[]
+  private attemptNext_: number
+  private attemptTimer_: Timeout | null
+  private attemptTimeoutMs_: number
+  private attemptPort_: number
+  private attemptMultiple_: boolean
+  private attemptLocalAddress_: string
+  private attemptLocalPort_: number
+  private attemptBindLocal_: boolean
+  private connectingWrites_: Buffer[]
+  private connectingEnd_: boolean
+  private referenced_: boolean
 
   connecting: boolean
   destroyed: boolean
@@ -368,6 +541,20 @@ export class Socket extends EventEmitter {
     this.pendingFinishCallbacks_ = []
     this.destroyAfterFinish_ = false
     this.self_ = null
+    this.connectGeneration_ = 0
+    this.attempts_ = []
+    this.attemptTargets_ = []
+    this.attemptNext_ = 0
+    this.attemptTimer_ = null
+    this.attemptTimeoutMs_ = 250
+    this.attemptPort_ = 0
+    this.attemptMultiple_ = false
+    this.attemptLocalAddress_ = ''
+    this.attemptLocalPort_ = 0
+    this.attemptBindLocal_ = false
+    this.connectingWrites_ = []
+    this.connectingEnd_ = false
+    this.referenced_ = true
     this.connecting = false
     this.destroyed = false
     this.pending = true
@@ -387,7 +574,8 @@ export class Socket extends EventEmitter {
     if (options.fd !== undefined) nodeNotImplemented('node:net', 'Socket.constructor.fd')
     if (options.onread !== undefined) nodeNotImplemented('node:net', 'Socket.constructor.onread')
     if (options.signal !== undefined) nodeNotImplemented('node:net', 'Socket.constructor.signal')
-    if (options.blockList !== undefined) nodeNotImplemented('node:net', 'Socket.constructor.blockList')
+    if (options.blockList !== undefined)
+      nodeNotImplemented('node:net', 'Socket.constructor.blockList')
     if (options.allowHalfOpen === true) {
       nodeNotImplemented('node:net', 'Socket.constructor.allowHalfOpen')
     }
@@ -413,10 +601,13 @@ export class Socket extends EventEmitter {
 
     if (typeof optionsOrPortOrPath === 'number') {
       const host = typeof hostOrListener === 'string' ? hostOrListener : 'localhost'
-      if (typeof hostOrListener === 'function') {
-        return this.connectTcp(host, optionsOrPortOrPath, 0, 0, '', 0, false, hostOrListener)
+      const options: TcpSocketConnectOpts = {
+        host: host,
+        port: optionsOrPortOrPath
       }
-      return this.connectTcp(host, optionsOrPortOrPath, 0, 0, '', 0, false, connectionListener)
+      if (typeof hostOrListener === 'function')
+        return this.connectTcpOptions(options, hostOrListener)
+      return this.connectTcpOptions(options, connectionListener)
     }
 
     if ('path' in optionsOrPortOrPath) {
@@ -462,19 +653,27 @@ export class Socket extends EventEmitter {
     return this
   }
 
-  override emit(name: string, ...args: unknown[]): boolean {
-    return super.emit(name, ...args)
-  }
+  // No `override emit`: it returns `boolean`, not `this`, so unlike the
+  // registration methods above it needs no covariant re-declaration, and a
+  // pass-through override cost a second rest-array materialization on every
+  // socket emit (data/drain/error/close -- the hot path for every byte the
+  // driver reads or writes). `EventEmitter.emit`'s own array is the one
+  // allocation this genuinely needs.
 
   setKeepAlive(enabled: boolean = false, initialDelayMs: number = 0): this {
     if (this.nativeId_ !== 0) {
       __gea_node_net_set_keep_alive(this.nativeId_, enabled, initialDelayMs)
+    } else {
+      // Still connecting: applied to whichever attempt wins.
+      this.constructorKeepAlive_ = enabled
+      this.constructorKeepAliveInitialDelay_ = initialDelayMs
     }
     return this
   }
 
   setNoDelay(enabled: boolean = true): this {
     if (this.nativeId_ !== 0) __gea_node_net_set_no_delay(this.nativeId_, enabled)
+    else this.constructorNoDelay_ = enabled
     return this
   }
 
@@ -496,7 +695,7 @@ export class Socket extends EventEmitter {
     encodingOrCallback?: BufferEncoding | SocketWriteCallback,
     callback?: SocketWriteCallback
   ): boolean {
-    if (this.destroyed || this.nativeId_ === 0) {
+    if (this.destroyed || (this.nativeId_ === 0 && !this.connecting)) {
       const error = new Error('This socket has been ended by the other party') as NodeArgumentError
       error.code = 'EPIPE'
       if (typeof encodingOrCallback === 'function') {
@@ -506,12 +705,13 @@ export class Socket extends EventEmitter {
       }
       return false
     }
-    const buffer =
-      typeof data === 'string'
-        ? Buffer.from(data, typeof encodingOrCallback === 'string' ? encodingOrCallback : 'utf8')
-        : Buffer.from(data)
+    // A write on a live native socket hands the caller's bytes straight to the
+    // native side, which appends them to its own outgoing buffer before this
+    // call returns: copying a `Uint8Array` into a fresh `Buffer` first (what
+    // `Buffer.from(view)` is) only to copy it again was one allocation and one
+    // memcpy per write. Only a write that is held back until 'connect' keeps
+    // the bytes, so only that one needs a private copy.
     this.resetTimeout()
-    this.bytesWritten += buffer.length
     let hasCallback = false
     if (typeof encodingOrCallback === 'function') {
       this.pendingWriteCallbacks_.push(encodingOrCallback)
@@ -520,9 +720,31 @@ export class Socket extends EventEmitter {
       this.pendingWriteCallbacks_.push(callback)
       hasCallback = true
     }
-    const accepted = __gea_node_net_write(this.nativeId_, buffer)
+    if (this.nativeId_ === 0) {
+      // Still resolving or racing attempts: node buffers the write until
+      // 'connect'; the winner flushes these before anything written later.
+      const held =
+        typeof data === 'string'
+          ? Buffer.from(data, typeof encodingOrCallback === 'string' ? encodingOrCallback : 'utf8')
+          : Buffer.from(data)
+      this.bytesWritten += held.length
+      this.connectingWrites_.push(held)
+      this.bufferSize += held.length
+      return true
+    }
+    let accepted = false
+    let length = 0
+    if (typeof data === 'string') {
+      const encoded = Buffer.from(data, typeof encodingOrCallback === 'string' ? encodingOrCallback : 'utf8')
+      length = encoded.length
+      accepted = __gea_node_net_write(this.nativeId_, encoded)
+    } else {
+      length = data.length
+      accepted = __gea_node_net_write(this.nativeId_, data)
+    }
+    this.bytesWritten += length
     this.bufferSize = __gea_node_net_buffer_size(this.nativeId_)
-    if (buffer.length === 0 && hasCallback) this.flushWriteCallbacks()
+    if (length === 0 && hasCallback) this.flushWriteCallbacks()
     return accepted
   }
 
@@ -544,6 +766,10 @@ export class Socket extends EventEmitter {
     if (typeof dataOrCallback !== 'function' && dataOrCallback !== undefined) {
       const encoding = typeof encodingOrCallback === 'string' ? encodingOrCallback : undefined
       this.write(dataOrCallback, encoding)
+    }
+    if (this.nativeId_ === 0 && this.connecting && !this.destroyed) {
+      this.connectingEnd_ = true
+      return this
     }
     if (this.nativeId_ === 0 || this.destroyed) {
       queueMicrotask(() => {
@@ -638,12 +864,24 @@ export class Socket extends EventEmitter {
   }
 
   unref(): this {
+    this.referenced_ = false
     if (this.nativeId_ !== 0) __gea_node_net_set_referenced(this.nativeId_, false)
+    for (let index = 0; index < this.attempts_.length; index += 1) {
+      const attempt = this.attempts_[index]
+      if (!attempt.settled && attempt.nativeId !== 0)
+        __gea_node_net_set_referenced(attempt.nativeId, false)
+    }
     return this
   }
 
   ref(): this {
+    this.referenced_ = true
     if (this.nativeId_ !== 0) __gea_node_net_set_referenced(this.nativeId_, true)
+    for (let index = 0; index < this.attempts_.length; index += 1) {
+      const attempt = this.attempts_[index]
+      if (!attempt.settled && attempt.nativeId !== 0)
+        __gea_node_net_set_referenced(attempt.nativeId, true)
+    }
     return this
   }
 
@@ -675,6 +913,7 @@ export class Socket extends EventEmitter {
     this.readyState = 'closed'
     this.clearSocketTimeout()
     this.bufferSize = 0
+    this.abandonAttempts()
     if (error !== undefined) this.emit('error', error)
     if (this.nativeId_ !== 0) __gea_node_net_destroy(this.nativeId_)
     queueMicrotask(() => this.emitClose())
@@ -706,8 +945,13 @@ export class Socket extends EventEmitter {
   }
 
   private deliverChunk(chunk: Buffer): void {
-    if (this.pipeTarget_ !== null) {
-      this.pipeTarget_.write(chunk)
+    const target = this.pipeTarget_
+    if (target !== null) {
+      // Narrow per arm: a method call on the Writable | Duplex union is an unknown
+      // call boundary that boxes the target and publishes every stream subclass
+      // (mongodb cursor streams -> sessions -> client) to full reflection.
+      if (target instanceof Duplex) target.write(chunk)
+      else target.write(chunk)
     } else if (this.encoding_ === '') {
       this.emit('data', chunk)
     } else {
@@ -716,6 +960,16 @@ export class Socket extends EventEmitter {
   }
 
   private flushWriteCallbacks(error: Error | null = null): void {
+    // Every completed write raises a drain event, and most writes carry no
+    // callback: do not build a snapshot array to run nothing.
+    const pending = this.pendingWriteCallbacks_
+    if (pending.length === 0) return
+    if (pending.length === 1) {
+      const only = pending[0]
+      this.pendingWriteCallbacks_ = []
+      only(error)
+      return
+    }
     const callbacks: SocketWriteCallback[] = []
     for (let index = 0; index < this.pendingWriteCallbacks_.length; index += 1) {
       callbacks.push(this.pendingWriteCallbacks_[index])
@@ -725,6 +979,7 @@ export class Socket extends EventEmitter {
   }
 
   private flushFinishCallbacks(): void {
+    if (this.pendingFinishCallbacks_.length === 0) return
     const callbacks: (() => void)[] = []
     for (let index = 0; index < this.pendingFinishCallbacks_.length; index += 1) {
       callbacks.push(this.pendingFinishCallbacks_[index])
@@ -738,22 +993,7 @@ export class Socket extends EventEmitter {
       const event = __gea_node_net_next_event(this.nativeId_)
       if (event === 0) return
       if (event === EVENT_CONNECT) {
-        this.connecting = false
-        this.pending = false
-        this.readyState = 'open'
-        this.remoteAddress = __gea_node_net_remote_address(this.nativeId_)
-        this.remotePort = __gea_node_net_remote_port(this.nativeId_)
-        this.remoteFamily = __gea_node_net_remote_family(this.nativeId_)
-        const localAddress = __gea_node_net_local_address(this.nativeId_)
-        const localPort = __gea_node_net_local_port(this.nativeId_)
-        const localFamily = __gea_node_net_local_family(this.nativeId_)
-        this.localAddress = localAddress.length === 0 ? undefined : localAddress
-        this.localPort = localPort === 0 ? undefined : localPort
-        this.localFamily = localFamily.length === 0 ? undefined : localFamily
-        this.autoSelectFamilyAttemptedAddresses = [`${this.remoteAddress}:${this.remotePort}`]
-        this.bufferSize = __gea_node_net_buffer_size(this.nativeId_)
-        this.resetTimeout()
-        this.emit('connect')
+        this.emitConnected()
       } else if (event === EVENT_DATA) {
         this.resetTimeout()
         const chunk = __gea_node_net_read(this.nativeId_)
@@ -763,7 +1003,7 @@ export class Socket extends EventEmitter {
       } else if (event === EVENT_ERROR) {
         this.connecting = false
         this.pending = false
-        const error = new Error(__gea_node_net_error(this.nativeId_))
+        const error = this.nativeError(this.nativeId_, this.remoteAddress, this.remotePort)
         this.flushWriteCallbacks(error)
         this.emit('error', error)
       } else if (event === EVENT_CLOSE) {
@@ -789,19 +1029,40 @@ export class Socket extends EventEmitter {
     }
   }
 
-  private connectTcp(
-    host: string,
-    port: number,
-    family: number,
-    hints: number,
-    localAddress: string,
-    localPort: number,
-    bindLocal: boolean,
-    connectionListener?: () => void
-  ): this {
-    if (this.nativeId_ !== 0 && !this.destroyed) {
+  private emitConnected(): void {
+    this.connecting = false
+    this.pending = false
+    this.readyState = 'open'
+    this.remoteAddress = __gea_node_net_remote_address(this.nativeId_)
+    this.remotePort = __gea_node_net_remote_port(this.nativeId_)
+    this.remoteFamily = __gea_node_net_remote_family(this.nativeId_)
+    const localAddress = __gea_node_net_local_address(this.nativeId_)
+    const localPort = __gea_node_net_local_port(this.nativeId_)
+    const localFamily = __gea_node_net_local_family(this.nativeId_)
+    this.localAddress = localAddress.length === 0 ? undefined : localAddress
+    this.localPort = localPort === 0 ? undefined : localPort
+    this.localFamily = localFamily.length === 0 ? undefined : localFamily
+    this.bufferSize = __gea_node_net_buffer_size(this.nativeId_)
+    this.resetTimeout()
+    this.emit('connect')
+  }
+
+  // node's error for a failed native socket: the errno and syscall the
+  // native side recorded, or its text when it had no errno to report.
+  private nativeError(nativeId: number, address: string, port: number): Error {
+    const errnoValue = __gea_node_net_error_errno(nativeId)
+    if (errnoValue === 0) return new Error(__gea_node_net_error(nativeId))
+    return connectError(errnoValue, __gea_node_net_error_syscall(nativeId), address, port)
+  }
+
+  private connectTcpOptions(options: TcpSocketConnectOpts, listener?: () => void): this {
+    if ((this.nativeId_ !== 0 && !this.destroyed) || this.connecting) {
       throw new Error('Socket is already connecting or connected')
     }
+    const host = options.host ?? 'localhost'
+    const port = options.port
+    const family = options.family ?? 0
+    const localPort = options.localPort ?? 0
     if (!Number.isInteger(port) || port < 0 || port > 65535) {
       throw new RangeError('Port should be >= 0 and < 65536')
     }
@@ -811,61 +1072,340 @@ export class Socket extends EventEmitter {
     if (!Number.isInteger(localPort) || localPort < 0 || localPort > 65535) {
       throw new RangeError('localPort should be >= 0 and < 65536')
     }
-    if (connectionListener) this.once('connect', connectionListener)
+    const autoSelectFamily = options.autoSelectFamily ?? defaultAutoSelectFamily
+    let attemptTimeout =
+      options.autoSelectFamilyAttemptTimeout ?? defaultAutoSelectFamilyAttemptTimeout
+    if (!Number.isInteger(attemptTimeout) || attemptTimeout < 1 || attemptTimeout > 2147483647) {
+      outOfRange('options.autoSelectFamilyAttemptTimeout', '>= 1 && <= 2147483647')
+    }
+    // RFC 8305 section 5 floor; node clamps the same way.
+    if (attemptTimeout < 10) attemptTimeout = 10
+    if (listener) this.once('connect', listener)
 
+    this.connectGeneration_ += 1
+    const generation = this.connectGeneration_
     this.destroyed = false
     this.self_ = this
     this.closeEmitted_ = false
     this.connecting = true
     this.pending = true
     this.readyState = 'opening'
-    this.nativeId_ = __gea_node_net_create(
-      host,
-      port,
-      family,
-      hints,
-      localAddress,
-      localPort,
-      bindLocal,
-      () => this.dispatchNativeEvents()
-    )
-    if (this.nativeId_ === 0) {
-      this.connecting = false
-      this.pending = false
-      this.destroyed = true
-      this.readyState = 'closed'
-      const message = __gea_node_net_create_error()
+    this.nativeId_ = 0
+    this.autoSelectFamilyAttemptedAddresses = []
+    this.attempts_ = []
+    this.attemptTargets_ = []
+    this.attemptNext_ = 0
+    this.attemptTimeoutMs_ = attemptTimeout
+    this.attemptPort_ = port
+    this.attemptMultiple_ = false
+    this.attemptLocalAddress_ = options.localAddress ?? ''
+    this.attemptLocalPort_ = localPort
+    this.attemptBindLocal_ = options.localAddress !== undefined || options.localPort !== undefined
+    this.connectingWrites_ = []
+    this.connectingEnd_ = false
+    this.resetTimeout()
+
+    // An IP literal is not looked up: one attempt, on the next turn so the
+    // caller's listeners are attached (node: process.nextTick).
+    const literalFamily = isIP(host)
+    if (literalFamily !== 0) {
       queueMicrotask(() => {
-        this.emit('error', new Error(message.length === 0 ? 'Unable to create socket' : message))
-        this.emitClose()
+        if (generation !== this.connectGeneration_ || !this.connecting) return
+        this.beginAttempts([{ address: host, family: literalFamily }], false)
       })
       return this
     }
-    this.setKeepAlive(this.constructorKeepAlive_, this.constructorKeepAliveInitialDelay_)
-    this.setNoDelay(this.constructorNoDelay_)
-    this.resetTimeout()
+
+    let hints = options.hints ?? 0
+    if (family !== 4 && family !== 6 && hints === 0) hints = __gea_node_net_addrconfig_hint()
+    const lookup = options.lookup ?? reactorLookup
+    if (family !== 4 && family !== 6 && options.localAddress === undefined && autoSelectFamily) {
+      // Happy eyeballs: every A and AAAA record, raced.
+      const lookupOptions: LookupOptions = {
+        family: options.family,
+        hints: hints,
+        all: true
+      }
+      lookup(
+        host,
+        lookupOptions,
+        (error: Error | null, result: string | LookupAddress[], resultFamily?: number) => {
+          this.onLookupAll(generation, host, error, result, resultFamily ?? 0)
+        }
+      )
+      return this
+    }
+    const lookupOptions: LookupOptions = {
+      family: options.family,
+      hints: hints
+    }
+    lookup(
+      host,
+      lookupOptions,
+      (error: Error | null, result: string | LookupAddress[], resultFamily?: number) => {
+        this.onLookupOne(generation, host, error, result, resultFamily ?? 0)
+      }
+    )
     return this
   }
 
-  private connectTcpOptions(options: TcpSocketConnectOpts, listener?: () => void): this {
-    if (options.lookup !== undefined) nodeNotImplemented('node:net', 'Socket.connect.lookup')
-    if (options.autoSelectFamily === true) {
-      nodeNotImplemented('node:net', 'Socket.connect.autoSelectFamily')
+  private onLookupOne(
+    generation: number,
+    host: string,
+    error: Error | null,
+    result: string | LookupAddress[],
+    resultFamily: number
+  ): void {
+    if (generation !== this.connectGeneration_) return
+    let address = ''
+    let family = resultFamily
+    if (typeof result === 'string') {
+      address = result
+    } else if (result.length > 0) {
+      address = result[0].address
+      family = result[0].family
     }
-    if (options.autoSelectFamilyAttemptTimeout !== undefined) {
-      nodeNotImplemented('node:net', 'Socket.connect.autoSelectFamilyAttemptTimeout')
+    this.emit('lookup', error, address, family, host)
+    if (generation !== this.connectGeneration_ || !this.connecting) return
+    if (error !== null) {
+      queueMicrotask(() => {
+        if (generation === this.connectGeneration_ && this.connecting) this.destroy(error)
+      })
+      return
     }
-    return this.connectTcp(
-      options.host ?? 'localhost',
-      options.port,
-      options.family ?? 0,
-      options.hints ?? 0,
-      options.localAddress ?? '',
-      options.localPort ?? 0,
-      options.localAddress !== undefined || options.localPort !== undefined,
-      listener
-    )
+    if (isIP(address) === 0) {
+      const invalid = new TypeError(`Invalid IP address: ${address}`) as NodeArgumentError
+      invalid.code = 'ERR_INVALID_IP_ADDRESS'
+      queueMicrotask(() => {
+        if (generation === this.connectGeneration_ && this.connecting) this.destroy(invalid)
+      })
+      return
+    }
+    this.beginAttempts([{ address: address, family: isIP(address) }], false)
   }
+
+  private onLookupAll(
+    generation: number,
+    host: string,
+    error: Error | null,
+    result: string | LookupAddress[],
+    resultFamily: number
+  ): void {
+    if (generation !== this.connectGeneration_ || !this.connecting) return
+    if (error !== null) {
+      this.destroy(error)
+      return
+    }
+    const addresses: LookupAddress[] =
+      typeof result === 'string' ? [{ address: result, family: resultFamily }] : result
+    // RFC 8305 section 4: interleave the families, starting with the family
+    // of the resolver's first answer, each address tried once.
+    const first: LookupAddress[] = []
+    const second: LookupAddress[] = []
+    let firstFamily = 0
+    for (let index = 0; index < addresses.length; index += 1) {
+      const candidate = addresses[index]
+      this.emit('lookup', null, candidate.address, candidate.family, host)
+      if (generation !== this.connectGeneration_ || !this.connecting) return
+      const ipFamily = isIP(candidate.address)
+      if (ipFamily === 0 || (candidate.family !== 4 && candidate.family !== 6)) continue
+      if (firstFamily === 0) firstFamily = candidate.family
+      const bucket = candidate.family === firstFamily ? first : second
+      let seen = false
+      for (let probe = 0; probe < bucket.length; probe += 1) {
+        if (bucket[probe].address === candidate.address) seen = true
+      }
+      if (!seen) bucket.push({ address: candidate.address, family: candidate.family })
+    }
+    if (first.length === 0) {
+      const shown = addresses.length > 0 ? addresses[0].address : ''
+      const invalid = new TypeError(`Invalid IP address: ${shown}`) as NodeArgumentError
+      invalid.code = 'ERR_INVALID_IP_ADDRESS'
+      this.destroy(invalid)
+      return
+    }
+    const ordered: LookupAddress[] = []
+    const rounds = Math.max(first.length, second.length)
+    for (let index = 0; index < rounds; index += 1) {
+      if (index < first.length) ordered.push(first[index])
+      if (index < second.length) ordered.push(second[index])
+    }
+    if (ordered.length === 1) {
+      queueMicrotask(() => {
+        if (generation === this.connectGeneration_ && this.connecting)
+          this.beginAttempts(ordered, false)
+      })
+      return
+    }
+    this.beginAttempts(ordered, true)
+  }
+
+  private beginAttempts(targets: LookupAddress[], multiple: boolean): void {
+    this.attemptTargets_ = targets
+    this.attemptNext_ = 0
+    this.attemptMultiple_ = multiple
+    this.startNextAttempt()
+  }
+
+  // RFC 8305 section 5: start the next address when the previous attempt
+  // fails, or when it has been pending for the attempt delay -- in which case
+  // the earlier attempt keeps running and may still win.
+  private startNextAttempt(): void {
+    this.clearAttemptTimer()
+    const generation = this.connectGeneration_
+    const target = this.attemptTargets_[this.attemptNext_]
+    this.attemptNext_ += 1
+    const attempt = new ConnectAttempt(target.address, target.family)
+    const port = this.attemptPort_
+    this.attempts_.push(attempt)
+    if (this.attemptMultiple_)
+      this.autoSelectFamilyAttemptedAddresses.push(`${target.address}:${port}`)
+    this.emit('connectionAttempt', target.address, port, target.family)
+    if (generation !== this.connectGeneration_ || !this.connecting) return
+    const nativeId = __gea_node_net_create(
+      target.address,
+      port,
+      target.family,
+      0,
+      this.attemptLocalAddress_,
+      this.attemptLocalPort_,
+      this.attemptBindLocal_,
+      () => this.dispatchAttempt(attempt)
+    )
+    if (nativeId === 0) {
+      // A synchronous connect failure is reported on a later turn, as libuv
+      // does, so it reaches listeners attached after connect() returned.
+      const errnoValue = __gea_node_net_create_errno()
+      const message = __gea_node_net_create_error()
+      const error =
+        errnoValue !== 0
+          ? connectError(errnoValue, 'connect', target.address, port)
+          : new Error(message.length === 0 ? 'Unable to create socket' : message)
+      queueMicrotask(() => {
+        if (generation === this.connectGeneration_ && !attempt.settled)
+          this.failAttempt(attempt, error)
+      })
+      return
+    }
+    attempt.nativeId = nativeId
+    if (!this.referenced_) __gea_node_net_set_referenced(nativeId, false)
+    if (this.attemptMultiple_ && this.attemptNext_ < this.attemptTargets_.length) {
+      this.attemptTimer_ = scheduleNodeTimer(() => {
+        this.attemptTimer_ = null
+        if (generation !== this.connectGeneration_ || !this.connecting || attempt.settled) return
+        this.emit('connectionAttemptTimeout', attempt.address, port, attempt.family)
+        if (generation !== this.connectGeneration_ || !this.connecting) return
+        if (this.attemptNext_ < this.attemptTargets_.length) this.startNextAttempt()
+      }, this.attemptTimeoutMs_)
+    }
+  }
+
+  private dispatchAttempt(attempt: ConnectAttempt): void {
+    while (!attempt.settled) {
+      const event = __gea_node_net_next_event(attempt.nativeId)
+      if (event === 0) return
+      if (event === EVENT_CONNECT) {
+        this.winAttempt(attempt)
+        return
+      }
+      if (event === EVENT_ERROR) {
+        this.failAttempt(
+          attempt,
+          this.nativeError(attempt.nativeId, attempt.address, this.attemptPort_)
+        )
+        return
+      }
+    }
+  }
+
+  private failAttempt(attempt: ConnectAttempt, error: Error): void {
+    const generation = this.connectGeneration_
+    attempt.settled = true
+    attempt.error = error
+    this.emit('connectionAttemptFailed', attempt.address, this.attemptPort_, attempt.family, error)
+    if (generation !== this.connectGeneration_ || !this.connecting) return
+    if (!this.attemptMultiple_) {
+      this.destroy(error)
+      return
+    }
+    if (this.attemptNext_ < this.attemptTargets_.length) {
+      this.startNextAttempt()
+      return
+    }
+    const errors: Error[] = []
+    for (let index = 0; index < this.attempts_.length; index += 1) {
+      const settled = this.attempts_[index]
+      if (!settled.settled) return // an earlier attempt is still racing
+      if (settled.error !== null) errors.push(settled.error)
+    }
+    this.destroy(aggregateConnectError(errors))
+  }
+
+  // First success wins: every other attempt is closed, the winner becomes
+  // this socket's native handle, and writes made while connecting go out
+  // before 'connect' lets the program write more.
+  private winAttempt(winner: ConnectAttempt): void {
+    winner.settled = true
+    this.clearAttemptTimer()
+    for (let index = 0; index < this.attempts_.length; index += 1) {
+      const loser = this.attempts_[index]
+      if (loser === winner || loser.settled) continue
+      loser.settled = true
+      if (loser.nativeId !== 0) __gea_node_net_destroy(loser.nativeId)
+    }
+    this.attempts_ = []
+    this.nativeId_ = winner.nativeId
+    __gea_node_net_set_notify(this.nativeId_, () => this.dispatchNativeEvents())
+    if (!this.referenced_) __gea_node_net_set_referenced(this.nativeId_, false)
+    if (this.paused_) __gea_node_net_set_paused(this.nativeId_, true)
+    this.setKeepAlive(this.constructorKeepAlive_, this.constructorKeepAliveInitialDelay_)
+    this.setNoDelay(this.constructorNoDelay_)
+    const writes = this.connectingWrites_
+    this.connectingWrites_ = []
+    for (let index = 0; index < writes.length; index += 1)
+      __gea_node_net_write(this.nativeId_, writes[index])
+    this.emitConnected()
+    if (this.connectingEnd_ && !this.destroyed) {
+      this.connectingEnd_ = false
+      this.readyState = 'readOnly'
+      __gea_node_net_end(this.nativeId_)
+    }
+    if (!this.destroyed) this.dispatchNativeEvents()
+  }
+
+  private clearAttemptTimer(): void {
+    if (this.attemptTimer_ !== null) {
+      cancelNodeTimer(this.attemptTimer_)
+      this.attemptTimer_ = null
+    }
+  }
+
+  private abandonAttempts(): void {
+    this.connectGeneration_ += 1
+    this.clearAttemptTimer()
+    for (let index = 0; index < this.attempts_.length; index += 1) {
+      const attempt = this.attempts_[index]
+      if (attempt.settled) continue
+      attempt.settled = true
+      if (attempt.nativeId !== 0) __gea_node_net_destroy(attempt.nativeId)
+    }
+    this.attempts_ = []
+    this.connectingWrites_ = []
+    this.connectingEnd_ = false
+  }
+}
+
+// `@gea-exact-arms`: reached only where `typeof` said the argument is the
+// listener, so the cast projects that arm. Without it the narrowed
+// `ServerOpts | ConnectionListener` was ADAPTED into the listener's convention,
+// and the adapter boxed the `Socket` it forwards -- publishing every stream
+// subclass, and behind mongodb's cursor streams its sessions and client, to
+// full reflection.
+/** @gea-exact-arms */
+function connectionListenerArm(
+  optionsOrListener: ServerOpts | ConnectionListener
+): ConnectionListener {
+  return optionsOrListener as ConnectionListener
 }
 
 export class Server extends EventEmitter {
@@ -878,6 +1418,8 @@ export class Server extends EventEmitter {
   private keepAlive_: boolean
   private keepAliveInitialDelay_: number
   private self_: Server | null
+  private connectionListeners_: ConnectionListener[]
+  private connectionOnce_: boolean[]
 
   listening: boolean
 
@@ -889,8 +1431,11 @@ export class Server extends EventEmitter {
   ) {
     super()
     const options = typeof optionsOrListener === 'function' ? {} : optionsOrListener
+    // `declared` keeps the parameter's declared union: the `typeof`-narrowed
+    // spelling converts back into the union through a callable adapter.
+    const declared: ServerOpts | ConnectionListener = optionsOrListener
     const listener =
-      typeof optionsOrListener === 'function' ? optionsOrListener : connectionListener
+      typeof optionsOrListener === 'function' ? connectionListenerArm(declared) : connectionListener
     this.nativeId_ = 0
     this.listening = false
     this.maxConnections_ = 0
@@ -901,21 +1446,16 @@ export class Server extends EventEmitter {
     this.keepAlive_ = options.keepAlive ?? false
     this.keepAliveInitialDelay_ = options.keepAliveInitialDelay ?? 0
     this.self_ = null
+    this.connectionListeners_ = []
+    this.connectionOnce_ = []
     if (this.allowHalfOpen_) nodeNotImplemented('node:net', 'Server.constructor.allowHalfOpen')
     if (options.highWaterMark !== undefined) {
       nodeNotImplemented('node:net', 'Server.constructor.highWaterMark')
     }
-    if (listener) this.on('connection', listener)
-  }
-
-  override on(name: string, listener: EventHandler): this {
-    super.on(name, listener)
-    return this
-  }
-
-  override once(name: string, listener: EventHandler): this {
-    super.once(name, listener)
-    return this
+    if (listener) {
+      this.connectionListeners_.push(listener)
+      this.connectionOnce_.push(false)
+    }
   }
 
   override off(name: string, listener: EventHandler): this {
@@ -923,31 +1463,90 @@ export class Server extends EventEmitter {
     return this
   }
 
-  override addListener(name: string, listener: EventHandler): this {
-    super.addListener(name, listener)
-    return this
+  // `connection` listeners are NOT handed to the generic emitter -- the same
+  // contract as `http.ts`'s `Server`. Its storage is `(...args: unknown[])`,
+  // so a `(socket: Socket) => void` stored there is installed behind an
+  // adapter that BOXES the socket, and a boxed `Socket` publishes its
+  // `pipeTarget_` (`Writable | Duplex`) and through it every stream subclass
+  // -- mongodb's cursor streams, and behind them `ClientSession`,
+  // `MongoClient` and every cursor -- to full reflection. So the typed name
+  // keeps its listeners in a typed array that the accept loop calls natively,
+  // and `@gea-exact-arms` (on `addServerListener`) makes the `as` cast a
+  // projection of the arm the caller's overload named: a listener whose static
+  // type is the generic `EventHandler` registered under `'connection'` throws
+  // a `TypeError` at registration instead of running boxed.
+  override on(name: 'connection', listener: ConnectionListener): this
+  override on(name: EventName, listener: EventHandler): this
+  override on(name: EventName, listener: ServerListener): this {
+    return this.addServerListener(name, listener, false, false)
   }
 
-  override prependListener(name: string, listener: EventHandler): this {
-    super.prependListener(name, listener)
-    return this
+  override once(name: 'connection', listener: ConnectionListener): this
+  override once(name: EventName, listener: EventHandler): this
+  override once(name: EventName, listener: ServerListener): this {
+    return this.addServerListener(name, listener, true, false)
   }
 
-  override prependOnceListener(name: string, listener: EventHandler): this {
-    super.prependOnceListener(name, listener)
-    return this
+  override addListener(name: 'connection', listener: ConnectionListener): this
+  override addListener(name: EventName, listener: EventHandler): this
+  override addListener(name: EventName, listener: ServerListener): this {
+    return this.addServerListener(name, listener, false, false)
   }
 
-  override emit(name: string, ...args: unknown[]): boolean {
-    return super.emit(name, ...args)
+  override prependListener(name: 'connection', listener: ConnectionListener): this
+  override prependListener(name: EventName, listener: EventHandler): this
+  override prependListener(name: EventName, listener: ServerListener): this {
+    return this.addServerListener(name, listener, false, true)
   }
 
-  listen(
-    port?: number,
-    hostname?: string,
-    backlog?: number,
-    listeningListener?: () => void
-  ): this
+  override prependOnceListener(name: 'connection', listener: ConnectionListener): this
+  override prependOnceListener(name: EventName, listener: EventHandler): this
+  override prependOnceListener(name: EventName, listener: ServerListener): this {
+    return this.addServerListener(name, listener, true, true)
+  }
+
+  /** @gea-exact-arms */
+  private addServerListener(
+    name: EventName,
+    fn: ServerListener,
+    once: boolean,
+    prepend: boolean
+  ): this {
+    if (name === 'connection') {
+      const listener = fn as ConnectionListener
+      if (prepend) {
+        this.connectionListeners_.unshift(listener)
+        this.connectionOnce_.unshift(once)
+      } else {
+        this.connectionListeners_.push(listener)
+        this.connectionOnce_.push(once)
+      }
+      return this
+    }
+    const generic = fn as EventHandler
+    if (once) return prepend ? super.prependOnceListener(name, generic) : super.once(name, generic)
+    return prepend ? super.prependListener(name, generic) : super.on(name, generic)
+  }
+
+  override removeAllListeners(name: EventName | undefined = undefined): this {
+    if (name === undefined || name === 'connection') {
+      this.connectionListeners_.length = 0
+      this.connectionOnce_.length = 0
+    }
+    return super.removeAllListeners(name)
+  }
+
+  // By name only: matching a specific `listener` would compare a typed
+  // callable against `unknown`, which boxes it (see `http.ts`).
+  override listenerCount(name: EventName, listener?: unknown): number {
+    const base = super.listenerCount(name, listener)
+    if (listener !== undefined || name !== 'connection') return base
+    return base + this.connectionListeners_.length
+  }
+
+  // No `override emit` -- see the identical note on `Socket` above.
+
+  listen(port?: number, hostname?: string, backlog?: number, listeningListener?: () => void): this
   listen(port?: number, hostname?: string, listeningListener?: () => void): this
   listen(port?: number, backlog?: number, listeningListener?: () => void): this
   listen(port?: number, listeningListener?: () => void): this
@@ -959,7 +1558,9 @@ export class Server extends EventEmitter {
     listeningListener?: () => void
   ): this {
     if (this.nativeId_ !== 0 || this.listening) {
-      const error = new Error('Listen method has been called more than once without closing') as NodeArgumentError
+      const error = new Error(
+        'Listen method has been called more than once without closing'
+      ) as NodeArgumentError
       error.code = 'ERR_SERVER_ALREADY_LISTEN'
       throw error
     }
@@ -1121,7 +1722,17 @@ export class Server extends EventEmitter {
             keepAliveInitialDelay: this.keepAliveInitialDelay_
           })
           socket.adoptAccepted(connectionId, this.pauseOnConnect_)
-          this.emit('connection', socket)
+          const listeners = this.connectionListeners_
+          const once = this.connectionOnce_
+          for (let index = 0; index < listeners.length; index += 1) {
+            const onConnection = listeners[index]
+            if (once[index]) {
+              listeners.splice(index, 1)
+              once.splice(index, 1)
+              index -= 1
+            }
+            onConnection(socket)
+          }
         }
       } else if (event === SERVER_EVENT_ERROR) {
         this.emit('error', new Error(__gea_node_net_server_error(nativeId)))
@@ -1139,10 +1750,7 @@ export class Server extends EventEmitter {
 }
 
 export function createServer(connectionListener?: ConnectionListener): Server
-export function createServer(
-  options?: ServerOpts,
-  connectionListener?: ConnectionListener
-): Server
+export function createServer(options?: ServerOpts, connectionListener?: ConnectionListener): Server
 export function createServer(
   optionsOrListener?: ServerOpts | ConnectionListener,
   connectionListener?: ConnectionListener
@@ -1185,7 +1793,8 @@ export function createConnection(
     if (connectionListener) return socket.connect(optionsOrPortOrPath, connectionListener)
     return socket.connect(optionsOrPortOrPath, undefined)
   }
-  if (typeof hostOrListener === 'function') return socket.connect(optionsOrPortOrPath, hostOrListener)
+  if (typeof hostOrListener === 'function')
+    return socket.connect(optionsOrPortOrPath, hostOrListener)
   if (connectionListener) return socket.connect(optionsOrPortOrPath, connectionListener)
   return socket.connect(optionsOrPortOrPath, undefined)
 }
@@ -1345,17 +1954,15 @@ export class BlockList {
     this.rangeStarts_.unshift(parsedStart.address)
     this.rangeEnds_.unshift(parsedEnd.address)
     this.rangeFamilies_.unshift(startFamily)
-    this.ruleStrings_.unshift(`Range: IPv${startFamily} ${parsedStart.address}-${parsedEnd.address}`)
+    this.ruleStrings_.unshift(
+      `Range: IPv${startFamily} ${parsedStart.address}-${parsedEnd.address}`
+    )
     this.refreshRules()
   }
 
   addSubnet(network: SocketAddress, prefix: number): void
   addSubnet(network: string, prefix: number, type?: IPVersion): void
-  addSubnet(
-    network: string | SocketAddress,
-    prefix: number,
-    type: IPVersion = 'ipv4'
-  ): void {
+  addSubnet(network: string | SocketAddress, prefix: number, type: IPVersion = 'ipv4'): void {
     const parsed = this.asSocketAddress(network, type)
     const family = parsed.family === 'ipv4' ? 4 : 6
     const maximum = family === 4 ? 32 : 128
@@ -1389,7 +1996,8 @@ export class BlockList {
     for (let index = 0; index < this.rangeStarts_.length; index += 1) {
       const ruleFamily = this.rangeFamilies_[index]
       if (
-        __gea_node_net_ip_compare(parsed.address, family, this.rangeStarts_[index], ruleFamily) >= 0 &&
+        __gea_node_net_ip_compare(parsed.address, family, this.rangeStarts_[index], ruleFamily) >=
+          0 &&
         __gea_node_net_ip_compare(parsed.address, family, this.rangeEnds_[index], ruleFamily) <= 0
       ) {
         return true

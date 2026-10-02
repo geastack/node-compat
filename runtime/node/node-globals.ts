@@ -69,6 +69,9 @@ declare global {
       readonly v8?: {
         readonly startupSnapshot?: {
           isBuildingSnapshot?(): boolean
+          // Retains the callback for a later run; writes no property. This target
+          // links no `v8` module, so `getBuiltinModule('v8')` answers undefined.
+          /** @gea-host-no-property-writes */
           addDeserializeCallback?(callback: () => void): void
         }
       }
@@ -85,15 +88,24 @@ declare global {
       readonly pid: number
       readonly ppid: number
       readonly argv: string[]
+      readonly argv0: string
       readonly execArgv: string[]
+      readonly execPath: string
       readonly stdout: ProcessWriteStream
       readonly stderr: ProcessWriteStream
       readonly versions: ProcessVersions
       readonly hrtime: HRTime
+      /**
+       * The status a natural exit and an argument-less `exit()` end with; `undefined`
+       * means 0. `@types/node` also admits a string; this surface keeps the number.
+       */
+      exitCode?: number | undefined
       // The literal overload retains the selected builtin's type. The string
       // overload stays dynamic: availability is decided by the native registry
       // at runtime, where unavailable/generated facades answer `undefined`.
+      /** @gea-host-no-property-writes */
       getBuiltinModule<ID extends keyof ProcessBuiltinModules>(id: ID): ProcessBuiltinModules[ID]
+      /** @gea-host-no-property-writes */
       getBuiltinModule(id: string): object | undefined
       nextTick(callback: (...args: unknown[]) => void, ...args: unknown[]): void
       cwd(): string

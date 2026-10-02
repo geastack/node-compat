@@ -15,3 +15,7 @@ packages/packages
 plugin/plugin
 runtime/runtime
 tools/tools
+
+*.bak
+*.orig
+*.rej

@@ -85,7 +85,9 @@ declare global {
   // HTML Standard §8.3 and `queueMicrotask()` (HTML §8.1.7.3). Claimed by the
   // compiler's own `coreGlobalFunctions` (`core-globals.ts`) under these exact
   // names, on the same `hasNoDefaultLib` gate as `TextEncoder`/`console` above.
+  /** @gea-host-inert */
   function btoa(data: string): string
+  /** @gea-host-inert */
   function atob(data: string): string
   function queueMicrotask(callback: () => void): void
 

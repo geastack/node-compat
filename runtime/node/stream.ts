@@ -26,6 +26,7 @@ import {
   EventEmitter,
   EventEmitterAsyncResource,
   EventHandler,
+  EventName,
   getEventListeners,
   getMaxListeners,
   Listener,
@@ -84,11 +85,33 @@ export interface PipeOptions {
 // any T (Node's real signature is exactly this unconstrained), so a cast to this interface at the
 // boundary is the honest equivalent of `any` here -- it names every member actually called on the
 // destination instead of hiding them.
+//
+// `end` and `once` answer `void` because `pipe` drops what they return, and
+// `once` takes the emitter's own listener type: stated as `unknown`, every
+// destination's `this` was boxed on its way out of `end()`/`once()`, and an
+// `EventHandler` written as another function type is converted on the way
+// in. Either one published the destination class -- and everything its fields
+// reach, the MongoDB driver's connection and logger among them -- to dynamic
+// code (the compiler then refused their `this.method.bind(this)`). `emit`
+// states `EventEmitter.emit`'s own frame for the same reason: as `(string,
+// ...unknown[])` the bound method converted its name and rest, the view of a
+// Duplex stopped being a direct one, and every stream class went to full
+// reflection from `pipe` alone.
+/** A `'pipe'`/`'unpipe'` listener: Node hands it the source Readable. */
+type PipeEventListener = (source: Readable) => void
+type StreamListener = EventHandler | PipeEventListener
+
 interface PipeDestination {
   write(chunk: unknown, encodingOrCallback?: unknown, callback?: unknown): boolean
-  end?(chunk?: unknown, encodingOrCallback?: unknown, callback?: unknown): unknown
-  emit(name: string, ...args: unknown[]): boolean
-  once(name: string, listener: (...args: unknown[]) => void): unknown
+  end?(chunk?: unknown, encodingOrCallback?: unknown, callback?: unknown): void
+  emit(name: EventName, ...args: readonly unknown[]): boolean
+  // `StreamListener`, the listener Writable's and Duplex's `once` implementations
+  // take (see `Stream.addStreamListener`): stated as `EventHandler` it named no
+  // frame of theirs, and the bound method adapted.
+  once(name: string, listener: StreamListener): void
+  // Optional: a destination that is not one of this runtime's streams has no
+  // typed pipe listeners to notify (see `Stream.notifyPipeEvent`).
+  notifyPipeEvent?(name: 'pipe' | 'unpipe', source: Readable): void
 }
 
 // Node's real `_writev(chunks, callback)` shape: an array of the queued
@@ -127,6 +150,74 @@ function invokeCallback(callback: unknown, error?: Error | null): void {
 }
 
 export class Stream extends EventEmitter {
+  // `'pipe'`/`'unpipe'` listeners receive the source Readable. Delivered
+  // through `emit(name, ...unknown[])`, that source was boxed, and a boxed
+  // Readable exposes every field of every Readable subclass to dynamic code:
+  // the MongoDB driver's cursor streams reach its cursors, sessions and client,
+  // all of which went to full reflection from this one `emit`. So these two
+  // events keep their listeners typed, as `http.ts`'s `Server` does for
+  // `'request'`: registered through `addStreamListener`, delivered by
+  // `notifyPipeEvent`, never through the generic table. The contract that buys
+  // is `http.ts`'s: a listener whose static type is the generic `EventHandler`
+  // registered under `'pipe'`/`'unpipe'` throws a `TypeError` at registration;
+  // and `emit('pipe', ...)`, `listenerCount('pipe')` and `removeListener` see
+  // only generic listeners (`removeAllListeners('pipe')` clears the typed ones).
+  private pipeListeners_: PipeEventListener[] | undefined
+  private pipeOnce_: boolean[] | undefined
+  private unpipeListeners_: PipeEventListener[] | undefined
+  private unpipeOnce_: boolean[] | undefined
+
+  /** @gea-exact-arms */
+  protected addStreamListener(name: string, fn: StreamListener, once: boolean, prepend: boolean): void {
+    if (name === 'pipe' || name === 'unpipe') {
+      const listener = fn as PipeEventListener
+      const listeners = name === 'pipe' ? (this.pipeListeners_ ??= []) : (this.unpipeListeners_ ??= [])
+      const onceFlags = name === 'pipe' ? (this.pipeOnce_ ??= []) : (this.unpipeOnce_ ??= [])
+      if (prepend) {
+        listeners.unshift(listener)
+        onceFlags.unshift(once)
+      } else {
+        listeners.push(listener)
+        onceFlags.push(once)
+      }
+      return
+    }
+    const generic = fn as EventHandler
+    if (once) {
+      if (prepend) super.prependOnceListener(name, generic)
+      else super.once(name, generic)
+    } else if (prepend) super.prependListener(name, generic)
+    else super.on(name, generic)
+  }
+
+  /** Delivers `'pipe'`/`'unpipe'` with its source, as `emit` would, without boxing it. */
+  notifyPipeEvent(name: 'pipe' | 'unpipe', source: Readable): void {
+    const listeners = name === 'pipe' ? this.pipeListeners_ : this.unpipeListeners_
+    const onceFlags = name === 'pipe' ? this.pipeOnce_ : this.unpipeOnce_
+    if (listeners === undefined || onceFlags === undefined || listeners.length === 0) return
+    const current = listeners.slice()
+    for (let index = listeners.length - 1; index >= 0; index--) {
+      if (onceFlags[index]) {
+        listeners.splice(index, 1)
+        onceFlags.splice(index, 1)
+      }
+    }
+    for (const listener of current) listener(source)
+  }
+
+  override removeAllListeners(name: EventName | undefined = undefined): this {
+    if (name === undefined || name === 'pipe') {
+      this.pipeListeners_ = undefined
+      this.pipeOnce_ = undefined
+    }
+    if (name === undefined || name === 'unpipe') {
+      this.unpipeListeners_ = undefined
+      this.unpipeOnce_ = undefined
+    }
+    super.removeAllListeners(name)
+    return this
+  }
+
   pipe<T>(destination: T, _options: PipeOptions = {}): T {
     return destination
   }
@@ -238,9 +329,14 @@ export class Readable extends Stream {
     return this
   }
 
-  override emit(name: string, ...args: unknown[]): boolean {
-    return super.emit(name, ...args)
-  }
+  // No `override emit` here: unlike `on`/`once`/etc, `emit` returns `boolean`,
+  // not `this`, so there is no covariant return type to re-declare, and a
+  // pass-through override bought nothing but a second rest-array
+  // materialization on every emit -- `emitDispatch(name, args)` in
+  // `events.ts` already allocates the one array this call genuinely needs.
+  // Inheriting `EventEmitter.emit` directly removes that extra allocation
+  // from every emit this class (and `Duplex`, which layered its own
+  // pass-through on top) makes.
 
   _construct(callback: StreamCallback): void {
     callback(null)
@@ -392,7 +488,9 @@ export class Readable extends Stream {
       const accepted = target.write(args[0])
       if (accepted === false) {
         this.pause()
-        target.once('drain', () => this.resume())
+        target.once('drain', () => {
+          this.resume()
+        })
       }
     }
     const onEnd = (): void => {
@@ -413,7 +511,7 @@ export class Readable extends Stream {
     dataListeners.push(onData)
     endListeners.push(onEnd)
     this.once('end', onEnd)
-    target.emit('pipe', this)
+    target.notifyPipeEvent?.('pipe', this)
     this.on('data', onData)
     return destination
   }
@@ -431,7 +529,7 @@ export class Readable extends Stream {
       targets.splice(index, 1)
       dataListeners.splice(index, 1)
       endListeners.splice(index, 1)
-      target.emit('unpipe', this)
+      target.notifyPipeEvent?.('unpipe', this)
     }
     return this
   }
@@ -441,10 +539,14 @@ export class Readable extends Stream {
   // called on it (`on`); the values it hands back stay `unknown` until push()/destroy() (which
   // already accept unknown/Error|null) decide what to do with them.
   wrap(oldStream: unknown): this {
-    const source = oldStream as { on(name: string, listener: (...args: unknown[]) => void): unknown }
+    const source = oldStream as {
+      on(name: string, listener: (...args: unknown[]) => void): unknown
+    }
     source.on('data', (...args: unknown[]) => this.push(args[0]))
     source.on('end', () => this.push(null))
-    source.on('error', (...args: unknown[]) => this.destroy((args[0] as Error | undefined) ?? null))
+    source.on('error', (...args: unknown[]) => {
+      this.destroy((args[0] as Error | undefined) ?? null)
+    })
     return this
   }
 
@@ -485,7 +587,13 @@ export class Readable extends Stream {
   map(fn: (value: unknown, options?: unknown) => unknown): Readable {
     const output = new Readable({ objectMode: true })
     this.once('end', () => output.push(null))
-    this.once('error', (...args: unknown[]) => output.destroy((args[0] as Error | undefined) ?? null))
+    // Block bodies on these `'error'` forwarders: `destroy` returns the stream,
+    // and an expression body handed it back through the listener's result,
+    // which the `EventHandler` adapter boxes -- publishing every Readable
+    // subclass (the MongoDB driver's cursors and sessions among them).
+    this.once('error', (...args: unknown[]) => {
+      output.destroy((args[0] as Error | undefined) ?? null)
+    })
     this.on('data', (...args: unknown[]) => {
       output.push(fn(args[0]))
     })
@@ -495,7 +603,9 @@ export class Readable extends Stream {
   filter(fn: (value: unknown, options?: unknown) => boolean): Readable {
     const output = new Readable({ objectMode: true })
     this.once('end', () => output.push(null))
-    this.once('error', (...args: unknown[]) => output.destroy((args[0] as Error | undefined) ?? null))
+    this.once('error', (...args: unknown[]) => {
+      output.destroy((args[0] as Error | undefined) ?? null)
+    })
     this.on('data', (...args: unknown[]) => {
       if (fn(args[0])) output.push(args[0])
     })
@@ -505,7 +615,9 @@ export class Readable extends Stream {
   flatMap(fn: (value: unknown, options?: unknown) => unknown[]): Readable {
     const output = new Readable({ objectMode: true })
     this.once('end', () => output.push(null))
-    this.once('error', (...args: unknown[]) => output.destroy((args[0] as Error | undefined) ?? null))
+    this.once('error', (...args: unknown[]) => {
+      output.destroy((args[0] as Error | undefined) ?? null)
+    })
     this.on('data', (...args: unknown[]) => {
       const values = fn(args[0])
       for (let index = 0; index < values.length; index++) output.push(values[index])
@@ -622,9 +734,13 @@ export class Readable extends Stream {
   }
 }
 
+// `value` is `any`, as node declares a Readable's async iterator: a subclass
+// may state what its chunks are (the MongoDB driver's cursor stream is
+// `Readable & AsyncIterable<TSchema>`), and an `unknown` chunk refuses that
+// assignment. The chunk was already the dynamic carrier either way.
 interface NodeReadableIteratorResult {
   done: boolean
-  value: unknown
+  value: any
 }
 
 class NodeReadableIterator {
@@ -638,7 +754,10 @@ class NodeReadableIterator {
 
   next(): Promise<NodeReadableIteratorResult> {
     if (this.stream_ === null) {
-      const result: NodeReadableIteratorResult = { done: true, value: undefined }
+      const result: NodeReadableIteratorResult = {
+        done: true,
+        value: undefined
+      }
       return Promise.resolve(result)
     }
     const stream = this.stream_
@@ -649,11 +768,14 @@ class NodeReadableIterator {
     }
     if (stream.readableEnded || stream.destroyed) {
       this.stream_ = null
-      const result: NodeReadableIteratorResult = { done: true, value: undefined }
+      const result: NodeReadableIteratorResult = {
+        done: true,
+        value: undefined
+      }
       return Promise.resolve(result)
     }
     return new Promise<NodeReadableIteratorResult>((resolve, reject) => {
-      const cleanup: Listener = (..._args: unknown[]): void => {
+      const cleanup = (): void => {
         stream.removeListener('readable', onReadable)
         stream.removeListener('end', onEnd)
         stream.removeListener('error', onError)
@@ -750,28 +872,38 @@ export class Writable extends Stream {
     this.writableNeedDrain = false
   }
 
-  override on(name: string, listener: EventHandler): this {
-    super.on(name, listener)
+  override on(name: 'pipe' | 'unpipe', listener: PipeEventListener): this
+  override on(name: string, listener: EventHandler): this
+  override on(name: string, listener: StreamListener): this {
+    this.addStreamListener(name, listener, false, false)
     return this
   }
 
-  override addListener(name: string, listener: EventHandler): this {
-    super.addListener(name, listener)
+  override addListener(name: 'pipe' | 'unpipe', listener: PipeEventListener): this
+  override addListener(name: string, listener: EventHandler): this
+  override addListener(name: string, listener: StreamListener): this {
+    this.addStreamListener(name, listener, false, false)
     return this
   }
 
-  override prependListener(name: string, listener: EventHandler): this {
-    super.prependListener(name, listener)
+  override prependListener(name: 'pipe' | 'unpipe', listener: PipeEventListener): this
+  override prependListener(name: string, listener: EventHandler): this
+  override prependListener(name: string, listener: StreamListener): this {
+    this.addStreamListener(name, listener, false, true)
     return this
   }
 
-  override once(name: string, listener: EventHandler): this {
-    super.once(name, listener)
+  override once(name: 'pipe' | 'unpipe', listener: PipeEventListener): this
+  override once(name: string, listener: EventHandler): this
+  override once(name: string, listener: StreamListener): this {
+    this.addStreamListener(name, listener, true, false)
     return this
   }
 
-  override prependOnceListener(name: string, listener: EventHandler): this {
-    super.prependOnceListener(name, listener)
+  override prependOnceListener(name: 'pipe' | 'unpipe', listener: PipeEventListener): this
+  override prependOnceListener(name: string, listener: EventHandler): this
+  override prependOnceListener(name: string, listener: StreamListener): this {
+    this.addStreamListener(name, listener, true, true)
     return this
   }
 
@@ -780,9 +912,7 @@ export class Writable extends Stream {
     return this
   }
 
-  override emit(name: string, ...args: unknown[]): boolean {
-    return super.emit(name, ...args)
-  }
+  // No `override emit` -- see the identical note on `Readable` above.
 
   _write(_chunk: unknown, _encoding: string, callback: StreamCallback): void {
     callback(null)
@@ -986,28 +1116,38 @@ export class Duplex extends Readable {
     this.writableNeedDrain = false
   }
 
-  override on(name: string, listener: EventHandler): this {
-    super.on(name, listener)
+  override on(name: 'pipe' | 'unpipe', listener: PipeEventListener): this
+  override on(name: string, listener: EventHandler): this
+  override on(name: string, listener: StreamListener): this {
+    this.addStreamListener(name, listener, false, false)
     return this
   }
 
-  override addListener(name: string, listener: EventHandler): this {
-    super.addListener(name, listener)
+  override addListener(name: 'pipe' | 'unpipe', listener: PipeEventListener): this
+  override addListener(name: string, listener: EventHandler): this
+  override addListener(name: string, listener: StreamListener): this {
+    this.addStreamListener(name, listener, false, false)
     return this
   }
 
-  override prependListener(name: string, listener: EventHandler): this {
-    super.prependListener(name, listener)
+  override prependListener(name: 'pipe' | 'unpipe', listener: PipeEventListener): this
+  override prependListener(name: string, listener: EventHandler): this
+  override prependListener(name: string, listener: StreamListener): this {
+    this.addStreamListener(name, listener, false, true)
     return this
   }
 
-  override once(name: string, listener: EventHandler): this {
-    super.once(name, listener)
+  override once(name: 'pipe' | 'unpipe', listener: PipeEventListener): this
+  override once(name: string, listener: EventHandler): this
+  override once(name: string, listener: StreamListener): this {
+    this.addStreamListener(name, listener, true, false)
     return this
   }
 
-  override prependOnceListener(name: string, listener: EventHandler): this {
-    super.prependOnceListener(name, listener)
+  override prependOnceListener(name: 'pipe' | 'unpipe', listener: PipeEventListener): this
+  override prependOnceListener(name: string, listener: EventHandler): this
+  override prependOnceListener(name: string, listener: StreamListener): this {
+    this.addStreamListener(name, listener, true, true)
     return this
   }
 
@@ -1016,9 +1156,11 @@ export class Duplex extends Readable {
     return this
   }
 
-  override emit(name: string, ...args: unknown[]): boolean {
-    return super.emit(name, ...args)
-  }
+  // No `override emit` -- see the identical note on `Readable` above. Removing
+  // this one also removes a SECOND rest-array copy per emit for every
+  // `Duplex`/`Transform` instance: without it, `Duplex.emit` resolves straight
+  // to `Readable`'s (which no longer re-wraps either), one layer closer to
+  // `EventEmitter.emit`'s own single, unavoidable allocation.
 
   attachPeer(peer: Duplex): void {
     this.peer_ = peer
@@ -1144,11 +1286,7 @@ export class Duplex extends Readable {
 
   static from(body: unknown): Duplex {
     const duplex = new Duplex({ objectMode: true })
-    if (
-      body !== undefined &&
-      body !== null &&
-      typeof (body as { [Symbol.iterator]?: unknown })[Symbol.iterator] === 'function'
-    ) {
+    if (body !== undefined && body !== null && typeof (body as { [Symbol.iterator]?: unknown })[Symbol.iterator] === 'function') {
       for (const value of body as Iterable<unknown>) duplex.push(value)
       duplex.push(null)
     }
@@ -1282,7 +1420,9 @@ function pumpWebReadable(reader: ReadableStreamDefaultReader<unknown>, destinati
 
 function readableFromWeb(readableStream: unknown, options: unknown = undefined): Readable {
   const runtimeOptions = options as { objectMode?: boolean } | undefined
-  const output = new Readable({ objectMode: runtimeOptions !== undefined && runtimeOptions.objectMode === true })
+  const output = new Readable({
+    objectMode: runtimeOptions !== undefined && runtimeOptions.objectMode === true
+  })
   const source = readableStream as ReadableStream<unknown>
   const reader = source.getReader()
   pumpWebReadable(reader, output)
@@ -1320,7 +1460,9 @@ class WebWritableAdapter extends Writable {
 
   constructor(writableStream: unknown, options: unknown = undefined) {
     const runtimeOptions = options as { objectMode?: boolean } | undefined
-    super({ objectMode: runtimeOptions !== undefined && runtimeOptions.objectMode === true })
+    super({
+      objectMode: runtimeOptions !== undefined && runtimeOptions.objectMode === true
+    })
     const sink = writableStream as WritableStream
     this.writer_ = sink.getWriter()
   }
@@ -1416,7 +1558,9 @@ class WebDuplexAdapter extends Duplex {
 
   constructor(pair: unknown, options: unknown = undefined) {
     const runtimeOptions = options as { objectMode?: boolean } | undefined
-    super({ objectMode: runtimeOptions !== undefined && runtimeOptions.objectMode === true })
+    super({
+      objectMode: runtimeOptions !== undefined && runtimeOptions.objectMode === true
+    })
     const runtimePair = pair as WebDuplexPair
     this.writer_ = runtimePair.writable.getWriter()
     const reader = runtimePair.readable.getReader()
@@ -1489,13 +1633,8 @@ export function addAbortSignal<S extends StreamLike>(signal: AbortSignal, stream
   return stream
 }
 
-export function finished(
-  stream: StreamLike,
-  optionsOrCallback: unknown,
-  maybeCallback?: (error?: Error | null) => void
-): () => void {
-  const callback =
-    typeof optionsOrCallback === 'function' ? (optionsOrCallback as (error?: Error | null) => void) : maybeCallback
+export function finished(stream: StreamLike, optionsOrCallback: unknown, maybeCallback?: (error?: Error | null) => void): () => void {
+  const callback = typeof optionsOrCallback === 'function' ? (optionsOrCallback as (error?: Error | null) => void) : maybeCallback
   let called = false
   const done = (error?: Error | null): void => {
     if (called) return
@@ -1541,7 +1680,18 @@ function pipelineArray(streamsAndCallback: unknown[], suppliedCallback: ((error?
   if (streams.length < 2) throw streamError('pipeline requires at least two streams', 'ERR_MISSING_ARGS')
   // Attach downstream first. A Readable created from an in-memory iterable can
   // drain synchronously as soon as its first `data` listener is installed.
-  for (let index = streams.length - 2; index >= 0; index--) streams[index].pipe(streams[index + 1])
+  // Every stream after the first is piped INTO, so it must be writable -- a
+  // Writable or a Duplex (Transform/PassThrough included). Narrowing it here
+  // hands `pipe` a destination whose class has the write surface
+  // `PipeDestination` names; typed as the bare `Stream`, the destination is
+  // a class with no `write`, and there is no view of it as one. One call per
+  // class, so each `pipe` copy views exactly one class.
+  for (let index = streams.length - 2; index >= 0; index--) {
+    const destination = streams[index + 1]
+    if (destination instanceof Duplex) streams[index].pipe(destination)
+    else if (destination instanceof Writable) streams[index].pipe(destination)
+    else throw streamError('pipeline destination is not a writable stream', 'ERR_INVALID_ARG_TYPE')
+  }
   const destination = streams[streams.length - 1]
   if (callback !== undefined) {
     // Route through a local declared `unknown` first. Casting the nominal

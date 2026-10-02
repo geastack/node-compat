@@ -1,0 +1,155 @@
+{
+  "utc": "2026-09-23T13:48:10Z",
+  "settings": {
+    "output": "bench/results/perry-0.5.1520-release-2026-09-23.json",
+    "binary_name": "server-perry",
+    "rounds": 3,
+    "duration": "8s",
+    "skip_bench": true
+  },
+  "node": "v24.21.0",
+  "perry": "perry 0.5.1520",
+  "machine": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Xeon(R) CPU E3-1231 v3 @ 3.40GHz\nCPU family:                              6\nModel:                                   60\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                3\nCPU(s) scaling MHz:                      86%\nCPU max MHz:                             3800.0000\nCPU min MHz:                             800.0000\nBogoMIPS:                                6784.29\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid xsaveopt dtherm ida arat pln pts vnmi md_clear flush_l1d ibpb_exit_to_user\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: VMX disabled\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Unknown: No mitigations\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Retpolines; IBPB conditional; IBRS_FW; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace\n",
+  "start_load": "1.57 0.66 0.26 3/318 2002005",
+  "server_cpus": "0",
+  "load_cpus": "4-7",
+  "connections": 64,
+  "load_threads": 4,
+  "sha256": {
+    "apps/http-parity/server.ts": "674ec022fc87153ca88ffaf2474ed35c264eeeb17503170fbc13d96ba11daa14",
+    "apps/hono-hello/server.ts": "7de6949757315948121a51903d71cd82a57b4c127a2cad14f4e13e49510a7e90",
+    "apps/hono-hello/dist/server-perry": "21af189133aa93762c337173ba28a7b7e4f6516e87fa9077b2acd77d895159bf",
+    "apps/hono-hello/package.json": "c363c0df68d13a7b6da03c4cfa4d926f822e683fa563e9d596d93c35a0f0fed6",
+    "apps/http-parity/driver.mjs": "594471b6aa2e0320f865af42cac4648e83330ff7a9666ef1026c154505421160",
+    "bench/perry-http.py": "4a586e3d066c6632b6c135c9c7c841b3df83299f6ee2fd4f8d9f27b0754f67cf"
+  },
+  "hono": [
+    {
+      "server": "perry",
+      "round": 1,
+      "error": "Server exited before listening: 1",
+      "output": "TypeError: Cannot read properties of undefined (reading 'listen')\n    at <anonymous>\n",
+      "exit": 1
+    },
+    {
+      "server": "node",
+      "round": 1,
+      "startup_ms": 207.85795152187347,
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "11"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 13:48:11 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello Hono!"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 13:48:11 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        },
+        "/missing": {
+          "status": 404,
+          "headers": [
+            [
+              "content-type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "13"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 13:48:11 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "404 Not Found"
+        },
+        "/body/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "12"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 13:48:11 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Perry parity"
+        }
+      },
+      "correct": true,
+      "output": "hono-native listening on http://127.0.0.1:3900\n",
+      "exit": -15
+    }
+  ],
+  "samples": [],
+  "parity": {
+    "status": "blocked",
+    "reason": "No compiled parity binary; build failed"
+  },
+  "complete": true
+}

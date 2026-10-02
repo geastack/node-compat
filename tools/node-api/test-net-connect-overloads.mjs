@@ -81,6 +81,22 @@ try {
     assert.equal(output.stdout.trim(), expected, `IP classification mismatch for ${JSON.stringify(input)}`)
   }
 
+  // process.argv matches node: user arguments start at index 2. execPath is
+  // the symlink-resolved binary (os.tmpdir() is a symlink on macOS), argv0 is
+  // argv[0] exactly as spawned.
+  const argvProbe = await run('process-argv', 'second-user-arg')
+  assert.equal(argvProbe.code, 0, `${argvProbe.stdout}\n${argvProbe.stderr}`)
+  const realExecutable = fs.realpathSync(executable)
+  assert.equal(
+    argvProbe.stdout.trim(),
+    [
+      `argv:${realExecutable}|${realExecutable}|process-argv|second-user-arg`,
+      `argv0:${executable}`,
+      `execPath:${realExecutable}`,
+      'execArgv:0'
+    ].join('\n')
+  )
+
   const idle = await run('constructor-only', address.port)
   assert.equal(idle.code, 0, `${idle.stdout}\n${idle.stderr}`)
   assert.match(idle.stdout, /node-net-constructor-idle-ok/)
@@ -153,7 +169,7 @@ try {
   )
   assert.match(
     socketMethods.stdout,
-    /socket-address:\{"address":"127\.0\.0\.1","family":"IPv4","port":\d+\},1/
+    /socket-address:\{"address":"127\.0\.0\.1","family":"IPv4","port":\d+\},0/
   )
   assert.match(
     socketMethods.stdout,
@@ -167,7 +183,7 @@ try {
   assert.match(socketMethods.stdout, /socket-close/)
   assert.doesNotMatch(`${socketMethods.stdout}\n${socketMethods.stderr}`, /ERR_GEA_NODE_NOT_IMPLEMENTED/)
 
-  for (const mode of ['options', 'positional-host', 'positional-default-host', 'socket-connect']) {
+  for (const mode of ['options', 'positional-host', 'positional-default-host', 'socket-connect', 'lookup', 'auto-family']) {
     const output = await run(mode, address.port)
     assert.equal(output.code, 0, `${output.stdout}\n${output.stderr}`)
     assert.match(output.stdout, new RegExp(`node-net-overload-ok:${mode}`))
@@ -176,8 +192,6 @@ try {
 
   const unsupported = new Map([
     ['unsupported-path', 'node:net.Socket.connect.path'],
-    ['unsupported-lookup', 'node:net.Socket.connect.lookup'],
-    ['unsupported-auto-family', 'node:net.Socket.connect.autoSelectFamily'],
     ['unsupported-fd', 'node:net.Socket.constructor.fd']
   ])
   for (const [mode, operation] of unsupported) {
@@ -195,5 +209,5 @@ try {
 }
 
 process.stdout.write(
-  'Verified node:net defaults, SocketAddress, BlockList, IP classification, Socket stream methods, TCP overloads, and explicit unsupported-option errors\n'
+  'Verified node:net defaults, SocketAddress, BlockList, IP classification, Socket stream methods, TCP overloads (lookup and autoSelectFamily included), and explicit unsupported-option errors\n'
 )

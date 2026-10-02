@@ -1,0 +1,188 @@
+FAIL get-root
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n13\r\nHello, World! GET /\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 19\r\nDate: DATE\r\nConnection: close\r\n\r\nHello, World! GET /"
+FAIL get-plain-implicit-headers
+  --- node ---
+"HTTP/1.1 200 OK\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 10\r\n\r\nplain body"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nDate: DATE\r\nConnection: close\r\n\r\nplain body"
+FAIL get-404
+  --- node ---
+"HTTP/1.1 404 Not Found\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n10\r\nnot found: /nope\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 16\r\nDate: DATE\r\nConnection: close\r\n\r\nnot found: /nope"
+FAIL head-root
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 20\r\nDate: DATE\r\nConnection: close\r\n\r\n"
+FAIL post-echo-content-length
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n17\r\necho:hello world:len=11\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 23\r\nDate: DATE\r\nConnection: close\r\n\r\necho:hello world:len=11"
+FAIL post-echo-empty
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\nb\r\necho::len=0\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\nDate: DATE\r\nConnection: close\r\n\r\necho::len=0"
+FAIL post-echo-chunked
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n13\r\necho:abcdefgh:len=8\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 19\r\nDate: DATE\r\nConnection: close\r\n\r\necho:abcdefgh:len=8"
+FAIL req-headers-join
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n53\r\nmethod=GET;url=/req-info;ver=1.1;x-one=single;x-dup=a, b;cookie=k1=v1; k2=v2;host=h\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 83\r\nDate: DATE\r\nConnection: close\r\n\r\nmethod=GET;url=/req-info;ver=1.1;x-one=single;x-dup=a, b;cookie=k1=v1; k2=v2;host=h"
+FAIL stream-chunked
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n6\r\npart1|\r\n6\r\npart2|\r\n5\r\npart3\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n6\r\npart1|\r\n6\r\npart2|\r\n5\r\npart3\r\n0\r\n\r\n"
+FAIL async-handler
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\nf\r\ngot:async-value\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 15\r\nDate: DATE\r\nConnection: close\r\n\r\ngot:async-value"
+FAIL timer-handler
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\nb\r\ntimer-fired\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\nDate: DATE\r\nConnection: close\r\n\r\ntimer-fired"
+FAIL status-message
+  --- node ---
+"HTTP/1.1 418 Short and Stout\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 6\r\n\r\nteapot"
+  --- gea ----
+"HTTP/1.1 418 Short and Stout\r\nContent-Length: 6\r\nDate: DATE\r\nConnection: close\r\n\r\nteapot"
+PASS status-204
+FAIL headers-api
+  --- node ---
+"HTTP/1.1 200 OK\r\nX-Alpha: a\r\nX-Beta: b2\r\nX-Probe: has-alpha=true;get-beta=b2;has-gone=false\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 11\r\n\r\nheaders-api"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nX-Alpha: a\r\nX-Beta: b2\r\nX-Probe: has-alpha=true;get-beta=b2;has-gone=false\r\nContent-Length: 11\r\nDate: DATE\r\nConnection: close\r\n\r\nheaders-api"
+FAIL finish-event
+  --- node ---
+"HTTP/1.1 200 OK\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 12\r\n\r\nfinish-event"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Length: 12\r\nDate: DATE\r\nConnection: close\r\n\r\nfinish-event"
+FAIL keep-alive-pair
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\nTransfer-Encoding: chunked\r\n\r\n13\r\nHello, World! GET /\r\n0\r\n\r\nHTTP/1.1 200 OK\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 10\r\n\r\nplain body"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 19\r\nDate: DATE\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\n\r\nHello, World! GET /HTTP/1.1 200 OK\r\nContent-Length: 10\r\nDate: DATE\r\nConnection: close\r\n\r\nplain body"
+FAIL http10-default-close
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: close\r\n\r\nHello, World! GET /"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: close\r\n\r\nHello, World! GET /"
+FAIL http10-keep-alive
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: close\r\n\r\nHello, World! GET /"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nDate: DATE\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\n\r\nHello, World! GET /"
+FAIL expect-100-continue
+  --- node ---
+"HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n10\r\necho:world:len=5\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 16\r\nDate: DATE\r\nConnection: close\r\n\r\necho:world:len=5"
+FAIL bad-request-line
+  --- node ---
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+FAIL unknown-transfer-encoding
+  --- node ---
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+FAIL oversized-headers
+  --- node ---
+"HTTP/1.1 431 Request Header Fields Too Large\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 19\r\nDate: DATE\r\nConnection: close\r\n\r\nHello, World! GET /"
+FAIL query-url
+  --- node ---
+"HTTP/1.1 404 Not Found\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n22\r\nnot found: /nope?a=1&b=two%20three\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 34\r\nDate: DATE\r\nConnection: close\r\n\r\nnot found: /nope?a=1&b=two%20three"
+FAIL set-cookie-array
+  --- node ---
+"HTTP/1.1 200 OK\r\nSet-Cookie: a=1; Path=/\r\nSet-Cookie: b=2; HttpOnly\r\nX-Extra: e1\r\nX-Extra: e2\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 7\r\n\r\ncookies"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nSet-Cookie: a=1; Path=/\r\nSet-Cookie: b=2; HttpOnly\r\nX-Extra: e1,e2\r\nContent-Length: 7\r\nDate: DATE\r\nConnection: close\r\n\r\ncookies"
+FAIL head-implicit-length
+  --- node ---
+"HTTP/1.1 200 OK\r\nDate: DATE\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Length: 13\r\nDate: DATE\r\nConnection: close\r\n\r\n"
+FAIL remote-address
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n16\r\nlocal=true;portok=true\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 22\r\nDate: DATE\r\nConnection: close\r\n\r\nlocal=true;portok=true"
+FAIL big-body-1mb
+  --- node ---
+"HTTP/1.1 200 OK\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 16\r\n\r\nreceived:1048576"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Length: 16\r\nDate: DATE\r\nConnection: close\r\n\r\nreceived:1048576"
+FAIL double-end
+  --- node ---
+"HTTP/1.1 200 OK\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 5\r\n\r\nfirst"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nDate: DATE\r\nConnection: close\r\n\r\nfirst"
+FAIL write-after-end
+  --- node ---
+"HTTP/1.1 200 OK\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 4\r\n\r\ndone"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nDate: DATE\r\nConnection: close\r\n\r\ndone"
+FAIL chunk-extension
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n10\r\necho:abcde:len=5\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 16\r\nDate: DATE\r\nConnection: close\r\n\r\necho:abcde:len=5"
+FAIL chunked-with-trailers
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\ne\r\necho:abc:len=3\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 14\r\nDate: DATE\r\nConnection: close\r\n\r\necho:abc:len=3"
+FAIL malformed-chunk-size
+  --- node ---
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\nDate: DATE\r\nConnection: close\r\n\r\necho::len=0"
+FAIL header-space-in-name
+  --- node ---
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+FAIL obsolete-line-folding
+  --- node ---
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+FAIL pipelined-post-then-get
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\nTransfer-Encoding: chunked\r\n\r\ne\r\necho:abc:len=3\r\n0\r\n\r\nHTTP/1.1 200 OK\r\nDate: DATE\r\nConnection: close\r\nContent-Length: 10\r\n\r\nplain body"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 14\r\nDate: DATE\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\n\r\necho:abc:len=3HTTP/1.1 200 OK\r\nContent-Length: 10\r\nDate: DATE\r\nConnection: close\r\n\r\nplain body"
+FAIL delete-method
+  --- node ---
+"HTTP/1.1 404 Not Found\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n10\r\nnot found: /nope\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 16\r\nDate: DATE\r\nConnection: close\r\n\r\nnot found: /nope"
+FAIL named-group-param
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n14\r\nid=alice;action=edit\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 20\r\nDate: DATE\r\nConnection: close\r\n\r\nid=alice;action=edit"
+FAIL named-group-optional-absent
+  --- node ---
+"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nDate: DATE\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n17\r\nid=bob;action=undefined\r\n0\r\n\r\n"
+  --- gea ----
+"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 23\r\nDate: DATE\r\nConnection: close\r\n\r\nid=bob;action=undefined"
+
+1/38 parity, 37 diffs

@@ -1,0 +1,168 @@
+{
+  "metadata": {
+    "timestamp": "2026-09-26T01:22:10.821Z",
+    "host": "Apple M4 Max (16 logical cores)",
+    "loadAverage": [
+      7.154296875,
+      6.88525390625,
+      7.05126953125
+    ],
+    "mongodb": "8.0.29",
+    "iterations": 20000,
+    "rounds": 3
+  },
+  "samples": [
+    {
+      "round": 1,
+      "driver": "gea-native",
+      "iterations": 20000,
+      "startupConnectWarmupCpuMicroseconds": 1180000,
+      "cpuPerOperation": {
+        "insertOne": 175.5,
+        "findOne": 262.5,
+        "updateOne": 200,
+        "deleteOne": 233
+      },
+      "wallPerOperation": {
+        "insertOne": 422.55,
+        "findOne": 511.5,
+        "updateOne": 466.45,
+        "deleteOne": 491.15
+      },
+      "peakRssBytes": 92569600
+    },
+    {
+      "round": 1,
+      "driver": "nodejs-official",
+      "iterations": 20000,
+      "startupConnectWarmupCpuMicroseconds": 1100000,
+      "cpuPerOperation": {
+        "insertOne": 98,
+        "findOne": 138.5,
+        "updateOne": 96,
+        "deleteOne": 92
+      },
+      "wallPerOperation": {
+        "insertOne": 331.79864585000007,
+        "findOne": 380.00396040000004,
+        "updateOne": 351.0696249999999,
+        "deleteOne": 341.78433955
+      },
+      "peakRssBytes": 161579008
+    },
+    {
+      "round": 2,
+      "driver": "nodejs-official",
+      "iterations": 20000,
+      "startupConnectWarmupCpuMicroseconds": 1060000,
+      "cpuPerOperation": {
+        "insertOne": 88,
+        "findOne": 125.5,
+        "updateOne": 113.5,
+        "deleteOne": 92.5
+      },
+      "wallPerOperation": {
+        "insertOne": 320.77341875,
+        "findOne": 369.7058208000001,
+        "updateOne": 371.4169937500001,
+        "deleteOne": 344.2098249999999
+      },
+      "peakRssBytes": 154091520
+    },
+    {
+      "round": 2,
+      "driver": "gea-native",
+      "iterations": 20000,
+      "startupConnectWarmupCpuMicroseconds": 1560000,
+      "cpuPerOperation": {
+        "insertOne": 113.5,
+        "findOne": 250.5,
+        "updateOne": 206,
+        "deleteOne": 187.99999999999991
+      },
+      "wallPerOperation": {
+        "insertOne": 357.15,
+        "findOne": 501.2,
+        "updateOne": 466.95,
+        "deleteOne": 443.4
+      },
+      "peakRssBytes": 92667904
+    },
+    {
+      "round": 3,
+      "driver": "gea-native",
+      "iterations": 20000,
+      "startupConnectWarmupCpuMicroseconds": 1840000,
+      "cpuPerOperation": {
+        "insertOne": 183.5,
+        "findOne": 235,
+        "updateOne": 177.5,
+        "deleteOne": 213.5
+      },
+      "wallPerOperation": {
+        "insertOne": 426.8,
+        "findOne": 486.55,
+        "updateOne": 436.5,
+        "deleteOne": 469.9
+      },
+      "peakRssBytes": 93093888
+    },
+    {
+      "round": 3,
+      "driver": "nodejs-official",
+      "iterations": 20000,
+      "startupConnectWarmupCpuMicroseconds": 1100000,
+      "cpuPerOperation": {
+        "insertOne": 70,
+        "findOne": 133.5,
+        "updateOne": 114.5,
+        "deleteOne": 119.5
+      },
+      "wallPerOperation": {
+        "insertOne": 301.44586875000005,
+        "findOne": 375.68595419999997,
+        "updateOne": 366.5045458000001,
+        "deleteOne": 370.06744165
+      },
+      "peakRssBytes": 157024256
+    }
+  ],
+  "summary": [
+    {
+      "driver": "gea-native",
+      "cpuMicrosecondsPerOperation": {
+        "insertOne": 175.5,
+        "findOne": 250.5,
+        "updateOne": 200,
+        "deleteOne": 213.5
+      },
+      "cpuMicrosecondsPerOperationMean": 209.875,
+      "wallMicrosecondsPerOperation": {
+        "insertOne": 422.55,
+        "findOne": 501.2,
+        "updateOne": 466.45,
+        "deleteOne": 469.9
+      },
+      "peakRssBytes": 92667904,
+      "startupConnectWarmupCpuMicroseconds": 1560000
+    },
+    {
+      "driver": "nodejs-official",
+      "cpuMicrosecondsPerOperation": {
+        "insertOne": 88,
+        "findOne": 133.5,
+        "updateOne": 113.5,
+        "deleteOne": 92.5
+      },
+      "cpuMicrosecondsPerOperationMean": 106.875,
+      "wallMicrosecondsPerOperation": {
+        "insertOne": 320.77341875,
+        "findOne": 375.68595419999997,
+        "updateOne": 366.5045458000001,
+        "deleteOne": 344.2098249999999
+      },
+      "peakRssBytes": 157024256,
+      "startupConnectWarmupCpuMicroseconds": 1100000
+    }
+  ]
+}

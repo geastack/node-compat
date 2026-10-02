@@ -561,6 +561,11 @@ export const intrinsics = {
     returnType: 'void',
     decl: 'void __gea_node_process_exit(double code);'
   },
+  __gea_node_process_default_exit_status: {
+    emit: '__gea_node_process_default_exit_status',
+    returnType: 'double',
+    decl: 'double __gea_node_process_default_exit_status();'
+  },
   __gea_node_os_available_parallelism: {
     emit: '__gea_node_os_available_parallelism',
     returnType: 'double',
@@ -601,6 +606,54 @@ export const intrinsics = {
   __gea_node_net_create_error: {
     emit: 'gea::node::net_create_error',
     returnType: 'std::string'
+  },
+  __gea_node_net_create_errno: {
+    emit: 'gea::node::net_create_errno',
+    returnType: 'double'
+  },
+  __gea_node_net_error_errno: {
+    emit: 'gea::node::net_error_errno',
+    returnType: 'double'
+  },
+  __gea_node_net_error_syscall: {
+    emit: 'gea::node::net_error_syscall',
+    returnType: 'std::string'
+  },
+  __gea_node_net_errno_name: {
+    emit: 'gea::node::net_errno_name',
+    returnType: 'std::string'
+  },
+  __gea_node_net_resolve: {
+    emit: 'gea::node::net_resolve',
+    returnType: 'double'
+  },
+  __gea_node_net_resolve_count: {
+    emit: 'gea::node::net_resolve_count',
+    returnType: 'double'
+  },
+  __gea_node_net_resolve_address: {
+    emit: 'gea::node::net_resolve_address',
+    returnType: 'std::string'
+  },
+  __gea_node_net_resolve_family: {
+    emit: 'gea::node::net_resolve_family',
+    returnType: 'double'
+  },
+  __gea_node_net_resolve_error_code: {
+    emit: 'gea::node::net_resolve_error_code',
+    returnType: 'std::string'
+  },
+  __gea_node_net_resolve_errno: {
+    emit: 'gea::node::net_resolve_errno',
+    returnType: 'double'
+  },
+  __gea_node_net_resolve_release: {
+    emit: 'gea::node::net_resolve_release',
+    returnType: 'void'
+  },
+  __gea_node_net_addrconfig_hint: {
+    emit: 'gea::node::net_addrconfig_hint',
+    returnType: 'double'
   },
   __gea_node_net_next_event: {
     emit: 'gea::node::net_next_event',

@@ -1,0 +1,811 @@
+{
+  "utc": "2026-09-23T16:03:03Z",
+  "settings": {
+    "output": "bench/results/perry-0.5.1520-raw-performance-2026-09-23.json",
+    "rounds": 3,
+    "duration": "8s"
+  },
+  "node": "v24.21.0",
+  "perry": "perry 0.5.1520",
+  "machine": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Xeon(R) CPU E3-1231 v3 @ 3.40GHz\nCPU family:                              6\nModel:                                   60\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                3\nCPU(s) scaling MHz:                      79%\nCPU max MHz:                             3800.0000\nCPU min MHz:                             800.0000\nBogoMIPS:                                6784.29\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid xsaveopt dtherm ida arat pln pts vnmi md_clear flush_l1d ibpb_exit_to_user\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: VMX disabled\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Unknown: No mitigations\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Retpolines; IBPB conditional; IBRS_FW; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace\n",
+  "server_cpus": "0",
+  "load_cpus": "4-7",
+  "connections": 64,
+  "load_threads": 4,
+  "start_load": "1.36 1.11 0.51 1/275 2034755",
+  "sha256": {
+    "apps/raw-http-hello/server.ts": "9ac7f0a8e89c7105e5adb6d3b43a1b78b129367e0d90974a95ca73a25066f7cf",
+    "apps/raw-http-hello/dist/server-perry-source": "cd96c542fd2959d77733a10e40d102e1be92fa304d814a5df825066059cb7b31",
+    "bench/perry-raw-http.py": "5f428c8c8d5d7d607680a52b680a0269778c411f8196c9f325325346eceab27f"
+  },
+  "compiler_sha256": "6401feb30cb56e965fc99a0c8bc2f9e02e4c0b4e0290f6a129eb65dfb7f7b5c2",
+  "validation": "status, content type and decoded body; wire recorded separately",
+  "checks": [
+    {
+      "server": "perry",
+      "round": 1,
+      "command": [
+        "taskset",
+        "-c",
+        "0",
+        "apps/raw-http-hello/dist/server-perry-source"
+      ],
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=utf-8"
+            ],
+            [
+              "Content-Length",
+              "19"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:03:04 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello, World! GET /"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "application/json; charset=utf-8"
+            ],
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:03:04 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        }
+      },
+      "wire": {
+        "/": "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 19\r\nDate: Wed, 23 Sep 2026 16:03:04 GMT\r\nConnection: close\r\n\r\nHello, World! GET /",
+        "/json": "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: 17\r\nDate: Wed, 23 Sep 2026 16:03:04 GMT\r\nConnection: close\r\n\r\n{\"hello\":\"world\"}"
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3101/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.41ms  433.44us   9.76ms   89.37%\n    Req/Sec    11.47k     3.29k   40.56k    98.77%\n  Latency Distribution\n     50%    1.38ms\n     75%    1.42ms\n     90%    1.68ms\n     99%    2.17ms\n  92380 requests in 2.10s, 16.12MB read\nRequests/sec:  44008.10\nTransfer/sec:      7.68MB\n",
+        "rps": 44008.1,
+        "valid": true
+      },
+      "output": "listening on http://127.0.0.1:3101\n",
+      "exit": -15
+    },
+    {
+      "server": "node",
+      "round": 1,
+      "command": [
+        "taskset",
+        "-c",
+        "0",
+        "node",
+        "apps/raw-http-hello/server.ts"
+      ],
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "content-type",
+              "text/plain; charset=utf-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:03:22 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ],
+            [
+              "Transfer-Encoding",
+              "chunked"
+            ]
+          ],
+          "body": "Hello, World! GET /"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=utf-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:03:22 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ],
+            [
+              "Transfer-Encoding",
+              "chunked"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        }
+      },
+      "wire": {
+        "/": "HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: Wed, 23 Sep 2026 16:03:22 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n13\r\nHello, World! GET /\r\n0\r\n\r\n",
+        "/json": "HTTP/1.1 200 OK\r\ncontent-type: application/json; charset=utf-8\r\nDate: Wed, 23 Sep 2026 16:03:22 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n11\r\n{\"hello\":\"world\"}\r\n0\r\n\r\n"
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3101/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     4.16ms   12.43ms 163.99ms   96.94%\n    Req/Sec     7.34k     3.46k   32.53k    87.65%\n  Latency Distribution\n     50%    1.93ms\n     75%    2.21ms\n     90%    3.62ms\n     99%   78.49ms\n  59156 requests in 2.10s, 11.40MB read\nRequests/sec:  28181.36\nTransfer/sec:      5.43MB\n",
+        "rps": 28181.36,
+        "valid": true
+      },
+      "output": "listening on http://127.0.0.1:3101\n",
+      "exit": -15
+    },
+    {
+      "server": "node",
+      "round": 2,
+      "command": [
+        "taskset",
+        "-c",
+        "0",
+        "node",
+        "apps/raw-http-hello/server.ts"
+      ],
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "content-type",
+              "text/plain; charset=utf-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:03:41 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ],
+            [
+              "Transfer-Encoding",
+              "chunked"
+            ]
+          ],
+          "body": "Hello, World! GET /"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=utf-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:03:41 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ],
+            [
+              "Transfer-Encoding",
+              "chunked"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        }
+      },
+      "wire": {
+        "/": "HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: Wed, 23 Sep 2026 16:03:41 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n13\r\nHello, World! GET /\r\n0\r\n\r\n",
+        "/json": "HTTP/1.1 200 OK\r\ncontent-type: application/json; charset=utf-8\r\nDate: Wed, 23 Sep 2026 16:03:41 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n11\r\n{\"hello\":\"world\"}\r\n0\r\n\r\n"
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3101/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     4.57ms   13.69ms 180.01ms   97.13%\n    Req/Sec     6.75k     1.89k   10.11k    81.93%\n  Latency Distribution\n     50%    2.08ms\n     75%    2.28ms\n     90%    4.07ms\n     99%   86.67ms\n  55692 requests in 2.10s, 10.73MB read\nRequests/sec:  26524.09\nTransfer/sec:      5.11MB\n",
+        "rps": 26524.09,
+        "valid": true
+      },
+      "output": "listening on http://127.0.0.1:3101\n",
+      "exit": -15
+    },
+    {
+      "server": "perry",
+      "round": 2,
+      "command": [
+        "taskset",
+        "-c",
+        "0",
+        "apps/raw-http-hello/dist/server-perry-source"
+      ],
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=utf-8"
+            ],
+            [
+              "Content-Length",
+              "19"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:03:59 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello, World! GET /"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "application/json; charset=utf-8"
+            ],
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:03:59 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        }
+      },
+      "wire": {
+        "/": "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 19\r\nDate: Wed, 23 Sep 2026 16:03:59 GMT\r\nConnection: close\r\n\r\nHello, World! GET /",
+        "/json": "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: 17\r\nDate: Wed, 23 Sep 2026 16:03:59 GMT\r\nConnection: close\r\n\r\n{\"hello\":\"world\"}"
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3101/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.48ms  401.20us   9.98ms   89.02%\n    Req/Sec    10.97k     1.55k   20.55k    97.56%\n  Latency Distribution\n     50%    1.43ms\n     75%    1.48ms\n     90%    1.72ms\n     99%    2.26ms\n  89398 requests in 2.10s, 15.60MB read\nRequests/sec:  42575.67\nTransfer/sec:      7.43MB\n",
+        "rps": 42575.67,
+        "valid": true
+      },
+      "output": "listening on http://127.0.0.1:3101\n",
+      "exit": -15
+    },
+    {
+      "server": "perry",
+      "round": 3,
+      "command": [
+        "taskset",
+        "-c",
+        "0",
+        "apps/raw-http-hello/dist/server-perry-source"
+      ],
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=utf-8"
+            ],
+            [
+              "Content-Length",
+              "19"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:04:18 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello, World! GET /"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "application/json; charset=utf-8"
+            ],
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:04:18 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        }
+      },
+      "wire": {
+        "/": "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 19\r\nDate: Wed, 23 Sep 2026 16:04:18 GMT\r\nConnection: close\r\n\r\nHello, World! GET /",
+        "/json": "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: 17\r\nDate: Wed, 23 Sep 2026 16:04:18 GMT\r\nConnection: close\r\n\r\n{\"hello\":\"world\"}"
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3101/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.39ms  434.22us   9.91ms   88.61%\n    Req/Sec    11.61k     3.29k   40.73k    98.77%\n  Latency Distribution\n     50%    1.36ms\n     75%    1.40ms\n     90%    1.62ms\n     99%    2.23ms\n  93613 requests in 2.10s, 16.34MB read\nRequests/sec:  44587.49\nTransfer/sec:      7.78MB\n",
+        "rps": 44587.49,
+        "valid": true
+      },
+      "output": "listening on http://127.0.0.1:3101\n",
+      "exit": -15
+    },
+    {
+      "server": "node",
+      "round": 3,
+      "command": [
+        "taskset",
+        "-c",
+        "0",
+        "node",
+        "apps/raw-http-hello/server.ts"
+      ],
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "content-type",
+              "text/plain; charset=utf-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:04:36 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ],
+            [
+              "Transfer-Encoding",
+              "chunked"
+            ]
+          ],
+          "body": "Hello, World! GET /"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=utf-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 16:04:36 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ],
+            [
+              "Transfer-Encoding",
+              "chunked"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        }
+      },
+      "wire": {
+        "/": "HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nDate: Wed, 23 Sep 2026 16:04:36 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n13\r\nHello, World! GET /\r\n0\r\n\r\n",
+        "/json": "HTTP/1.1 200 OK\r\ncontent-type: application/json; charset=utf-8\r\nDate: Wed, 23 Sep 2026 16:04:36 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n11\r\n{\"hello\":\"world\"}\r\n0\r\n\r\n"
+      },
+      "correct": true,
+      "warmup": {
+        "command": [
+          "taskset",
+          "-c",
+          "4-7",
+          "wrk",
+          "--latency",
+          "-t4",
+          "-c64",
+          "-d2s",
+          "http://127.0.0.1:3101/"
+        ],
+        "exit": 0,
+        "raw": "Running 2s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     4.23ms   12.81ms 169.33ms   97.22%\n    Req/Sec     7.23k     2.48k   16.77k    84.15%\n  Latency Distribution\n     50%    1.94ms\n     75%    2.20ms\n     90%    3.82ms\n     99%   81.36ms\n  58945 requests in 2.10s, 11.36MB read\nRequests/sec:  28076.35\nTransfer/sec:      5.41MB\n",
+        "rps": 28076.35,
+        "valid": true
+      },
+      "output": "listening on http://127.0.0.1:3101\n",
+      "exit": -15
+    }
+  ],
+  "samples": [
+    {
+      "server": "perry",
+      "round": 1,
+      "workers": 1,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.41ms  213.87us   4.86ms   89.01%\n    Req/Sec    11.41k     1.74k   41.79k    99.69%\n  Latency Distribution\n     50%    1.37ms\n     75%    1.42ms\n     90%    1.61ms\n     99%    2.12ms\n  364610 requests in 8.10s, 63.63MB read\nRequests/sec:  45017.83\nTransfer/sec:      7.86MB\n",
+      "rps": 45017.83,
+      "valid": true
+    },
+    {
+      "server": "perry",
+      "round": 1,
+      "workers": 1,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.35ms  194.97us   3.07ms   88.82%\n    Req/Sec    11.88k     1.78k   42.90k    99.69%\n  Latency Distribution\n     50%    1.32ms\n     75%    1.36ms\n     90%    1.54ms\n     99%    2.03ms\n  379455 requests in 8.10s, 67.67MB read\nRequests/sec:  46849.91\nTransfer/sec:      8.36MB\n",
+      "rps": 46849.91,
+      "valid": true
+    },
+    {
+      "server": "node",
+      "round": 1,
+      "workers": 1,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.98ms    1.47ms  61.36ms   99.20%\n    Req/Sec     8.42k   478.97    13.33k    94.69%\n  Latency Distribution\n     50%    1.89ms\n     75%    1.93ms\n     90%    2.02ms\n     99%    2.20ms\n  268065 requests in 8.02s, 51.64MB read\nRequests/sec:  33432.41\nTransfer/sec:      6.44MB\n",
+      "rps": 33432.41,
+      "valid": true
+    },
+    {
+      "server": "node",
+      "round": 1,
+      "workers": 1,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.88ms    0.96ms  54.54ms   98.60%\n    Req/Sec     8.68k   716.55    16.95k    98.45%\n  Latency Distribution\n     50%    1.85ms\n     75%    1.90ms\n     90%    1.95ms\n     99%    2.13ms\n  278187 requests in 8.10s, 54.65MB read\nRequests/sec:  34344.79\nTransfer/sec:      6.75MB\n",
+      "rps": 34344.79,
+      "valid": true
+    },
+    {
+      "server": "node",
+      "round": 2,
+      "workers": 1,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     2.09ms    1.72ms  73.27ms   99.45%\n    Req/Sec     7.99k     1.41k   32.16k    97.51%\n  Latency Distribution\n     50%    2.00ms\n     75%    2.06ms\n     90%    2.14ms\n     99%    2.36ms\n  255435 requests in 8.10s, 50.18MB read\nRequests/sec:  31536.34\nTransfer/sec:      6.20MB\n",
+      "rps": 31536.34,
+      "valid": true
+    },
+    {
+      "server": "node",
+      "round": 2,
+      "workers": 1,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     2.00ms    0.88ms  52.44ms   98.55%\n    Req/Sec     8.14k     1.27k   30.25k    99.07%\n  Latency Distribution\n     50%    1.98ms\n     75%    2.02ms\n     90%    2.08ms\n     99%    2.26ms\n  259899 requests in 8.10s, 50.07MB read\nRequests/sec:  32087.12\nTransfer/sec:      6.18MB\n",
+      "rps": 32087.12,
+      "valid": true
+    },
+    {
+      "server": "perry",
+      "round": 2,
+      "workers": 1,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.42ms  182.13us   4.90ms   90.00%\n    Req/Sec    11.30k   470.84    17.51k    83.75%\n  Latency Distribution\n     50%    1.37ms\n     75%    1.42ms\n     90%    1.58ms\n     99%    2.11ms\n  359728 requests in 8.02s, 64.15MB read\nRequests/sec:  44852.37\nTransfer/sec:      8.00MB\n",
+      "rps": 44852.37,
+      "valid": true
+    },
+    {
+      "server": "perry",
+      "round": 2,
+      "workers": 1,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.47ms  216.10us   3.73ms   89.18%\n    Req/Sec    10.90k     1.60k   39.09k    99.38%\n  Latency Distribution\n     50%    1.43ms\n     75%    1.48ms\n     90%    1.66ms\n     99%    2.19ms\n  348208 requests in 8.10s, 60.77MB read\nRequests/sec:  42992.57\nTransfer/sec:      7.50MB\n",
+      "rps": 42992.57,
+      "valid": true
+    },
+    {
+      "server": "perry",
+      "round": 3,
+      "workers": 1,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.40ms  192.13us   5.07ms   89.81%\n    Req/Sec    11.45k   364.01    14.16k    75.94%\n  Latency Distribution\n     50%    1.35ms\n     75%    1.39ms\n     90%    1.59ms\n     99%    2.10ms\n  364607 requests in 8.01s, 63.63MB read\nRequests/sec:  45515.22\nTransfer/sec:      7.94MB\n",
+      "rps": 45515.22,
+      "valid": true
+    },
+    {
+      "server": "perry",
+      "round": 3,
+      "workers": 1,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.34ms  177.64us   3.32ms   89.37%\n    Req/Sec    11.99k   492.01    18.22k    86.56%\n  Latency Distribution\n     50%    1.29ms\n     75%    1.34ms\n     90%    1.52ms\n     99%    1.99ms\n  381754 requests in 8.02s, 68.08MB read\nRequests/sec:  47606.48\nTransfer/sec:      8.49MB\n",
+      "rps": 47606.48,
+      "valid": true
+    },
+    {
+      "server": "node",
+      "round": 3,
+      "workers": 1,
+      "path": "/",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.98ms    1.63ms  67.26ms   99.41%\n    Req/Sec     8.43k   751.89    16.59k    96.89%\n  Latency Distribution\n     50%    1.89ms\n     75%    1.94ms\n     90%    2.02ms\n     99%    2.46ms\n  270015 requests in 8.10s, 52.02MB read\nRequests/sec:  33334.55\nTransfer/sec:      6.42MB\n",
+      "rps": 33334.55,
+      "valid": true
+    },
+    {
+      "server": "node",
+      "round": 3,
+      "workers": 1,
+      "path": "/json",
+      "command": [
+        "taskset",
+        "-c",
+        "4-7",
+        "wrk",
+        "--latency",
+        "-t4",
+        "-c64",
+        "-d8s",
+        "http://127.0.0.1:3101/json"
+      ],
+      "exit": 0,
+      "raw": "Running 8s test @ http://127.0.0.1:3101/json\n  4 threads and 64 connections\n  Thread Stats   Avg      Stdev     Max   +/- Stdev\n    Latency     1.89ms  841.87us  50.38ms   98.43%\n    Req/Sec     8.60k     1.34k   32.12k    99.07%\n  Latency Distribution\n     50%    1.86ms\n     75%    1.89ms\n     90%    1.98ms\n     99%    2.18ms\n  274730 requests in 8.10s, 53.97MB read\nRequests/sec:  33919.65\nTransfer/sec:      6.66MB\n",
+      "rps": 33919.65,
+      "valid": true
+    }
+  ],
+  "complete": true
+}

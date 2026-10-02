@@ -44,6 +44,13 @@ const port = Number(process.argv[3] ?? '0')
 if (mode === 'ip') {
   const input = process.argv[3] ?? ''
   console.log(`${isIP(input)},${isIPv4(input) ? 1 : 0},${isIPv6(input) ? 1 : 0}`)
+} else if (mode === 'process-argv') {
+  // node's shape: [execPath, script, ...userArgs]; a compiled program's
+  // script slot is its own absolute path, as in pkg and node SEA.
+  console.log(`argv:${process.argv.join('|')}`)
+  console.log(`argv0:${process.argv0}`)
+  console.log(`execPath:${process.execPath}`)
+  console.log(`execArgv:${process.execArgv.length}`)
 } else if (mode === 'constructor-only') {
   const socket = new Socket()
   if (socket.connecting || socket.destroyed || !socket.pending || socket.readyState !== 'opening') {
@@ -143,10 +150,6 @@ if (mode === 'ip') {
   })
 } else if (mode === 'unsupported-path') {
   createConnection('/tmp/gea-node-net.sock')
-} else if (mode === 'unsupported-lookup') {
-  createConnection({ port, lookup: () => undefined })
-} else if (mode === 'unsupported-auto-family') {
-  createConnection({ port, autoSelectFamily: true })
 } else if (mode === 'unsupported-fd') {
   new Socket({ fd: 1 })
 } else {
@@ -174,6 +177,19 @@ if (mode === 'ip') {
   } else if (mode === 'positional-default-host') {
     socket = connect(port)
     socket.once('connect', onConnect)
+  } else if (mode === 'lookup') {
+    // A custom lookup answers the name; node hands it `all: true` under
+    // happy eyeballs (the default), so it answers with a list.
+    socket = createConnection(
+      {
+        host: 'overloads.invalid',
+        port,
+        lookup: (_hostname, _options, callback) => callback(null, [{ address: '127.0.0.1', family: 4 }])
+      },
+      onConnect
+    )
+  } else if (mode === 'auto-family') {
+    socket = createConnection({ host: 'localhost', port, autoSelectFamily: true }, onConnect)
   } else if (mode === 'socket-connect') {
     socket = new Socket({ noDelay: true, keepAlive: true })
     socket.connect(port, '127.0.0.1', onConnect)

@@ -1,0 +1,271 @@
+{
+  "utc": "2026-09-23T14:10:57Z",
+  "settings": {
+    "output": "bench/results/perry-0.5.1520-source-hono-2026-09-23.json",
+    "binary_name": "server-perry-source",
+    "hono_entry": "apps/hono-hello/server.ts",
+    "skip_parity": true,
+    "rounds": 3,
+    "duration": "8s",
+    "skip_bench": true
+  },
+  "node": "v24.21.0",
+  "perry": "perry 0.5.1520",
+  "machine": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Xeon(R) CPU E3-1231 v3 @ 3.40GHz\nCPU family:                              6\nModel:                                   60\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                3\nCPU(s) scaling MHz:                      87%\nCPU max MHz:                             3800.0000\nCPU min MHz:                             800.0000\nBogoMIPS:                                6784.29\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid xsaveopt dtherm ida arat pln pts vnmi md_clear flush_l1d ibpb_exit_to_user\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: VMX disabled\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Unknown: No mitigations\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Retpolines; IBPB conditional; IBRS_FW; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace\n",
+  "start_load": "1.91 1.75 1.38 3/308 2025200",
+  "server_cpus": "0",
+  "load_cpus": "4-7",
+  "connections": 64,
+  "load_threads": 4,
+  "sha256": {
+    "apps/http-parity/server.ts": "674ec022fc87153ca88ffaf2474ed35c264eeeb17503170fbc13d96ba11daa14",
+    "apps/http-parity/dist/server-perry-source": "ed7594536613adb0269baea1320cdc1d819da4adbb963b26b2119fa99338b410",
+    "apps/hono-hello/server.ts": "7de6949757315948121a51903d71cd82a57b4c127a2cad14f4e13e49510a7e90",
+    "apps/hono-hello/dist/server-perry-source": "abba14b1a9b61fd165ab49a815e654bf0d25c8f677d3ede8027b36bdbf75dd15",
+    "apps/hono-hello/package.json": "c363c0df68d13a7b6da03c4cfa4d926f822e683fa563e9d596d93c35a0f0fed6",
+    "apps/http-parity/driver.mjs": "594471b6aa2e0320f865af42cac4648e83330ff7a9666ef1026c154505421160",
+    "bench/perry-http.py": "d512724997be30ab66f238e8ef0ba7220782fc7c102ce9e59e4253b84e1d746b"
+  },
+  "hono": [
+    {
+      "server": "perry",
+      "round": 1,
+      "startup_ms": 105.78277986496687,
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "11"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:10:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello Hono!"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Content-Type",
+              "application/json"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:10:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        },
+        "/missing": {
+          "status": 404,
+          "headers": [
+            [
+              "Content-Length",
+              "13"
+            ],
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:10:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "404 Not Found"
+        },
+        "/body/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Length",
+              "12"
+            ],
+            [
+              "Content-Type",
+              "text/plain;charset=UTF-8"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:10:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Perry parity"
+        }
+      },
+      "correct": true,
+      "output": "hono-native listening on http://127.0.0.1:3900\n",
+      "exit": -15
+    },
+    {
+      "server": "node",
+      "round": 1,
+      "startup_ms": 207.67953619360924,
+      "responses": {
+        "/": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "11"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:10:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Hello Hono!"
+        },
+        "/json": {
+          "status": 200,
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "Content-Length",
+              "17"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:10:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "{\"hello\":\"world\"}"
+        },
+        "/missing": {
+          "status": 404,
+          "headers": [
+            [
+              "content-type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "13"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:10:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "404 Not Found"
+        },
+        "/body/json": {
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; charset=UTF-8"
+            ],
+            [
+              "Content-Length",
+              "12"
+            ],
+            [
+              "Date",
+              "Wed, 23 Sep 2026 14:10:58 GMT"
+            ],
+            [
+              "Connection",
+              "keep-alive"
+            ],
+            [
+              "Keep-Alive",
+              "timeout=5"
+            ]
+          ],
+          "body": "Perry parity"
+        }
+      },
+      "correct": true,
+      "output": "hono-native listening on http://127.0.0.1:3900\n",
+      "exit": -15
+    }
+  ],
+  "samples": [],
+  "compiler_path": "/home/ubuntu/perry/target/perry-dev/perry",
+  "compiler_sha256": "6401feb30cb56e965fc99a0c8bc2f9e02e4c0b4e0290f6a129eb65dfb7f7b5c2",
+  "packages": {
+    "hono": "4.12.34",
+    "@hono/node-server": "2.1.1"
+  },
+  "parity": {
+    "status": "skipped",
+    "reason": "See separately recorded 38-case run"
+  },
+  "complete": true
+}

@@ -3,9 +3,11 @@
 
 import { Buffer } from './buffer'
 import type { BufferEncoding } from './buffer'
+import { nodeNotImplemented } from './not-implemented'
 
 export type RandomBytesCallback = (error: Error | null, buffer: Buffer) => void
 
+/** @gea-host-inert */
 declare function __gea_node_crypto_random_bytes(size: number): Buffer
 
 function nodeCryptoRandomBytes(size: number): Buffer
@@ -25,9 +27,13 @@ export type BinaryLike = string | Uint8Array
 
 /** @gea-host-inert */
 declare function __gea_node_crypto_validate(algorithm: string): void
+/** @gea-host-inert */
 declare function __gea_node_crypto_digest(algorithm: string, input: Buffer): Buffer
+/** @gea-host-inert */
 declare function __gea_node_crypto_hmac(algorithm: string, key: Buffer, input: Buffer): Buffer
+/** @gea-host-inert */
 declare function __gea_node_crypto_pbkdf2(password: Buffer, salt: Buffer, iterations: number, keyLength: number, digest: string): Buffer
+/** @gea-host-inert */
 declare function __gea_node_crypto_timing_safe_equal(left: Uint8Array, right: Uint8Array): boolean
 /** @gea-host-inert */
 declare function __gea_node_crypto_get_fips(): number
@@ -120,4 +126,70 @@ export function timingSafeEqual(left: Uint8Array, right: Uint8Array): boolean {
 
 export function getFips(): number {
   return __gea_node_crypto_get_fips()
+}
+
+/** Node's `randomFillSync(buffer, offset?, size?)`: fills in place and returns the same view. */
+export function randomFillSync<T extends Uint8Array>(buffer: T, offset: number = 0, size: number = buffer.length - offset): T {
+  if (offset < 0 || offset > buffer.length) throw new RangeError('The value of "offset" is out of range.')
+  if (size < 0 || offset + size > buffer.length) throw new RangeError('The value of "size" is out of range.')
+  buffer.set(__gea_node_crypto_random_bytes(size), offset)
+  return buffer
+}
+
+// Node's cipher and signing classes, at the shapes node declares. The
+// operations are not implemented on this target yet; the MongoDB client-side
+// encryption hooks that name them are only reached through `mongocrypt`'s
+// native addon, which this target cannot load either.
+export class Cipher {
+  setAutoPadding(_autoPadding: boolean = true): Cipher {
+    return this
+  }
+
+  update(_data: BinaryLike): Buffer {
+    return nodeNotImplemented('node:crypto', 'Cipher.update')
+  }
+
+  final(): Buffer {
+    return nodeNotImplemented('node:crypto', 'Cipher.final')
+  }
+}
+
+export class Decipher {
+  setAutoPadding(_autoPadding: boolean = true): Decipher {
+    return this
+  }
+
+  update(_data: BinaryLike): Buffer {
+    return nodeNotImplemented('node:crypto', 'Decipher.update')
+  }
+
+  final(): Buffer {
+    return nodeNotImplemented('node:crypto', 'Decipher.final')
+  }
+}
+
+export class Sign {
+  update(_data: BinaryLike): Sign {
+    return this
+  }
+
+  end(): Sign {
+    return this
+  }
+
+  sign(_privateKey: BinaryLike): Buffer {
+    return nodeNotImplemented('node:crypto', 'Sign.sign')
+  }
+}
+
+export function createCipheriv(_algorithm: string, _key: BinaryLike, _iv: BinaryLike | null): Cipher {
+  return nodeNotImplemented('node:crypto', 'createCipheriv')
+}
+
+export function createDecipheriv(_algorithm: string, _key: BinaryLike, _iv: BinaryLike | null): Decipher {
+  return nodeNotImplemented('node:crypto', 'createDecipheriv')
+}
+
+export function createSign(_algorithm: string): Sign {
+  return nodeNotImplemented('node:crypto', 'createSign')
 }

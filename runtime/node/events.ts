@@ -3,15 +3,18 @@
 // Listener signatures are heterogeneous, so handlers live behind the dynamic
 // value boundary (a genuine dynamic surface -- arbitrary arity, arbitrary arg types).
 //
-// Storage is FLAT parallel arrays — one entry per (event, listener) pair —
-// mutated only through direct field methods (push/splice). Nested arrays
-// (`listeners[i].push(fn)`) are avoided on purpose: element access on a
-// nested vector yields a value copy in the emitted C++, so mutations through
-// it are silently lost.
+// Storage is one `ListenerGroup` per event name, found through a string-keyed
+// Map (a symbol name, which is rare, is found by scanning the group list).
+// Node keys its listeners by name the same way; the flat per-(name, listener)
+// arrays this replaced made every emit compare the name against every
+// listener the emitter held, and mongodb relays each pool event through four
+// emitters of 17-30 relay listeners apiece. A group is a class instance, not
+// a nested array: element access on a nested vector yields a value copy in
+// the emitted C++, so mutations through it would be silently lost.
 
 export type EventArgs = readonly unknown[]
 /** What `emit` applies: a callable handed a positional list it cannot type in advance. */
-export type Listener<A extends EventArgs = EventArgs, R = unknown> = (...args: A) => R
+export type Listener<A extends EventArgs = EventArgs, R = unknown> = (this: EventEmitter, ...args: A) => R
 /**
  * What a caller may register: a callable that accepts any positional list, so
  * every concrete handler is assignable to it -- `net.ts`'s `(socket: Socket)
@@ -141,22 +144,41 @@ export function addAbortListener(signal: AbortSignal, resource: (event?: Event) 
   return disposable
 }
 
-export class EventEmitter {
-  private entryNames_: EventName[] | undefined
-  private entryOnce_: boolean[] | undefined
+/** One event name's listeners, in registration order. */
+class ListenerGroup {
+  readonly name: EventName
   // Listener identity is observable (`on(name, fn); off(name, fn)`). A native
   // `std::function` array cannot implement that contract because every insert
   // and read copies the callable into a distinct C++ function object. Keep the
   // original JS function objects at this deliberately dynamic boundary instead:
   // copying a gea_cpp_value preserves its shared callable identity.
-  private entryFns_: Listener[] | undefined
+  readonly fns: Listener[]
+  readonly once: boolean[]
+
+  constructor(name: EventName) {
+    this.name = name
+    this.fns = []
+    this.once = []
+  }
+}
+
+export class EventEmitter {
+  // Every group, in the order its name was first registered (`eventNames()`);
+  // a group leaves when its last listener does, as Node deletes the key.
+  private groups_: ListenerGroup[] | undefined
+  private byString_: Map<string, ListenerGroup> | undefined
   private maxListeners_: number
   private captureRejections_: boolean
+  // Set once a `newListener`/`removeListener` group has ever existed, never
+  // cleared: until then no registration or removal needs the two meta-event
+  // lookups (each a string union built and a Map probe), which the driver
+  // paid on every listener it adds and drops per operation.
+  private metaWatched_: boolean
 
   constructor(options?: EventEmitterOptions) {
-    this.entryNames_ = undefined
-    this.entryOnce_ = undefined
-    this.entryFns_ = undefined
+    this.groups_ = undefined
+    this.byString_ = undefined
+    this.metaWatched_ = false
     this.maxListeners_ = -1
     this.captureRejections_ = options === undefined ? captureRejections : (options.captureRejections ?? captureRejections)
   }
@@ -208,52 +230,136 @@ export class EventEmitter {
     }
   }
 
+  /** @gea-event-listen-via 0 1 */
   static once(emitter: EventEmitter, name: EventName): Promise<unknown[]> {
     return once(emitter, name)
   }
 
+  /** @gea-event-listen-via 0 1 */
   static on(emitter: EventEmitter, name: EventName, options: StaticEventEmitterIteratorOptions = {}): EventIterator {
     return on(emitter, name, options)
   }
 
   // Subclass hook (IncomingMessage uses it to start body delivery when a
   // 'data'/'end' listener shows up after dispatch).
+  /** @gea-event-registration-hook */
   protected newListenerAdded(_name: EventName): void {}
 
   // Internal lifecycle emitters can avoid constructing event-name unions and
   // rest-argument arrays when this instance has never had a listener.
+  /** @gea-event-listener-state */
   protected hasAnyListeners(): boolean {
-    const names = this.entryNames_
-    return names !== undefined && names.length > 0
+    const groups = this.groups_
+    return groups !== undefined && groups.length > 0
+  }
+
+  // A string name's group stays in `byString_` after its last listener leaves
+  // (`dropEntry`), emptied, so the next registration of that name reuses the
+  // group and its two arrays instead of building them again: the driver adds
+  // and drops the same few listeners on its connection streams once per
+  // operation. Only a group holding listeners is ever visible here.
+  private groupOf(name: EventName): ListenerGroup | undefined {
+    if (typeof name === 'string') {
+      const byString = this.byString_
+      if (byString === undefined) return undefined
+      const found = byString.get(name)
+      return found !== undefined && found.fns.length > 0 ? found : undefined
+    }
+    const groups = this.groups_
+    if (groups === undefined) return undefined
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].name === name) return groups[i]
+    }
+    return undefined
+  }
+
+  /** Drops entry `index` of `group`, and the group itself once it is empty. */
+  private dropEntry(group: ListenerGroup, index: number): void {
+    group.fns.splice(index, 1)
+    group.once.splice(index, 1)
+    if (group.fns.length > 0) return
+    const groups = this.groups_
+    if (groups !== undefined) {
+      for (let i = 0; i < groups.length; i++) {
+        if (groups[i] === group) {
+          groups.splice(i, 1)
+          break
+        }
+      }
+    }
+    const name = group.name
+    const byString = this.byString_
+    // Parked, not deleted, while the set of names stays small; a program that
+    // mints event names (one per request id, say) must not grow it without bound.
+    if (typeof name === 'string' && byString !== undefined && byString.size > 32) {
+      byString.delete(name)
+    }
+  }
+
+  // Node's own guard (`events.newListener !== undefined` in lib/events.js):
+  // the meta-event is dispatched only when someone listens for it. Without
+  // it every registration packed an argument array and ran a full dispatch
+  // to find nobody -- the mongodb driver registers and removes several
+  // listeners per operation.
+  private hasListenersFor(name: EventName): boolean {
+    return this.groupOf(name) !== undefined
+  }
+
+  private notifyRemoved(name: EventName, fn: Listener): void {
+    if (this.metaWatched_ && this.hasListenersFor('removeListener')) this.emitDispatch('removeListener', pack(name, fn))
   }
 
   private addEntry(name: EventName, fn: EventHandler, once: boolean, prepend: boolean): void {
-    this.emitDispatch('newListener', pack(name, fn))
+    if (this.metaWatched_ && this.hasListenersFor('newListener')) this.emitDispatch('newListener', pack(name, fn))
     // The single widening in this file. A registered handler declares the
     // arguments it wants; storage is shared by every event on this emitter and
     // is applied to a list only `emit` knows. Node's own types spell this with
     // a fully permissive rest parameter; keeping it to one conversion on a
     // typed callable keeps the dispatch loop's carrier native.
     const stored = fn as Listener
-    let names = this.entryNames_
-    let onceEntries = this.entryOnce_
-    let fns = this.entryFns_
-    if (names === undefined || onceEntries === undefined || fns === undefined) {
-      names = []
-      onceEntries = []
-      fns = []
-      this.entryNames_ = names
-      this.entryOnce_ = onceEntries
-      this.entryFns_ = fns
+    // One map probe for a string name: it finds the live group, or the parked
+    // empty one, which is what the second probe below used to fetch.
+    let group: ListenerGroup | undefined = undefined
+    let parked: ListenerGroup | undefined = undefined
+    if (typeof name === 'string') {
+      const byString = this.byString_
+      if (byString !== undefined) {
+        parked = byString.get(name)
+        if (parked !== undefined && parked.fns.length > 0) group = parked
+      }
+    } else {
+      group = this.groupOf(name)
+    }
+    if (group === undefined) {
+      let groups = this.groups_
+      if (groups === undefined) {
+        groups = []
+        this.groups_ = groups
+      }
+      // A parked group re-enters at the END of the registration order, as a
+      // name Node deleted and registered again does.
+      if (parked !== undefined) {
+        group = parked
+      } else {
+        group = new ListenerGroup(name)
+        if (name === 'newListener' || name === 'removeListener') this.metaWatched_ = true
+        if (typeof name === 'string') {
+          let byString = this.byString_
+          if (byString === undefined) {
+            byString = new Map<string, ListenerGroup>()
+            this.byString_ = byString
+          }
+          byString.set(name, group)
+        }
+      }
+      groups.push(group)
     }
     if (prepend) {
-      names.unshift(name)
-      onceEntries.unshift(once)
-      fns.unshift(stored)
+      group.fns.unshift(stored)
+      group.once.unshift(once)
     } else {
-      names.push(name)
-      onceEntries.push(once)
-      fns.push(stored)
+      group.fns.push(stored)
+      group.once.push(once)
     }
     this.newListenerAdded(name)
   }
@@ -282,26 +388,31 @@ export class EventEmitter {
   //
   // Return type `this`, not `EventEmitter`, so a subclass's `.on(...)` chain
   // keeps the subclass type.
+  /** @gea-event-listen */
   on(name: EventName, fn: EventHandler): this {
     this.addEntry(name, fn, false, false)
     return this
   }
 
+  /** @gea-event-listen */
   addListener(name: EventName, fn: EventHandler): this {
     this.addEntry(name, fn, false, false)
     return this
   }
 
+  /** @gea-event-listen */
   prependListener(name: EventName, fn: EventHandler): this {
     this.addEntry(name, fn, false, true)
     return this
   }
 
+  /** @gea-event-listen */
   once(name: EventName, fn: EventHandler): this {
     this.addEntry(name, fn, true, false)
     return this
   }
 
+  /** @gea-event-listen */
   prependOnceListener(name: EventName, fn: EventHandler): this {
     this.addEntry(name, fn, true, true)
     return this
@@ -318,95 +429,106 @@ export class EventEmitter {
   }
 
   private removeEntry(name: EventName, fn: unknown): void {
-    const names = this.entryNames_
-    const onceEntries = this.entryOnce_
-    const fns = this.entryFns_
-    if (names === undefined || onceEntries === undefined || fns === undefined) return
-    for (let i = names.length - 1; i >= 0; i--) {
-      if (names[i] === name && fns[i] === fn) {
-        names.splice(i, 1)
-        onceEntries.splice(i, 1)
-        fns.splice(i, 1)
-        this.emitDispatch('removeListener', pack(name, fn))
+    const group = this.groupOf(name)
+    if (group === undefined) return
+    const fns = group.fns
+    for (let i = fns.length - 1; i >= 0; i--) {
+      if (fns[i] === fn) {
+        const removedFn: Listener = fns[i]
+        this.dropEntry(group, i)
+        this.notifyRemoved(name, removedFn)
         return
       }
     }
   }
 
+  // Last registered first, and `removeListener` itself last: Node's order.
+  private removeGroup(group: ListenerGroup, notify: boolean): void {
+    const fns = group.fns
+    for (let i = fns.length - 1; i >= 0; i--) {
+      const removedFn: Listener = fns[i]
+      this.dropEntry(group, i)
+      if (notify) this.notifyRemoved(group.name, removedFn)
+    }
+  }
+
   removeAllListeners(name: EventName | undefined = undefined): this {
-    const names = this.entryNames_
-    const onceEntries = this.entryOnce_
-    const fns = this.entryFns_
-    if (names === undefined || onceEntries === undefined || fns === undefined) return this
+    const groups = this.groups_
+    if (groups === undefined) return this
     if (name === undefined) {
-      for (let i = names.length - 1; i >= 0; i--) {
-        const removedName: EventName = names[i]
-        const removedFn: Listener = fns[i]
-        names.splice(i, 1)
-        onceEntries.splice(i, 1)
-        fns.splice(i, 1)
-        if (removedName !== 'removeListener') this.emitDispatch('removeListener', pack(removedName, removedFn))
+      const snapshot: ListenerGroup[] = []
+      for (let i = 0; i < groups.length; i++) snapshot.push(groups[i])
+      let removeListenerGroup: ListenerGroup | undefined = undefined
+      for (let i = 0; i < snapshot.length; i++) {
+        if (snapshot[i].name === 'removeListener') removeListenerGroup = snapshot[i]
+        else this.removeGroup(snapshot[i], true)
       }
+      if (removeListenerGroup !== undefined) this.removeGroup(removeListenerGroup, false)
       return this
     }
-    for (let i = names.length - 1; i >= 0; i--) {
-      if (names[i] === name) {
-        const removedFn: Listener = fns[i]
-        names.splice(i, 1)
-        onceEntries.splice(i, 1)
-        fns.splice(i, 1)
-        this.emitDispatch('removeListener', pack(name, removedFn))
-      }
-    }
+    const group = this.groupOf(name)
+    if (group !== undefined) this.removeGroup(group, true)
     return this
   }
 
   // Same single-generic-signature reasoning as the registration methods
   // above (see the comment on `on`). Delegates to the private
   // `emitDispatch`, never recurses through `this.emit` itself.
+  /** @gea-event-emit */
   emit(name: EventName, ...args: readonly unknown[]): boolean {
     return this.emitDispatch(name, args as unknown[])
   }
 
   private emitDispatch(name: EventName, args: unknown[]): boolean {
     if (name === 'error' && this.listenerCount(errorMonitor) > 0) this.emitDispatch(errorMonitor, args)
-    const names = this.entryNames_
-    const onceEntries = this.entryOnce_
-    const fns = this.entryFns_
-    if (names === undefined || onceEntries === undefined || fns === undefined || names.length === 0) {
+    const group = this.groupOf(name)
+    if (group === undefined) {
       if (name === 'error') throw args[0] instanceof Error ? args[0] : new Error('Unhandled error event')
       return false
     }
-    // Snapshot matching listeners first: a listener may add/remove listeners
+    // Snapshot the listeners first: a listener may add/remove listeners
     // while running, and `once` entries are removed BEFORE they run (Node
-    // semantics — a once listener re-registering itself works).
+    // semantics — a once listener re-registering itself works). The common
+    // emit has exactly one listener (Node's own fast path is the same: a
+    // single function is stored bare, an array only from the second on), so
+    // the snapshot array is built only when there are several.
+    const fns = group.fns
+    const onceEntries = group.once
+    if (fns.length === 1) {
+      const fn: Listener = fns[0]
+      if (onceEntries[0]) {
+        this.dropEntry(group, 0)
+        this.notifyRemoved(name, fn)
+      }
+      this.runListener(fn, name, args)
+      return true
+    }
     const toRun: Listener[] = []
-    for (let i = 0; i < names.length; i++) {
-      if (names[i] === name) toRun.push(fns[i])
+    let hasOnce = false
+    for (let i = 0; i < fns.length; i++) {
+      toRun.push(fns[i])
+      if (onceEntries[i]) hasOnce = true
     }
-    if (toRun.length === 0) {
-      if (name === 'error') throw args[0] instanceof Error ? args[0] : new Error('Unhandled error event')
-      return false
-    }
-    for (let i = names.length - 1; i >= 0; i--) {
-      if (names[i] === name && onceEntries[i]) {
-        const removedFn: Listener = fns[i]
-        names.splice(i, 1)
-        onceEntries.splice(i, 1)
-        fns.splice(i, 1)
-        this.emitDispatch('removeListener', pack(name, removedFn))
+    if (hasOnce) {
+      for (let i = fns.length - 1; i >= 0; i--) {
+        if (onceEntries[i]) {
+          const removedFn: Listener = fns[i]
+          this.dropEntry(group, i)
+          this.notifyRemoved(name, removedFn)
+        }
       }
     }
-    for (let i = 0; i < toRun.length; i++) {
-      const fn: Listener = toRun[i]
-      // `instanceof Promise` rather than a structural `.then` probe: a hand-rolled
-      // thenable interface has no native representation, so the receiver reads as
-      // opaque and the compiler marks a globalThis-mutation wildcard that
-      // invalidates every authenticated host global in the program.
-      const result: unknown = fn.apply(this, args)
-      if (this.captureRejections_) this.captureRejection(result, name, args)
-    }
+    for (let i = 0; i < toRun.length; i++) this.runListener(toRun[i], name, args)
     return true
+  }
+
+  private runListener(fn: Listener, name: EventName, args: unknown[]): void {
+    // `instanceof Promise` rather than a structural `.then` probe: a hand-rolled
+    // thenable interface has no native representation, so the receiver reads as
+    // opaque and the compiler marks a globalThis-mutation wildcard that
+    // invalidates every authenticated host global in the program.
+    const result: unknown = fn.apply(this, args)
+    if (this.captureRejections_) this.captureRejection(result, name, args)
   }
 
   // `await` rather than `.then`: awaiting is the effectful assimilation protocol
@@ -422,30 +544,30 @@ export class EventEmitter {
     }
   }
 
+  /** @gea-event-listener-state */
   listenerCount(name: EventName, listener?: unknown): number {
-    const names = this.entryNames_
-    const fns = this.entryFns_
-    if (names === undefined || fns === undefined) return 0
+    const group = this.groupOf(name)
+    if (group === undefined) return 0
+    const fns = group.fns
+    if (listener === undefined) return fns.length
     let count = 0
-    for (let i = 0; i < names.length; i++) {
-      if (names[i] === name && (listener === undefined || fns[i] === listener)) {
-        count++
-      }
+    for (let i = 0; i < fns.length; i++) {
+      if (fns[i] === listener) count++
     }
     return count
   }
 
+  /** @gea-event-listeners */
   listeners(name: EventName): Listener[] {
     const out: Listener[] = []
-    const names = this.entryNames_
-    const fns = this.entryFns_
-    if (names === undefined || fns === undefined) return out
-    for (let i = 0; i < names.length; i++) {
-      if (names[i] === name) out.push(fns[i])
-    }
+    const group = this.groupOf(name)
+    if (group === undefined) return out
+    const fns = group.fns
+    for (let i = 0; i < fns.length; i++) out.push(fns[i])
     return out
   }
 
+  /** @gea-event-listeners */
   rawListeners(name: EventName): Listener[] {
     return this.listeners(name)
   }
@@ -460,20 +582,12 @@ export class EventEmitter {
     return this.maxListeners_ < 0 ? defaultMaxListeners : this.maxListeners_
   }
 
+  /** @gea-event-listener-state */
   eventNames(): EventName[] {
     const out: EventName[] = []
-    const names = this.entryNames_
-    if (names === undefined) return out
-    for (let i = 0; i < names.length; i++) {
-      let seen = false
-      for (let j = 0; j < out.length; j++) {
-        if (out[j] === names[i]) {
-          seen = true
-          break
-        }
-      }
-      if (!seen) out.push(names[i])
-    }
+    const groups = this.groups_
+    if (groups === undefined) return out
+    for (let i = 0; i < groups.length; i++) out.push(groups[i].name)
     return out
   }
 
@@ -574,6 +688,7 @@ export class EventIterator {
   private errorListener_: EventHandler
   private closeListener_: () => void
 
+  /** @gea-event-listen-via 0 1 */
   constructor(emitter: EventEmitter, eventName: EventName, options: StaticEventEmitterIteratorOptions = {}) {
     this.emitter_ = emitter
     const pausable = emitter as unknown as PausableEmitterMethods
@@ -685,8 +800,11 @@ export class EventIterator {
   }
 }
 
+// Node's own check (`validateNumber(n, 'setMaxListeners', 0)`) rejects NaN and
+// negatives only: `Infinity` is the documented "unlimited", and mongodb's
+// connection pool sets it on its cancellation token.
 function validateMaxListeners(n: number): void {
-  if (!Number.isFinite(n) || n < 0) {
+  if (Number.isNaN(n) || n < 0) {
     const error = new RangeError('The value of "n" is out of range. It must be a non-negative number.') as RangeError & {
       code: string
     }
@@ -718,6 +836,7 @@ export function setMaxListeners(n: number = 10, ...emitters: EventEmitter[]): vo
   }
 }
 
+/** @gea-event-listen-via 0 1 */
 export function once(emitter: EventEmitter, name: EventName): Promise<unknown[]> {
   return new Promise<unknown[]>((resolve, reject) => {
     const onEvent: Listener = (...values: unknown[]) => {
@@ -733,6 +852,7 @@ export function once(emitter: EventEmitter, name: EventName): Promise<unknown[]>
   })
 }
 
+/** @gea-event-listen-via 0 1 */
 export function on(emitter: EventEmitter, name: EventName, options: StaticEventEmitterIteratorOptions = {}): EventIterator {
   return new EventIterator(emitter, name, options)
 }

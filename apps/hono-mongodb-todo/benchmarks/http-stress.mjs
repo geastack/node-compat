@@ -7,7 +7,10 @@ import { fileURLToPath } from "node:url";
 const benchmarkRoot = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(benchmarkRoot, "..");
 const resultRoot = path.join(benchmarkRoot, "results");
-const nativeExecutable = path.join(appRoot, "dist/hono-mongodb");
+const nativeFlag = process.argv.find((value) => value.startsWith("--native="));
+const nativeExecutable = nativeFlag
+  ? path.resolve(nativeFlag.slice("--native=".length))
+  : path.join(appRoot, "dist/hono-mongodb");
 const nodeEntry = path.join(appRoot, "dist-node/server.js");
 
 const numberFlag = (name, fallback) => {
@@ -74,6 +77,23 @@ const rssBytes = (pid) => {
   } catch {
     return 0;
   }
+};
+
+// The server process's cumulative user+system CPU, every thread included, in
+// microseconds. `ps` reports it as [[hh:]mm:]ss.cc. Time the server spends
+// WAITING on MongoDB is not CPU time, so CPU per request is the server's own
+// cost of a request with the database's latency taken out; MongoDB's own CPU
+// runs in another process and is not counted either.
+const cpuMicroseconds = (pid) => {
+  const text = execFileSync("ps", ["-o", "time=", "-p", String(pid)], {
+    encoding: "utf8",
+  }).trim();
+  const seconds = text
+    .split(":")
+    .reduce((total, part) => total * 60 + Number(part), 0);
+  if (!Number.isFinite(seconds))
+    throw new Error(`could not parse ps CPU time "${text}" for PID ${pid}`);
+  return seconds * 1_000_000;
 };
 
 const liveHeap = (pid) => {
@@ -191,6 +211,7 @@ async function runWrk(runtime, server, profile, duration) {
   child.stderr.on("data", (chunk) => {
     stderr += chunk.toString();
   });
+  const cpuBefore = cpuMicroseconds(server.child.pid);
   const memory = [server.idleRssBytes, rssBytes(server.child.pid)];
   const sampler = setInterval(() => {
     memory.push(rssBytes(server.child.pid));
@@ -199,6 +220,7 @@ async function runWrk(runtime, server, profile, duration) {
     child.once("exit", (code, signal) => resolve({ code, signal })),
   );
   clearInterval(sampler);
+  const cpuAfter = cpuMicroseconds(server.child.pid);
   memory.push(rssBytes(server.child.pid));
   if (result.code !== 0) {
     throw new Error(
@@ -224,6 +246,8 @@ async function runWrk(runtime, server, profile, duration) {
     connections: profile.connections,
     durationSeconds: duration,
     ...parsed,
+    serverCpuMicroseconds: cpuAfter - cpuBefore,
+    cpuMicrosecondsPerRequest: (cpuAfter - cpuBefore) / parsed.completedRequests,
     peakServerRssBytes: Math.max(...memory),
   };
 }
@@ -365,6 +389,9 @@ try {
         medianCompletedRequests: median(
           selected.map((sample) => sample.completedRequests),
         ),
+        medianCpuMicrosecondsPerRequest: median(
+          selected.map((sample) => sample.cpuMicrosecondsPerRequest),
+        ),
         medianLatencyP99Microseconds: median(
           selected.map((sample) => durationMicroseconds(sample.latencyP99)),
         ),
@@ -376,6 +403,9 @@ try {
         row.medianRequestsPerSecond / node.medianRequestsPerSecond;
       row.peakRssVsNode =
         row.medianPeakServerRssBytes / node.medianPeakServerRssBytes;
+      row.cpuPerRequestVsNode =
+        row.medianCpuMicrosecondsPerRequest /
+        node.medianCpuMicrosecondsPerRequest;
     }
     return rows;
   });
@@ -409,6 +439,8 @@ try {
         "shared local MongoDB; direct connection; pool size four; read-only during timed HTTP profiles",
       memory:
         "server-process RSS sampled every 250 ms; MongoDB and wrk process memory excluded",
+      cpu:
+        "server-process user+system CPU (all threads) across each wrk run, divided by completed requests; time spent waiting on MongoDB is not CPU time, and MongoDB and wrk CPU run in other processes, so this is the server's own per-request cost with database latency excluded (ps resolution 10 ms per run)",
       allocations:
         "macOS leaks live heap-node count and bytes after all stress profiles; this is a retained-allocation snapshot, not cumulative malloc calls",
       correctness:
@@ -456,6 +488,21 @@ try {
       return `| ${profile.name} | ${rate(gea.medianRequestsPerSecond)} | ${rate(node.medianRequestsPerSecond)} | ${gea.throughputVsNode.toFixed(2)}× | ${mib(gea.medianPeakServerRssBytes)} MiB | ${mib(node.medianPeakServerRssBytes)} MiB | ${gea.peakRssVsNode.toFixed(2)}× |`;
     }),
     "",
+    "Server CPU per request -- the server's own cost, with MongoDB latency and MongoDB/wrk CPU excluded:",
+    "",
+    "| Profile | Gea CPU/request | Node CPU/request | Gea vs Node |",
+    "|---|---:|---:|---:|",
+    ...profiles.map((profile) => {
+      const gea = summary.find(
+        (row) => row.profile === profile.name && row.runtime === "gea-native",
+      );
+      const node = summary.find(
+        (row) =>
+          row.profile === profile.name && row.runtime === "nodejs-official",
+      );
+      return `| ${profile.name} | ${gea.medianCpuMicrosecondsPerRequest.toFixed(1)} µs | ${node.medianCpuMicrosecondsPerRequest.toFixed(1)} µs | ${gea.cpuPerRequestVsNode.toFixed(2)}× |`;
+    }),
+    "",
     "| Profile | Gea p99 latency | Node p99 latency |",
     "|---|---:|---:|",
     ...profiles.map((profile) => {
@@ -476,7 +523,7 @@ try {
     `Idle server RSS: Gea ${mib(servers.get("gea-native").idleRssBytes)} MiB; Node ${mib(servers.get("nodejs-official").idleRssBytes)} MiB. MongoDB server memory is excluded.`,
     `Post-stress live heap: Gea ${heapSnapshots["gea-native"].liveAllocationCount.toLocaleString("en-US")} allocations / ${mib(heapSnapshots["gea-native"].liveAllocationBytes)} MiB; Node ${heapSnapshots["nodejs-official"].liveAllocationCount.toLocaleString("en-US")} allocations / ${mib(heapSnapshots["nodejs-official"].liveAllocationBytes)} MiB. These are retained allocations reported by macOS \`leaks\`, not cumulative allocation calls.`,
     "",
-    "Raw per-round throughput, latency, request counts, errors, and sampled RSS are in `http-stress-latest.json`.",
+    "Raw per-round throughput, latency, CPU, request counts, errors, and sampled RSS are in `http-stress-latest.json`.",
   ];
   fs.writeFileSync(
     path.join(resultRoot, "http-stress-latest.md"),

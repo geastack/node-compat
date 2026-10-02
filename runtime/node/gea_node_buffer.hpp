@@ -159,14 +159,27 @@ inline std::size_t copyIndex(double value, const char* message) {
   return static_cast<std::size_t>(integer);
 }
 
-/** node's encoding aliases, folded to the names the codecs below switch on. */
-inline std::string normalizeEncoding(std::string encoding) {
+/**
+ * node's encoding aliases, folded to the names the codecs below switch on.
+ *
+ * By reference and answering a static name: every `buf.write(text)` and
+ * `Buffer.byteLength(text)` asks this about "utf8", and a by-value string plus
+ * a lowered copy per call was the whole cost of concluding what the caller
+ * spelled out. Exact lowercase names return before any folding.
+ */
+inline std::string_view normalizeEncoding(const std::string& requested) {
+  static constexpr std::string_view names[] = {"utf8", "hex", "base64", "base64url", "latin1", "ascii", "utf16le"};
+  if (requested.empty() || requested == "utf8" || requested == "utf-8") return names[0];
+  for (std::string_view name : names) {
+    if (requested == name) return name;
+  }
+  std::string encoding = requested;
   for (char& ch : encoding) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-  if (encoding.empty() || encoding == "utf-8") return "utf8";
+  if (encoding == "utf-8") return names[0];
   if (encoding == "ucs2" || encoding == "ucs-2" || encoding == "utf-16le") return "utf16le";
   if (encoding == "binary") return "latin1";
-  if (encoding == "utf8" || encoding == "hex" || encoding == "base64" || encoding == "base64url" || encoding == "latin1" || encoding == "ascii" || encoding == "utf16le") {
-    return encoding;
+  for (std::string_view name : names) {
+    if (encoding == name) return name;
   }
   throwType(std::string("Unknown encoding: ") + encoding);
 }
@@ -259,8 +272,8 @@ inline std::vector<std::uint32_t> codePointsOf(const std::string& input) {
   return points;
 }
 
-inline std::vector<std::uint8_t> encodeString(const std::string& input, std::string encoding) {
-  encoding = normalizeEncoding(std::move(encoding));
+inline std::vector<std::uint8_t> encodeString(const std::string& input, const std::string& requestedEncoding) {
+  const std::string_view encoding = normalizeEncoding(requestedEncoding);
   if (encoding == "hex") {
     std::vector<std::uint8_t> out;
     out.reserve(input.size() / 2);
@@ -326,8 +339,24 @@ inline View& writable(const View& view) { return const_cast<View&>(view); }
 // typed-array carrier stores only this opaque address; Node owns its meaning.
 inline constexpr char bufferBrand = 0;
 
+#ifdef GEA_HOST_VIEW_TO_STRING
+// ToString of a Buffer the program only holds boxed is stated to the runtime
+// against the brand (see `buffer::toString` below), and it is stated where the
+// brand is first minted -- `markBuffer` is the only place a view takes it --
+// rather than by an `inline` variable with a dynamic initializer. That
+// variable ran in, and forced the whole UTF-8 decoder into, every translation
+// unit of a program however little it touched a Buffer.
+inline bool bufferBrandRegistered = false;
+[[gnu::noinline]] inline void registerBufferBrand();
+#endif
+
 inline gea::Ref<View> markBuffer(gea::Ref<View> view) {
-  if (view) view->setHostBrand(&bufferBrand);
+  if (view) {
+#ifdef GEA_HOST_VIEW_TO_STRING
+    if (!bufferBrandRegistered) [[unlikely]] registerBufferBrand();
+#endif
+    view->setHostBrand(&bufferBrand);
+  }
   return view;
 }
 
@@ -335,32 +364,57 @@ inline gea::Ref<View> bufferResult(std::vector<std::uint8_t> bytes) {
   return markBuffer(gea::detail::hostTypedArrayResult<std::uint8_t>(std::move(bytes)));
 }
 
+/**
+ * The Buffer-shaped wrapper over an already-built `gea::Ref<gea::ArrayBuffer>`:
+ * a view over the whole block, branded, in one allocation of its own (the
+ * `Ref<View>` control block -- `block` is already built).
+ *
+ * Every `alloc`/`from` overload below that knows its final byte length
+ * upfront constructs the `ArrayBuffer` directly through this, instead of
+ * building a `std::vector<std::uint8_t>` first and handing it to
+ * `bufferResult`/`hostTypedArrayResult`. That used to cost three allocations
+ * for a fresh buffer -- the scratch vector's own data, the `Ref<ArrayBuffer>`
+ * wrapping it, and the `Ref<TypedArray>` view -- and `gea::ArrayBuffer` now
+ * keeps small buffers (OP_MSG headers, most BSON documents) inline in its own
+ * `Ref` block, so this path is down to two: the `Ref<ArrayBuffer>` (data
+ * included) and the `Ref<TypedArray>` view.
+ */
+inline gea::Ref<View> bufferFromArrayBuffer(gea::Ref<gea::ArrayBuffer> block, std::size_t length) {
+  return markBuffer(gea::makeRef<View>(View::fromBuffer(std::move(block), 0, length)));
+}
+
+inline gea::Ref<View> bufferFromSize(std::size_t size, std::uint8_t fill) {
+  return bufferFromArrayBuffer(gea::makeRef<gea::ArrayBuffer>(size, fill), size);
+}
+
 }  // namespace detail
 
 // -- the statics, reached through `Buffer` as a host NAMESPACE ---------------
 
-inline gea::Ref<View> alloc(double size) {
-  return detail::bufferResult(std::vector<std::uint8_t>(detail::allocationSize(size), std::uint8_t{0}));
-}
+inline gea::Ref<View> alloc(double size) { return detail::bufferFromSize(detail::allocationSize(size), std::uint8_t{0}); }
 
 inline gea::Ref<View> alloc(double size, double fill) {
   const std::uint8_t byte = static_cast<std::uint8_t>(static_cast<std::uint64_t>(std::isfinite(fill) ? std::trunc(fill) : 0.0) & 0xffu);
-  return detail::bufferResult(std::vector<std::uint8_t>(detail::allocationSize(size), byte));
+  return detail::bufferFromSize(detail::allocationSize(size), byte);
 }
 
 inline gea::Ref<View> alloc(double size, const std::string& fill, const std::string& encoding = "utf8") {
-  std::vector<std::uint8_t> out(detail::allocationSize(size), std::uint8_t{0});
+  const std::size_t byteLength = detail::allocationSize(size);
+  auto block = gea::makeRef<gea::ArrayBuffer>(byteLength, std::uint8_t{0});
   const std::vector<std::uint8_t> pattern = detail::encodeString(fill, encoding);
-  if (pattern.empty()) return detail::bufferResult(std::move(out));
-  for (std::size_t index = 0; index < out.size(); ++index) out[index] = pattern[index % pattern.size()];
-  return detail::bufferResult(std::move(out));
+  if (!pattern.empty()) {
+    for (std::size_t index = 0; index < byteLength; ++index) block->data()[index] = pattern[index % pattern.size()];
+  }
+  return detail::bufferFromArrayBuffer(std::move(block), byteLength);
 }
 
 inline gea::Ref<View> alloc(double size, const View& fill, const std::string& = "utf8") {
-  std::vector<std::uint8_t> out(detail::allocationSize(size), std::uint8_t{0});
-  if (fill.size() == 0) return detail::bufferResult(std::move(out));
-  for (std::size_t index = 0; index < out.size(); ++index) out[index] = fill.data()[index % fill.size()];
-  return detail::bufferResult(std::move(out));
+  const std::size_t byteLength = detail::allocationSize(size);
+  auto block = gea::makeRef<gea::ArrayBuffer>(byteLength, std::uint8_t{0});
+  if (fill.size() != 0) {
+    for (std::size_t index = 0; index < byteLength; ++index) block->data()[index] = fill.data()[index % fill.size()];
+  }
+  return detail::bufferFromArrayBuffer(std::move(block), byteLength);
 }
 
 /**
@@ -379,15 +433,16 @@ inline gea::Ref<View> from(const std::string& text, const std::string& encoding 
 
 /** `Buffer.from(view)`: a COPY, per node -- `Buffer.from(u8)` does not alias `u8`. */
 inline gea::Ref<View> from(const View& view) {
-  return detail::bufferResult(std::vector<std::uint8_t>(view.data(), view.data() + view.size()));
+  return detail::bufferFromArrayBuffer(gea::makeRef<gea::ArrayBuffer>(view.data(), view.data() + view.size()), view.size());
 }
 
 /** `Buffer.from(arrayLike)`, over the vector the host boundary hands an `array-object` across as. */
 inline gea::Ref<View> from(const std::vector<double>& values) {
-  std::vector<std::uint8_t> out;
-  out.reserve(values.size());
-  for (double value : values) out.push_back(static_cast<std::uint8_t>(static_cast<std::uint64_t>(std::isfinite(value) ? std::trunc(value) : 0.0) & 0xffu));
-  return detail::bufferResult(std::move(out));
+  auto block = gea::makeRef<gea::ArrayBuffer>(values.size(), std::uint8_t{0});
+  for (std::size_t index = 0; index < values.size(); ++index) {
+    block->data()[index] = static_cast<std::uint8_t>(static_cast<std::uint64_t>(std::isfinite(values[index]) ? std::trunc(values[index]) : 0.0) & 0xffu);
+  }
+  return detail::bufferFromArrayBuffer(std::move(block), values.size());
 }
 
 /**
@@ -416,6 +471,40 @@ inline gea::Ref<View> from(const gea::Ref<gea::ArrayBuffer>& block, double byteO
 
 inline gea::Ref<View> from(const gea::Ref<gea::ArrayBuffer>& block) { return from(block, 0.0); }
 
+/** The same three forms over a `SharedArrayBuffer`: node shares that block too. */
+inline gea::Ref<View> from(const gea::Ref<gea::SharedArrayBuffer>& block, double byteOffset, double length) {
+  const std::size_t total = block ? block->size() : 0;
+  const std::size_t offset = detail::arrayBufferIndex(byteOffset, "Start offset is outside the bounds of the buffer");
+  if (offset > total) detail::throwRange("Start offset is outside the bounds of the buffer");
+  const std::size_t count = detail::arrayBufferLength(length, "Length is outside the bounds of the buffer");
+  if (count > total - offset) detail::throwRange("Length is outside the bounds of the buffer");
+  return detail::markBuffer(gea::makeRef<View>(View::fromSharedBuffer(block, offset, count)));
+}
+
+inline gea::Ref<View> from(const gea::Ref<gea::SharedArrayBuffer>& block, double byteOffset) {
+  const std::size_t total = block ? block->size() : 0;
+  const std::size_t offset = detail::arrayBufferIndex(byteOffset, "Start offset is outside the bounds of the buffer");
+  if (offset > total) detail::throwRange("Start offset is outside the bounds of the buffer");
+  return detail::markBuffer(gea::makeRef<View>(View::fromSharedBuffer(block, offset, total - offset)));
+}
+
+inline gea::Ref<View> from(const gea::Ref<gea::SharedArrayBuffer>& block) { return from(block, 0.0); }
+
+/**
+ * `Buffer.from(view.buffer, ...)`: `Uint8Array.prototype.buffer` is declared
+ * `ArrayBufferLike`, so the argument arrives as the `ArrayBuffer |
+ * SharedArrayBuffer` union and each arm forwards to its overload above. The
+ * MongoDB driver's `ByteUtils.toLocalBufferType` is this call.
+ */
+template <typename... Arms, typename... Rest>
+inline gea::Ref<View> from(const gea::TaggedUnion<Arms...>& block, Rest... rest) {
+  gea::Ref<View> result;
+  [&]<std::size_t... Indices>(std::index_sequence<Indices...>) {
+    ((block.template is<Indices>() ? (result = from(block.template get<Indices>(), rest...), 0) : 0), ...);
+  }(std::index_sequence_for<Arms...>{});
+  return result;
+}
+
 /**
  * `Buffer.concat(list)`, over a list of anything with `data()`/`size()`.
  *
@@ -428,27 +517,29 @@ template <typename List>
 inline gea::Ref<View> concat(const List& list) {
   std::size_t total = 0;
   for (const auto& item : list) total += gea::detail::hostTypedArrayArgument(item).size();
-  std::vector<std::uint8_t> out;
-  out.reserve(total);
+  auto block = gea::makeRef<gea::ArrayBuffer>(total, std::uint8_t{0});
+  std::size_t offset = 0;
   for (const auto& item : list) {
     const View& view = gea::detail::hostTypedArrayArgument(item);
-    out.insert(out.end(), view.data(), view.data() + view.size());
+    if (view.size() != 0) std::memcpy(block->data() + offset, view.data(), view.size());
+    offset += view.size();
   }
-  return detail::bufferResult(std::move(out));
+  return detail::bufferFromArrayBuffer(std::move(block), total);
 }
 
 template <typename List>
 inline gea::Ref<View> concat(const List& list, double requestedLength) {
-  std::vector<std::uint8_t> out(detail::allocationSize(requestedLength), std::uint8_t{0});
+  const std::size_t total = detail::allocationSize(requestedLength);
+  auto block = gea::makeRef<gea::ArrayBuffer>(total, std::uint8_t{0});
   std::size_t offset = 0;
   for (const auto& item : list) {
-    if (offset >= out.size()) break;
+    if (offset >= total) break;
     const View& view = gea::detail::hostTypedArrayArgument(item);
-    const std::size_t count = std::min(view.size(), out.size() - offset);
-    if (count != 0) std::copy_n(view.data(), count, out.data() + offset);
+    const std::size_t count = std::min(view.size(), total - offset);
+    if (count != 0) std::memcpy(block->data() + offset, view.data(), count);
     offset += count;
   }
-  return detail::bufferResult(std::move(out));
+  return detail::bufferFromArrayBuffer(std::move(block), total);
 }
 
 inline double byteLength(const std::string& text, const std::string& encoding = "utf8") {
@@ -502,7 +593,7 @@ inline std::string toString(
   const std::uint8_t* data = view.data();
   const std::size_t begin = detail::stringRangeIndex(requestedBegin, view.size());
   const std::size_t end = std::max(begin, detail::stringRangeIndex(requestedEnd, view.size()));
-  const std::string encoding = detail::normalizeEncoding(requestedEncoding);
+  const std::string_view encoding = detail::normalizeEncoding(requestedEncoding);
   if (encoding == "hex") {
     static constexpr char digits[] = "0123456789abcdef";
     std::string out;
@@ -544,8 +635,13 @@ inline std::string toString(
 // comma-joined bytes a plain Uint8Array answers. Stated to the runtime against
 // the brand, and only where the runtime has the table to state it to.
 #ifdef GEA_HOST_VIEW_TO_STRING
-inline const bool bufferToStringRegistered =
-    gea::detail::registerHostViewToString(&detail::bufferBrand, +[](const View& view) { return toString(view); });
+namespace detail {
+inline std::string brandedToString(const View& view) { return toString(view); }
+inline void registerBufferBrand() {
+  bufferBrandRegistered = true;
+  gea::detail::registerHostViewToString(&bufferBrand, &brandedToString);
+}
+}  // namespace detail
 #endif
 
 inline double writeSpan(const View& view, const std::string& text, std::size_t offset, std::size_t requested, const std::string& encoding) {
@@ -667,6 +763,37 @@ inline double writeInt32LE(const View& view, double value, double offset = 0.0) 
   if (!std::isfinite(value) || integer < -2147483648.0 || integer > 2147483647.0) detail::throwRange("Value is outside the range of an int32");
   const std::int32_t signedValue = static_cast<std::int32_t>(integer);
   return writeUInt32LE(view, static_cast<double>(static_cast<std::uint32_t>(signedValue)), offset);
+}
+
+inline double readUInt32BE(const View& view, double offset = 0.0) {
+  const std::size_t index = detail::readableOffset(view, offset, 4);
+  const std::uint8_t* data = view.data();
+  return static_cast<double>((static_cast<std::uint32_t>(data[index]) << 24) | (static_cast<std::uint32_t>(data[index + 1]) << 16) |
+                             (static_cast<std::uint32_t>(data[index + 2]) << 8) | static_cast<std::uint32_t>(data[index + 3]));
+}
+
+inline double readInt32BE(const View& view, double offset = 0.0) {
+  return static_cast<double>(static_cast<std::int32_t>(static_cast<std::uint32_t>(readUInt32BE(view, offset))));
+}
+
+inline double writeUInt32BE(const View& view, double value, double offset = 0.0) {
+  const std::size_t index = detail::readableOffset(view, offset, 4);
+  const double integer = std::isnan(value) ? 0.0 : std::trunc(value);
+  if (!std::isfinite(value) || integer < 0.0 || integer > 4294967295.0) detail::throwRange("Value is outside the range of a uint32");
+  const std::uint32_t bits = static_cast<std::uint32_t>(integer);
+  std::uint8_t* data = detail::writable(view).data();
+  data[index] = static_cast<std::uint8_t>((bits >> 24) & 0xffu);
+  data[index + 1] = static_cast<std::uint8_t>((bits >> 16) & 0xffu);
+  data[index + 2] = static_cast<std::uint8_t>((bits >> 8) & 0xffu);
+  data[index + 3] = static_cast<std::uint8_t>(bits & 0xffu);
+  return static_cast<double>(index + 4);
+}
+
+inline double writeInt32BE(const View& view, double value, double offset = 0.0) {
+  const double integer = std::isnan(value) ? 0.0 : std::trunc(value);
+  if (!std::isfinite(value) || integer < -2147483648.0 || integer > 2147483647.0) detail::throwRange("Value is outside the range of an int32");
+  const std::int32_t signedValue = static_cast<std::int32_t>(integer);
+  return writeUInt32BE(view, static_cast<double>(static_cast<std::uint32_t>(signedValue)), offset);
 }
 
 inline bool equals(const View& left, const View& right) {
