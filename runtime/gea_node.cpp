@@ -4199,6 +4199,11 @@ inline std::string __gea_http_peer(double connId) {
   return std::string();
 }
 
+// Whether the reactor still holds this connection. `IncomingMessage.socket`
+// keeps one `Socket` per connection, as Node does, and prunes its table with
+// this: the reactor tells JavaScript nothing when a connection closes.
+inline bool __gea_http_connection_open(double connId) { return gea::node::findConnection(connId) != nullptr; }
+
 inline const std::string &__gea_http_date() { return gea::node::cachedHttpDate(); }
 
 inline double __gea_http_date_second() { return static_cast<double>(gea::node::cachedHttpDateSecond()); }

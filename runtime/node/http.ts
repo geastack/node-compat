@@ -95,6 +95,8 @@ declare function __gea_http_done(connId: number, keepAlive: boolean): void
 declare function __gea_http_destroy(connId: number): void
 /** @gea-host-inert */
 declare function __gea_http_peer(connId: number): string
+/** @gea-host-inert */
+declare function __gea_http_connection_open(connId: number): boolean
 /** @gea-host-no-property-writes */
 declare function __gea_http_stop(): void
 
@@ -245,6 +247,11 @@ export function statusText(code: number): string {
 
 // Node joins duplicate request headers per header semantics: singleton headers
 // keep the FIRST value, `cookie` joins with "; ", everything else with ", ".
+function addIncomingHeader(headers: { [name: string]: string }, lower: string, value: string): void {
+  if (!headers.hasOwnProperty(lower)) headers[lower] = value
+  else if (!isSingletonHeader(lower)) headers[lower] = headers[lower] + (lower === 'cookie' ? '; ' : ', ') + value
+}
+
 function isSingletonHeader(lower: string): boolean {
   return (
     lower === 'age' ||
@@ -330,6 +337,30 @@ export class Socket extends NetSocket {
     __gea_http_destroy(this.connId_)
     return this
   }
+}
+
+// One `Socket` per connection, as in Node: every request a keep-alive
+// connection carries reads the same `req.socket`. Building one per request cost
+// @hono/node-server 7% of its CPU, because `newRequest` reads
+// `incoming.socket.encrypted` on every request. The reactor reports no close to
+// JavaScript, so the table is pruned against it whenever it doubles past the
+// size it had after the last prune -- amortized O(1) per new connection, and
+// bounded by twice the live connections.
+const connectionSockets = new Map<number, Socket>()
+let connectionSocketPruneAt = 64
+
+function connectionSocket(connId: number): Socket {
+  const known = connectionSockets.get(connId)
+  if (known !== undefined) return known
+  if (connectionSockets.size >= connectionSocketPruneAt) {
+    const closed: number[] = []
+    for (const id of connectionSockets.keys()) if (!__gea_http_connection_open(id)) closed.push(id)
+    for (let i = 0; i < closed.length; i++) connectionSockets.delete(closed[i])
+    connectionSocketPruneAt = Math.max(64, connectionSockets.size * 2)
+  }
+  const socket = new Socket(connId)
+  connectionSockets.set(connId, socket)
+  return socket
 }
 
 // Shared placeholder: ServerResponse's socket slot is overwritten with the
@@ -446,7 +477,7 @@ export class IncomingMessage extends Readable {
   get socket(): NetSocket {
     let socket = this.socket_
     if (socket === undefined) {
-      socket = new Socket(this.connId_)
+      socket = connectionSocket(this.connId_)
       this.socket_ = socket
     }
     return socket
@@ -487,14 +518,27 @@ export class IncomingMessage extends Readable {
     let headers = this.headersMap_
     if (headers === undefined) {
       headers = {}
-      const raw = this.rawHeaders
-      for (let i = 0; i + 1 < raw.length; i += 2) {
-        const lower = lowerHeaderName(raw[i])
-        const value = raw[i + 1]
-        if (!headers.hasOwnProperty(lower)) {
-          headers[lower] = value
-        } else if (!isSingletonHeader(lower)) {
-          headers[lower] = headers[lower] + (lower === 'cookie' ? '; ' : ', ') + value
+      const raw = this.rawHeaders_
+      if (raw !== undefined) {
+        for (let i = 0; i + 1 < raw.length; i += 2) addIncomingHeader(headers, lowerHeaderName(raw[i]), raw[i + 1])
+      } else {
+        // Straight off the head: `@hono/node-server` reads `headers.host` on
+        // every request, and going through `rawHeaders` built an array of every
+        // name and value only to copy each one again into this map.
+        const head = this.rawHead_
+        let pos = 0
+        while (pos < head.length) {
+          let eol = head.indexOf('\r\n', pos)
+          if (eol < 0) eol = head.length
+          const lineStart = pos
+          pos = eol + 2
+          const colon = head.indexOf(':', lineStart)
+          if (colon <= lineStart || colon >= eol) continue
+          let valueStart = colon + 1
+          while (valueStart < eol && (head[valueStart] === ' ' || head[valueStart] === '\t')) valueStart++
+          let valueEnd = eol
+          while (valueEnd > valueStart && (head[valueEnd - 1] === ' ' || head[valueEnd - 1] === '\t')) valueEnd--
+          addIncomingHeader(headers, lowerHeaderName(head.substring(lineStart, colon)), head.substring(valueStart, valueEnd))
         }
       }
       this.headersMap_ = headers

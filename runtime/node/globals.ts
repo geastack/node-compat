@@ -1156,6 +1156,7 @@ class URL {
     if (slash >= 0) {
       authority = rest.slice(0, slash);
       this.pathname = rest.slice(slash);
+      if (isSpecialUrlScheme(this.protocol)) this.pathname = withoutDotSegments(this.pathname);
     }
 
     const at = authority.lastIndexOf("@");
@@ -1392,6 +1393,43 @@ class File extends Blob {
   override formDataLastModified(): number {
     return this.lastModified;
   }
+}
+
+function isSpecialUrlScheme(protocol: string): boolean {
+  return (
+    protocol === "http:" ||
+    protocol === "https:" ||
+    protocol === "ws:" ||
+    protocol === "wss:" ||
+    protocol === "ftp:" ||
+    protocol === "file:"
+  );
+}
+
+// WHATWG URL's path state for a special scheme: a `.` segment (or `%2e`) is
+// dropped and a `..` one removes the segment before it, never above the root;
+// either one LAST leaves an empty segment behind, so `/x/..` is `/` and `/x/.`
+// is `/x/`. `@hono/node-server` routes `new URL(url).href` for any request
+// path with a dot segment, so without this `/x/../json` reached the router
+// as written and answered 404 where Node serves `/json`.
+function withoutDotSegments(path: string): string {
+  if (path.indexOf(".") < 0 && path.indexOf("%") < 0) return path;
+  const input = path.split("/");
+  const output: string[] = [];
+  for (let i = 1; i < input.length; i++) {
+    const segment = input[i];
+    const last = i === input.length - 1;
+    const lower = segment.toLowerCase();
+    if (lower === ".." || lower === ".%2e" || lower === "%2e." || lower === "%2e%2e") {
+      if (output.length > 0) output.pop();
+      if (last) output.push("");
+    } else if (lower === "." || lower === "%2e") {
+      if (last) output.push("");
+    } else {
+      output.push(segment);
+    }
+  }
+  return "/" + output.join("/");
 }
 
 function normalizeBlobType(type: string): string {

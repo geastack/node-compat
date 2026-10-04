@@ -779,12 +779,26 @@ if (result.units.length === 0) {
   // A drift row names its operation and block by identity only; the file and
   // the reason are what make it readable, so each row leads with the file its
   // operation sits in and keeps the reason whole, eliding the long carriers.
+  // A carrier names its shapes as `type|N`, an interned id with no meaning
+  // outside this compile. Two records that differ only in which declaration
+  // they came from print identically, so each id is spelled with the
+  // declaration it was interned from (when it has one) and its member names.
+  const describeShapes = (text) =>
+    [...new Set(String(text).match(/type\|\d+/g) ?? [])].map((id) => {
+      const shape = result.graph.structuralTypes.get(id)?.shape
+      if (!shape) return `${id}=?`
+      const body = shape.kind === 'declared' && shape.body ? result.graph.structuralTypes.get(shape.body)?.shape : shape
+      const where = shape.declaration ? result.locationOfDeclaration(shape.declaration) : null
+      const members = body?.kind === 'object' ? `{${body.members.map((member) => (member.key.kind === "symbol" ? "[symbol]" : String(member.key.value))).join(',')}}` : (body?.kind ?? '')
+      return `${id}=${shape.kind}${where ? `@${displayPath(where.file)}:${where.line}` : ''}${members}`
+    })
   for (const drift of result.slotDrift.slice(0, 15)) {
     const file = String(drift.operation ?? '').match(/\|(f\d+)\|/)?.[1]
     const name = file ? (result.sourceFileNames.get(file) ?? '<unavailable>').replace(/^.*\/node-compat\//, '') : '<no file>'
     const { source, slot, ...rest } = drift
     console.error(`  drift    ${name} ${JSON.stringify(rest).slice(0, 1200)}`)
     console.error(`           slot=${String(slot).slice(0, 300)} source=${String(source).slice(0, 300)}`)
+    console.error(`           shapes: ${describeShapes(JSON.stringify(drift)).join('  ')}`)
     console.error(`           reason ends: ${String(drift.reason ?? '').slice(-900)}`)
   }
   for (const blocker of result.abiBlockers.slice(0, 10)) console.error(`  abi      ${JSON.stringify(blocker).slice(0, 400)}`)

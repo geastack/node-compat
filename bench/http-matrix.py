@@ -37,6 +37,11 @@ parser.add_argument('--server-cpus', default=None,
                          'so the default overlaps the load generator and measures a saturated '
                          'host. Pass 0-3 to give the server two physical cores the load '
                          'generator does not touch.')
+parser.add_argument('--load-cpus', default='4-7',
+                    help='taskset list for wrk (default 4-7, the bench box layout). On a larger '
+                         'host give wrk whole physical cores the server does not use.')
+parser.add_argument('--load-threads', type=int, default=4, help='wrk -t (default 4)')
+parser.add_argument('--connections', type=int, default=64, help='wrk -c (default 64)')
 args = parser.parse_args()
 
 
@@ -45,10 +50,21 @@ def command(name, workers):
     for key in ('SINGLE_THREAD', 'GEA_WORKERS', 'CPP_WORKERS',
                 'NODE_WORKERS', 'DROGON_THREADS', 'TOKIO_WORKER_THREADS'):
         env.pop(key, None)
-    if name in ('hono-gea', 'gea-raw'):
+    if name == 'hono-gea-pkg':
+        # The same server.ts compiled with GEA_NODE_COMPAT_PACKAGE_ADAPTER=1:
+        # the real npm @hono/node-server instead of node-compat's native
+        # adapter, kept beside the native build as `server-pkg`.
+        cmd = [f'apps/hono-hello/{args.gea_dist}/server-pkg']
+        env['GEA_WORKERS'] = str(workers)
+    elif name in ('hono-gea', 'gea-raw'):
         app = 'hono-hello' if name == 'hono-gea' else 'raw-http-hello'
         cmd = [f'apps/{app}/{args.gea_dist}/server']
         env['GEA_WORKERS'] = str(workers)
+    elif name == 'hono-node-full':
+        # Node on the unchanged server.ts (type stripping), not the tiny bridge.
+        entry = 'server.ts' if workers == 1 else 'cluster.full.node.mjs'
+        cmd = ['node', f'apps/hono-hello/{entry}']
+        env['NODE_WORKERS'] = str(workers)
     elif name in ('hono-node', 'node-raw'):
         app = 'hono-hello' if name == 'hono-node' else 'raw-http-hello'
         entry = 'server' if workers == 1 else 'cluster'
@@ -218,7 +234,8 @@ def stop(proc, port):
 
 
 def wrk(port, path, duration, warmup=False):
-    cmd = ['taskset', '-c', '4-7', 'wrk', '--latency', '-t4', '-c64',
+    cmd = ['taskset', '-c', args.load_cpus, 'wrk', '--latency', f'-t{args.load_threads}',
+           f'-c{args.connections}',
            f'-d{duration}', f'http://127.0.0.1:{port}{path}']
     output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
     if re.search(r'(?:connect|read|write|timeout) [1-9]\d*', output) or \
@@ -239,12 +256,14 @@ def wrk(port, path, duration, warmup=False):
 # is worse than recording nothing. The C++ controls are always built into
 # `dist/` and are named literally.
 artifacts = [
-    f'apps/hono-hello/{args.gea_dist}/server', f'apps/hono-hello/{args.gea_dist}/server.cpp',
+    f'apps/hono-hello/{args.gea_dist}/server', f'apps/hono-hello/{args.gea_dist}/server-pkg',
+    f'apps/hono-hello/{args.gea_dist}/server.cpp',
     f'apps/hono-hello/{args.gea_dist}/gea_runtime.h', f'apps/raw-http-hello/{args.gea_dist}/server',
     f'apps/raw-http-hello/{args.gea_dist}/server.cpp', f'apps/raw-http-hello/{args.gea_dist}/gea_runtime.h',
     'apps/raw-http-hello/dist/cpp-drogon', 'apps/raw-http-hello/dist/cpp-epoll',
     'runtime/gea_node.cpp', 'runtime/gea_node.hpp',
     'apps/hono-hello/server.node.mjs', 'apps/hono-hello/cluster.node.mjs',
+    'apps/hono-hello/server.ts', 'apps/hono-hello/cluster.full.node.mjs',
     'apps/hono-hello/node_modules/hono/package.json',
     'apps/raw-http-hello/server.node.mjs', 'apps/raw-http-hello/cluster.node.mjs',
     'apps/raw-http-hello/rust-server/target/release/rust-http-hello',
@@ -262,9 +281,24 @@ if args.server_cpus is None and any(workers > 1 for workers in args.workers):
     print('http-matrix: --server-cpus not given; multi-worker servers will share CPUs with wrk. '
           'Not comparable with pinned runs (see BENCHMARKS.md).', file=sys.stderr)
 
-result = {'utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+# WSL2 in networkingMode=mirrored adds `ip rule ... ipproto tcp lookup 127`,
+# which routes 127.0.0.1 through loopback0 to the Windows host and back. Every
+# request then crosses the VM boundary twice: cpp-epoll measured 103k rps on one
+# worker against 428k once the rules were removed (2026-10-04), and every fast
+# server collapsed onto the same ~150k ceiling. Refuse to measure that.
+loopback_route = subprocess.run(['ip', 'route', 'get', '127.0.0.1'],
+                                capture_output=True, text=True).stdout
+if loopback_route and ' dev lo ' not in loopback_route:
+    sys.exit('http-matrix: 127.0.0.1 does not route over lo:\n  ' + loopback_route.splitlines()[0] +
+             '\nOn WSL2 mirrored networking remove the table 127/128 rules first:\n'
+             '  for p in tcp udp; do sudo ip rule del ipproto $p lookup 127; '
+             'sudo ip rule del ipproto $p lookup 128; done\n'
+             '(they return on the next WSL restart).')
+
+result = {'utc':time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
           'settings': vars(args), 'server_cpus': {'1': '0', 'multi': args.server_cpus or '0-7'},
-          'load_cpus': '4-7', 'connections': 64, 'load_threads': 4,
+          'load_cpus': args.load_cpus, 'connections': args.connections,
+          'load_threads': args.load_threads,
           'caveat': 'Eight-worker servers and wrk share CPUs; loopback throughput is host-limited.',
           'machine': subprocess.check_output(['lscpu'], text=True),
           'node': subprocess.check_output(['node', '--version'], text=True).strip(),
@@ -287,7 +321,8 @@ for round_no in range(1, args.rounds + 1):
         # Each entry fixes its own port in source: the gea hono app moved to
         # 3900 (port 3000 is taken on the developer Mac), the node entry kept
         # 3000, raw-http-hello listens on 3101.
-        port = hono_gea_port() if name == 'hono-gea' else 3000 if name == 'hono-node' else 3101
+        port = hono_gea_port() if name in ('hono-gea', 'hono-gea-pkg', 'hono-node-full') else \
+            3000 if name == 'hono-node' else 3101
         if not port_free(port):
             raise RuntimeError(f'Port {port} occupied before {name}')
         cmd, env = command(name, workers)
@@ -328,8 +363,9 @@ for round_no in range(1, args.rounds + 1):
             # Let all cluster/fork workers finish startup before warming up.
             time.sleep(1)
             before = process_memory(proc.pid)
-            expected_processes = workers + (1 if name.endswith('node') or name == 'node-raw' else 0)
-            if workers > 1 and name in ('hono-gea', 'gea-raw', 'hono-node', 'node-raw', 'cpp-epoll'):
+            expected_processes = workers + (1 if name in ('hono-node', 'hono-node-full', 'node-raw') else 0)
+            if workers > 1 and name in ('hono-gea', 'hono-gea-pkg', 'gea-raw', 'hono-node', 'hono-node-full',
+                                     'node-raw', 'cpp-epoll'):
                 if len(before['processes']) != expected_processes:
                     raise RuntimeError(f'{name}: expected {expected_processes} processes, got {before}')
             wrk(port, '/', '2s', warmup=True)

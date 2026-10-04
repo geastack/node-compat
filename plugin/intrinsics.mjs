@@ -420,6 +420,11 @@ export const intrinsics = {
     returnType: 'std::string',
     decl: 'std::string __gea_http_peer(double connId);'
   },
+  __gea_http_connection_open: {
+    emit: '__gea_http_connection_open',
+    returnType: 'bool',
+    decl: 'bool __gea_http_connection_open(double connId);'
+  },
   __gea_http_date: {
     emit: '__gea_http_date',
     returnType: 'std::string',
