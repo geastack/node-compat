@@ -5,11 +5,11 @@ import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 
-import { compilerRuntimeInclude } from './resolve-compiler.mjs'
+import { compilerRuntimeInclude, compilerModuleUrl } from './resolve-compiler.mjs'
 import { geatscNodePlugin } from '../plugin/index.mjs'
 
 const root = resolve(import.meta.dirname, '..')
-const compilerRequire = createRequire(import.meta.resolve('@geastack/compiler/plugin'))
+const compilerRequire = createRequire(compilerModuleUrl('./plugin'))
 const ts = compilerRequire('typescript')
 
 test('Process host metadata claims a finite, receiverless Process@1 protocol', () => {

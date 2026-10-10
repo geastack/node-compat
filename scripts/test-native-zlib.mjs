@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { deflateRawSync, deflateSync, gunzipSync, gzipSync, inflateRawSync, inflateSync } from 'node:zlib'
 import { execFileSync } from 'node:child_process'
-import { resolve } from 'node:path'
+import { mkdirSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 
 import { compilerRuntimeInclude } from './resolve-compiler.mjs'
 
@@ -10,6 +11,7 @@ import { compilerRuntimeInclude } from './resolve-compiler.mjs'
 // input throws instead of returning a prefix.
 const root = resolve(import.meta.dirname, '..')
 const executable = resolve(root, 'apps/hono-mongodb-todo/dist/native-zlib')
+mkdirSync(dirname(executable), { recursive: true })
 const bytes = (value) => `bytes("${value.toString('hex')}")`
 const inputs = [
   Buffer.alloc(0),
@@ -85,7 +87,9 @@ execFileSync(
   ],
   { input: code, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 256 * 1024 * 1024 }
 )
-const lines = execFileSync(executable, { encoding: 'utf8', timeout: 60000, maxBuffer: 256 * 1024 * 1024 }).trimEnd().split('\n')
+const lines = execFileSync(executable, { encoding: 'utf8', timeout: 60000, maxBuffer: 256 * 1024 * 1024 })
+  .trimEnd()
+  .split('\n')
 let at = 0
 const decoded = (line) => Buffer.from(line, 'hex')
 for (const input of inputs) {

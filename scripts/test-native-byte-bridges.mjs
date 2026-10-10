@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict'
 import { execFile, execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:net'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { promisify } from 'node:util'
 
 import { compilerRuntimeInclude } from './resolve-compiler.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 const executable = resolve(root, 'apps/hono-mongodb-todo/dist/native-byte-bridges')
+mkdirSync(dirname(executable), { recursive: true })
 const code = String.raw`
 #include "gea_node.hpp"
 #include <cassert>
@@ -63,12 +64,22 @@ int main(int argc, char **argv) {
   std::cout << "NATIVE_BYTE_BRIDGES_OK:" << file.size() << ":" << received.size() << std::endl;
 }
 `
-execFileSync(process.env.CXX ?? 'clang++', [
-  '-std=c++20', '-fsanitize=undefined',
-  `-I${compilerRuntimeInclude()}`,
-  `-I${resolve(root, 'runtime')}`, `-I${resolve(root, 'runtime/node')}`,
-  '-x', 'c++', '-', '-o', executable
-], { input: code, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] })
+execFileSync(
+  process.env.CXX ?? 'clang++',
+  [
+    '-std=c++20',
+    '-fsanitize=undefined',
+    `-I${compilerRuntimeInclude()}`,
+    `-I${resolve(root, 'runtime')}`,
+    `-I${resolve(root, 'runtime/node')}`,
+    '-x',
+    'c++',
+    '-',
+    '-o',
+    executable
+  ],
+  { input: code, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+)
 
 const sockets = new Set()
 const server = createServer((socket) => {

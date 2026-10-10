@@ -17,11 +17,14 @@
 //    the node reactor already owns is the honest thing to point at.
 //  - `hostPreambles`. Per-symbol `extern` declarations, asked for by spelling,
 //    so one include of the runtime's own header answers all of them.
-import { noPluginCapabilities } from '@geastack/compiler/plugin'
+import { compilerRoot, compilerModuleUrl } from '../scripts/resolve-compiler.mjs'
 import { intrinsics } from './intrinsics.mjs'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import { resolveBuiltinModules } from '../scripts/builtin-modules.mjs'
+
+const selectedCompiler = compilerRoot()
+const { noPluginCapabilities } = await import(compilerModuleUrl('./plugin', selectedCompiler))
 
 /**
  * The header a unit includes before it may name one of these spellings.
@@ -73,7 +76,7 @@ const bufferMethods = [
 // Buffer's override also implements the inherited zero-argument signature.
 // Anchor that coverage to Buffer's own declaration; claiming Uint8Array's
 // method globally would incorrectly give every ordinary byte view Node's API.
-const compilerRequire = createRequire(import.meta.resolve('@geastack/compiler/plugin'))
+const compilerRequire = createRequire(compilerModuleUrl('./plugin', selectedCompiler))
 // `@types/node` is THIS package's dependency, so it is resolved from here. It
 // used to be reached through the compiler's require, which names the same file
 // only while npm dedupes the two into one copy; with the compiler linked from a

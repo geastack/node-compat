@@ -4,9 +4,10 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 import { geatscNodePlugin } from '../plugin/index.mjs'
 import { runtimeRootsForReachableGlobalNeeds } from './builtin-modules.mjs'
+import { compilerModuleUrl } from './resolve-compiler.mjs'
 
 const root = resolve(import.meta.dirname, '..')
-const compilerRequire = createRequire(import.meta.resolve('@geastack/compiler/plugin'))
+const compilerRequire = createRequire(compilerModuleUrl('./plugin'))
 const ts = compilerRequire('typescript')
 const globalsFile = resolve(root, 'runtime/node/globals.ts')
 const whatwgFacade = resolve(root, 'runtime/node/whatwg-url.ts')

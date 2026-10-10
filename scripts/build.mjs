@@ -51,8 +51,12 @@ import { createRequire } from 'node:module'
 import { geatscNodePlugin } from '../plugin/index.mjs'
 import { resolveBuiltinModules, runtimeRootsForReachableGlobalNeeds } from './builtin-modules.mjs'
 import { displayPathFrom } from './path-display.mjs'
-import { compile } from '@geastack/compiler'
-import { preparePackageSources } from '@geastack/compiler/preparation'
+import { compilerRoot as resolveCompilerRoot, compilerModuleUrl } from './resolve-compiler.mjs'
+import { compilerInputs, assertCompilerInputs } from './compiler-input.mjs'
+
+const compilerRoot = resolveCompilerRoot()
+const { compile } = await import(compilerModuleUrl('.', compilerRoot))
+const { preparePackageSources } = await import(compilerModuleUrl('./preparation', compilerRoot))
 
 // The compile runs in this process and allocates hard: on the mongodb driver
 // the default young generation made V8 GC 28% of the emission (24.8k
@@ -77,9 +81,7 @@ if (
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repo = path.resolve(here, '..')
-const packageRequire = createRequire(import.meta.url)
-const compilerManifest = packageRequire.resolve('@geastack/compiler/package.json')
-const compilerRoot = path.dirname(compilerManifest)
+const compilerManifest = path.join(compilerRoot, 'package.json')
 const compilerRequire = createRequire(compilerManifest)
 const ts = compilerRequire('typescript')
 
@@ -129,7 +131,13 @@ const previousGeneratedFiles = (() => {
     return []
   }
 })()
-const report = { stage: 'compile', threw: null }
+const selectedCompilerInputs = compilerInputs(compilerRoot)
+const report = {
+  stage: 'compile',
+  threw: null,
+  compilerInputs: selectedCompilerInputs,
+  emittedCompilerInputs: selectedCompilerInputs
+}
 const writeReport = (fields) => {
   Object.assign(report, fields)
   if (reportPath) {
@@ -137,6 +145,15 @@ const writeReport = (fields) => {
     fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`)
   }
 }
+process.on('exit', () => {
+  try {
+    assertCompilerInputs(selectedCompilerInputs)
+  } catch (error) {
+    writeReport({ compilerInputsChanged: true, threw: String(error) })
+    console.error(String(error))
+    process.exitCode = 1
+  }
+})
 // Anything that throws before or beside `compile` -- reading the source
 // project, writing the generated one -- still leaves a record naming it.
 process.on('uncaughtException', (error) => {
@@ -153,9 +170,15 @@ if (linkOnly) {
   if (fs.existsSync(emittedReport)) {
     const previous = JSON.parse(fs.readFileSync(emittedReport, 'utf8'))
     if (Array.isArray(previous.generatedFiles)) {
+      const emittedCompilerInputs = previous.emittedCompilerInputs ?? previous.compilerInputs
+      if (
+        emittedCompilerInputs?.compilerRoot !== selectedCompilerInputs.compilerRoot ||
+        emittedCompilerInputs?.compilerDistHash !== selectedCompilerInputs.compilerDistHash
+      )
+        throw new Error('--link-only: generated units have no matching compiler fingerprint; run --emit-only --report again')
       generated = previous.generatedFiles.filter((file) => typeof file === 'string' && path.basename(file) === file)
       // Keep the emission's columns; the link stage adds to them.
-      if (reportPath) Object.assign(report, previous, { threw: null })
+      if (reportPath) Object.assign(report, previous, { threw: null, compilerInputs: selectedCompilerInputs, emittedCompilerInputs })
     }
   }
   if (!generated) {

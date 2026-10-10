@@ -71,6 +71,13 @@ To work on this repository instead, build the compiler first
 (`npm run build` in a `geastack/compiler` checkout), then drive the bundled
 applications directly:
 
+Set `GEA_COMPILER_DIR=/absolute/path/to/compiler` to use a particular existing
+compiler package instead of the installed peer. Frontend, preparation, plugin
+API and native header resolution all use that same root. Build reports record
+the resolved path and complete compiler JavaScript/native runtime fingerprints;
+changing those inputs during a build fails it. This override does not build or
+copy the compiler.
+
 ```sh
 npm --prefix apps/hono-hello install   # hono, for the hono apps only
 

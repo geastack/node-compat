@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
 import { createHash, createHmac, pbkdf2Sync } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { resolve } from 'node:path'
+import { mkdirSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 
 import { compilerRuntimeInclude } from './resolve-compiler.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 const executable = resolve(root, 'apps/hono-mongodb-todo/dist/native-crypto')
+mkdirSync(dirname(executable), { recursive: true })
 const operations = []
 const expected = []
 const bytes = (value) => `bytes("${value.toString('hex')}")`
@@ -28,11 +30,11 @@ for (const algorithm of algorithms.slice(1)) {
   for (const [password, salt, iterations, length] of [
     [Buffer.from('pāss\0word'), input, 4096, 65],
     [Buffer.alloc(0), Buffer.alloc(0), 1, 20],
-    [input, Buffer.from('salt'), 2, 1],
+    [input, Buffer.from('salt'), 2, 1]
   ]) {
     check(
       `gea::node::crypto::pbkdf2(${bytes(password)}, ${bytes(salt)}, ${iterations}, ${length}, "${algorithm}")`,
-      pbkdf2Sync(password, salt, iterations, length, algorithm),
+      pbkdf2Sync(password, salt, iterations, length, algorithm)
     )
   }
 }
@@ -88,9 +90,9 @@ execFileSync(
     '-',
     ...(process.platform === 'linux' ? ['-lcrypto'] : []),
     '-o',
-    executable,
+    executable
   ],
-  { input: code, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
+  { input: code, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
 )
 assert.deepEqual(execFileSync(executable, { encoding: 'utf8', timeout: 30000 }).trimEnd().split('\n'), expected)
 console.log(`NATIVE_CRYPTO_OK:${expected.length}`)

@@ -1,6 +1,6 @@
 {
   "name": "@geastack/node-compat",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "The native Node.js runtime and compiler target for geatsc.",
   "type": "module",
   "license": "Apache-2.0",
@@ -16,6 +16,8 @@
     "plugin",
     "runtime",
     "scripts/build.mjs",
+    "scripts/resolve-compiler.mjs",
+    "scripts/compiler-input.mjs",
     "scripts/builtin-modules.mjs",
     "scripts/path-display.mjs"
   ],
@@ -26,10 +28,10 @@
     "./package.json": "./package.json"
   },
   "peerDependencies": {
-    "@geastack/compiler": "^1.0.26"
+    "@geastack/compiler": "^1.0.29"
   },
   "devDependencies": {
-    "@geastack/compiler": "^1.0.26"
+    "@geastack/compiler": "^1.0.29"
   },
   "dependencies": {
     "@types/node": "^22.15.3"

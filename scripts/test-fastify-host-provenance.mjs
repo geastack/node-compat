@@ -1,20 +1,19 @@
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { dirname, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { geatscNodePlugin } from '../plugin/index.mjs'
+import { compilerRoot, compilerModuleUrl } from './resolve-compiler.mjs'
 
 const root = resolve(import.meta.dirname, '..')
-const compilerRequire = createRequire(import.meta.resolve('@geastack/compiler/plugin'))
+const selectedCompiler = compilerRoot()
+const compilerRequire = createRequire(compilerModuleUrl('./plugin', selectedCompiler))
 // `@types/node` is this package's own dependency; see plugin/index.mjs.
 const packageRequire = createRequire(import.meta.url)
 const ts = compilerRequire('typescript')
-const compilerRoot = dirname(compilerRequire.resolve('@geastack/compiler/package.json'))
-const { createCommonJsWrapperIdentity } = await import(
-  pathToFileURL(resolve(compilerRoot, 'dist/semantics/commonjs-wrapper.js')).href
-)
-const { resolveHostMethod } = await import(pathToFileURL(resolve(compilerRoot, 'dist/semantics/host-methods.js')).href)
+const { createCommonJsWrapperIdentity } = await import(pathToFileURL(resolve(selectedCompiler, 'dist/semantics/commonjs-wrapper.js')).href)
+const { resolveHostMethod } = await import(pathToFileURL(resolve(selectedCompiler, 'dist/semantics/host-methods.js')).href)
 
 const capabilities = () => geatscNodePlugin().instantiate().capabilities
 const compilerOptions = {
@@ -30,10 +29,7 @@ const compilerOptions = {
 /** Build a checker Program without writing or compiling a translation unit. */
 const sourceProgram = (fileName, text, extraRoots = [], additionalSources = {}) => {
   const entry = resolve(fileName)
-  const sources = new Map([
-    [entry, text],
-    ...Object.entries(additionalSources).map(([name, source]) => [resolve(name), source])
-  ])
+  const sources = new Map([[entry, text], ...Object.entries(additionalSources).map(([name, source]) => [resolve(name), source])])
   const host = ts.createCompilerHost(compilerOptions, true)
   const readSourceFile = host.getSourceFile.bind(host)
   const readFile = host.readFile.bind(host)
@@ -102,11 +98,7 @@ test('the checker admits only the canonical Require wrapper declaration set', ()
   const wrapperFile = resolve(root, 'runtime/node/commonjs-wrapper.d.ts')
   const nodeModuleFile = packageRequire.resolve('@types/node/module.d.ts')
   const fixture = resolve(root, 'apps/fastify-hello/fastify-require-provenance.fixture.ts')
-  const program = sourceProgram(
-    fixture,
-    "type CanonicalRequire = NodeJS.Require\nrequire('fastify')\n",
-    [wrapperFile, nodeModuleFile]
-  )
+  const program = sourceProgram(fixture, "type CanonicalRequire = NodeJS.Require\nrequire('fastify')\n", [wrapperFile, nodeModuleFile])
   const sourceFile = program.getSourceFile(fixture)
   const wrapper = program.getSourceFile(wrapperFile)
   const nodeModule = program.getSourceFile(nodeModuleFile)
@@ -126,12 +118,9 @@ test('the checker admits only the canonical Require wrapper declaration set', ()
 
   const taintedFixture = resolve(root, 'apps/fastify-hello/fastify-require-tainted.fixture.ts')
   const callerDeclaration = resolve(root, 'apps/fastify-hello/fastify-require-caller.d.ts')
-  const tainted = sourceProgram(
-    taintedFixture,
-    "require('fastify')\n",
-    [wrapperFile, nodeModuleFile],
-    { [callerDeclaration]: 'declare var require: (specifier: string) => unknown\n' }
-  )
+  const tainted = sourceProgram(taintedFixture, "require('fastify')\n", [wrapperFile, nodeModuleFile], {
+    [callerDeclaration]: 'declare var require: (specifier: string) => unknown\n'
+  })
   const taintedSource = tainted.getSourceFile(taintedFixture)
   const taintedWrapper = tainted.getSourceFile(wrapperFile)
   const taintedNodeModule = tainted.getSourceFile(nodeModuleFile)
@@ -142,11 +131,10 @@ test('the checker admits only the canonical Require wrapper declaration set', ()
     taintedSource,
     (node) => ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'require'
   )
-  assert.deepEqual(declarationFilesOf(tainted.getTypeChecker(), taintedCall.expression), new Set([
-    resolve(wrapperFile),
-    resolve(nodeModuleFile),
-    resolve(callerDeclaration)
-  ]))
+  assert.deepEqual(
+    declarationFilesOf(tainted.getTypeChecker(), taintedCall.expression),
+    new Set([resolve(wrapperFile), resolve(nodeModuleFile), resolve(callerDeclaration)])
+  )
   const taintedIdentity = createCommonJsWrapperIdentity(
     tainted.getTypeChecker(),
     [taintedSource, taintedWrapper, taintedNodeModule],
@@ -192,10 +180,7 @@ test('Buffer member bindings reject same-named and augmented caller declarations
   )
   assert.equal(resolveHostMethod(augmented.getTypeChecker(), host.hostMethodBindings, augmentedAccess), null)
 
-  const lookalike = sourceProgram(
-    fixture,
-    "interface Buffer { toString(): string }\ndeclare const buffer: Buffer\nbuffer.toString()\n"
-  )
+  const lookalike = sourceProgram(fixture, 'interface Buffer { toString(): string }\ndeclare const buffer: Buffer\nbuffer.toString()\n')
   const lookalikeSource = lookalike.getSourceFile(fixture)
   assert.ok(lookalikeSource)
   const lookalikeAccess = find(
@@ -218,14 +203,15 @@ test('Fastify constructors and warnings retain their package-source declaration 
   const errorConstructor = find(sourceFile, (node) => ts.isIdentifier(node) && node.text === 'FastifyErrorConstructor')
   const warningItem = find(sourceFile, (node) => ts.isIdentifier(node) && node.text === 'WarningItem')
 
-  assert.deepEqual(declarationFilesOf(checker, errorConstructor), new Set([
-    resolve(root, 'apps/fastify-hello/node_modules/@fastify/error/types/index.d.ts')
-  ]))
-  assert.deepEqual(declarationFilesOf(checker, warningItem), new Set([
-    resolve(root, 'apps/fastify-hello/node_modules/process-warning/types/index.d.ts')
-  ]))
+  assert.deepEqual(
+    declarationFilesOf(checker, errorConstructor),
+    new Set([resolve(root, 'apps/fastify-hello/node_modules/@fastify/error/types/index.d.ts')])
+  )
+  assert.deepEqual(
+    declarationFilesOf(checker, warningItem),
+    new Set([resolve(root, 'apps/fastify-hello/node_modules/process-warning/types/index.d.ts')])
+  )
   // These are package-created callable values, not Node-owned ABI values. A
   // native-type claim here would manufacture a carrier for JavaScript source.
-  for (const name of ['FastifyErrorConstructor', 'WarningItem'])
-    assert.equal(host.nativeTypesByDeclaration.has(name), false)
+  for (const name of ['FastifyErrorConstructor', 'WarningItem']) assert.equal(host.nativeTypesByDeclaration.has(name), false)
 })

@@ -10,20 +10,39 @@
 // './package.json' is exported, so its directory is the reliable anchor.
 
 import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { readFileSync, realpathSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const require = createRequire(import.meta.url)
 
 /** Absolute path to the installed @geastack/compiler package root. */
-export function compilerRoot() {
+export function compilerRoot(env = process.env) {
+  if (env.GEA_COMPILER_DIR) {
+    const root = realpathSync(resolve(env.GEA_COMPILER_DIR))
+    const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+    if (manifest.name !== '@geastack/compiler') throw new Error('GEA_COMPILER_DIR must name the @geastack/compiler package root')
+    return root
+  }
   try {
-    return dirname(require.resolve('@geastack/compiler/package.json'))
+    return realpathSync(dirname(require.resolve('@geastack/compiler/package.json')))
   } catch {
     throw new Error(
       '@geastack/compiler is not installed. It is an optional peer dependency of ' +
-        '@geastack/node-compat; run `npm install @geastack/compiler` to use this script.',
+        '@geastack/node-compat; run `npm install @geastack/compiler` to use this script.'
     )
   }
+}
+
+/** Resolve the public import entry from the selected package's exports map.
+ * Static imports would ignore GEA_COMPILER_DIR and mix two compiler versions.
+ */
+export function compilerModuleUrl(subpath = '.', root = compilerRoot()) {
+  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+  const entry = manifest.exports?.[subpath]
+  const imported = typeof entry === 'string' ? entry : (entry?.import ?? entry?.default)
+  if (typeof imported !== 'string' || !imported.startsWith('./')) throw new Error(`The selected compiler has no import export ${subpath}`)
+  return pathToFileURL(join(root, imported)).href
 }
 
 /**

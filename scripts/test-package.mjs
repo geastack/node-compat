@@ -6,10 +6,38 @@ import { execFileSync } from 'node:child_process'
 import { join, relative, resolve, sep } from 'node:path'
 import { geatscNodePlugin } from '@geastack/node-compat'
 import { displayPathFrom } from './path-display.mjs'
+import { compilerRoot, compilerModuleUrl } from './resolve-compiler.mjs'
+import { compilerInputs, compilerFilesDigest, assertCompilerInputs } from './compiler-input.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 const require = createRequire(import.meta.url)
 const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
+
+test('the compiler override selects the actual package for both frontend and plugin imports', async () => {
+  const canonical = resolve(root, '../compiler')
+  const selected = compilerRoot({ GEA_COMPILER_DIR: canonical })
+  assert.equal(selected, canonical)
+  assert.equal(compilerModuleUrl('.', selected), new URL('../compiler/dist/compiler.js', `file://${root}/`).href)
+  const api = await import(compilerModuleUrl('./plugin', selected))
+  assert.ok(api.noPluginCapabilities)
+  assert.throws(() => compilerRoot({ GEA_COMPILER_DIR: root }), /compiler package root/)
+})
+
+test('compiler fingerprints cover all module names, JavaScript contents and native runtime contents', () => {
+  const first = [
+    ['dist/a.js', 'one'],
+    ['dist/nested/b.js', 'two']
+  ]
+  assert.equal(compilerFilesDigest(first), compilerFilesDigest([...first].reverse()))
+  assert.notEqual(compilerFilesDigest(first), compilerFilesDigest([first[0], ['dist/nested/b.js', 'changed']]))
+  assert.notEqual(compilerFilesDigest(first), compilerFilesDigest([first[0], ['dist/renamed.js', 'two']]))
+  const inputs = compilerInputs(resolve(root, '../compiler'))
+  assert.match(inputs.compilerDistHash, /^[a-f0-9]{64}$/)
+  assert.match(inputs.runtimeHash, /^[a-f0-9]{64}$/)
+  assertCompilerInputs(inputs)
+  assert.throws(() => assertCompilerInputs({ ...inputs, compilerDistHash: 'old' }), /changed/)
+  assert.throws(() => assertCompilerInputs({ ...inputs, runtimeHash: 'old' }), /changed/)
+})
 
 test('target package publishes publicly and exposes stable entry points', () => {
   assert.equal(manifest.publishConfig.access, 'public')
@@ -40,9 +68,10 @@ test('the npm archive contains the runtime and driver, and no vendored package s
   const paths = new Set(archive.files.map((file) => file.path))
   for (const file of [
     'scripts/build.mjs',
+    'scripts/resolve-compiler.mjs',
+    'scripts/compiler-input.mjs',
     'scripts/builtin-modules.mjs',
     'scripts/path-display.mjs',
-    'plugin/index.mjs',
     'plugin/index.mjs',
     'runtime/gea_node.cpp',
     'runtime/gea_node.hpp',
@@ -64,7 +93,7 @@ test('the npm archive contains the runtime and driver, and no vendored package s
 })
 
 test('the compiler depends on the package through npm versions and the public plugin API', () => {
-  const compiler = JSON.parse(readFileSync(require.resolve('@geastack/compiler/package.json'), 'utf8'))
+  const compiler = JSON.parse(readFileSync(join(compilerRoot(), 'package.json'), 'utf8'))
   const dependency = compiler.dependencies['@geastack/node-compat']
   assert.match(dependency, /^\^\d+\.\d+\.\d+$/)
   const [minimumMajor, minimumMinor, minimumPatch] = dependency.slice(1).split('.').map(Number)
