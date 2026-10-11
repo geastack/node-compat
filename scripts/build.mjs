@@ -970,6 +970,14 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
         ? ['-Wl,-dead_strip']
         : []
       : [...(compiling ? ['-ffunction-sections', '-fdata-sections'] : []), ...(linking ? ['-Wl,--gc-sections'] : [])]),
+    // Fold byte-identical functions, as ld64 already does on macOS. Templates
+    // instantiate the same machine code under many names -- every
+    // `ArrayObject<CallableObject<void(Ref<X>)>>` member, one per event
+    // listener type, is one body -- and `safe` folds only functions whose
+    // address is never taken, so no pointer comparison can tell. The LTO links
+    // are gold or lld, which both implement it. raw-http-hello 1,282,256 ->
+    // 1,192,144 bytes, hono-hello 6,624,648 -> 6,063,496 (clang 18, -Os -flto).
+    ...(linking && optimize && lto !== null && process.platform === 'linux' && cxxIsClang ? ['-Wl,--icf=safe'] : []),
     // Runtime headers are authoritative source inputs. Build directories can
     // contain headers copied by an older toolchain run, so searching `outDir`
     // first can silently compile current C++ against a stale host ABI. Keep the
