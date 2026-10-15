@@ -1097,14 +1097,16 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
 // (A function-local constant: `--link-only` runs before any top-level `let` or
 // `const` this far down is initialized.)
 function ltoMode(phase, cxxIsClang) {
-  // Windows defaults to ThinLTO, single unit or split; GEA_LTO=full opts back
-  // in. LLVM 23.1.1's full-LTO pipeline crashes lld-link (a segfault in jump
-  // threading / instcombine) on coroutine code under the MSVC C++ exception
-  // model -- events.ts's captureRejections awaiting a gea::Promise coroutine,
-  // in an HTTP server app -- the same LLVM bug class that crashed a game's
-  // ThinLTO link on a generator. ThinLTO links that app (69 s, 6.7 MB) and it
-  // serves correctly.
-  const platformDefault = process.platform === 'win32' && cxxIsClang ? 'thin' : 'full'
+  // Windows defaults to no LTO (still -Os), single unit or split; GEA_LTO=thin
+  // or GEA_LTO=full opts in. LLVM 22.1.8, 23.1.1 and 23.1.3 crash lld-link's
+  // LTO backends there, full LTO and ThinLTO alike (a segfault in jump
+  // threading / instcombine), on coroutine code under the MSVC C++ exception
+  // model: events.ts's captureRejections awaiting a gea::Promise coroutine, in
+  // an HTTP app under full LTO and in test-stream-adapters under ThinLTO. The
+  // bitcode clang writes for such code already fails `opt -passes=verify`
+  // ("Instruction does not dominate all uses" in catch-funclet code); clang
+  // skips the verifier, and the LTO pipeline trips over the invalid module.
+  const platformDefault = process.platform === 'win32' && cxxIsClang ? null : 'full'
   const splitDefault = platformDefault
   if (!optimize) return null
   const requested = process.env.GEA_LTO
@@ -1124,7 +1126,7 @@ function ltoMode(phase, cxxIsClang) {
   // The optimized phase defaults to ThinLTO: the full-LTO link is one thread
   // (~11 min on the bench box), the ThinLTO backends run on every core.
   // GEA_LTO=full restores full LTO for a final release build.
-  if (process.env.GEA_PGO_USE) return 'thin'
+  if (process.env.GEA_PGO_USE) return platformDefault === null ? null : 'thin'
   return splitDefault
 }
 
