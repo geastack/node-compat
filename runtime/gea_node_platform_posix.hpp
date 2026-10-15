@@ -340,7 +340,7 @@ inline std::string kernelRelease() { return unameOf().release; }
 inline std::string systemName() { return unameOf().sysname; }
 
 // GEA_WORKERS=N: fork N-1 copies of this process; true in the parent.
-inline bool forkWorkers(int workers) {
+inline bool forkWorkers(int &workers) {
   bool isParent = true;
   if (workers > 1) {
     ::signal(SIGCHLD, SIG_IGN);  // auto-reap workers that exit
@@ -440,9 +440,9 @@ inline void reapExitedChildren(OnExit &&onExit) {
     int status = 0;
     const pid_t pid = ::waitpid(-1, &status, WNOHANG);
     if (pid <= 0) break;
-    if (WIFEXITED(status)) onExit(static_cast<double>(pid), WEXITSTATUS(status), 0);
-    else if (WIFSIGNALED(status)) onExit(static_cast<double>(pid), -1, WTERMSIG(status));
-    else onExit(static_cast<double>(pid), -1, 0);
+    if (WIFEXITED(status)) onExit(static_cast<double>(pid), static_cast<double>(WEXITSTATUS(status)), 0);
+    else if (WIFSIGNALED(status)) onExit(static_cast<double>(pid), -1.0, WTERMSIG(status));
+    else onExit(static_cast<double>(pid), -1.0, 0);
   }
 }
 

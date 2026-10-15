@@ -777,9 +777,13 @@ inline std::string systemName() { return "Windows_NT"; }
 
 // GEA_WORKERS forks the reactor after the program has built its world; there
 // is no fork on Windows, so the parent serves alone.
-inline bool forkWorkers(int workers) {
-  if (workers > 1)
-    std::fprintf(stderr, "gea-node: GEA_WORKERS=%d is not supported on Windows (no fork); serving with one worker\n", workers);
+inline bool forkWorkers(int &workers) {
+  if (workers > 1) {
+    char line[128];
+    std::snprintf(line, sizeof(line), "gea-node: GEA_WORKERS=%d is not supported on Windows (no fork); serving with one worker\n", workers);
+    std::fputs(line, stderr);
+  }
+  workers = 1;
   return true;
 }
 
@@ -892,8 +896,9 @@ inline void reapExitedChildren(OnExit &&onExit) {
     const double pid = static_cast<double>(child.pid);
     const int killedWith = child.killedWith;
     all.erase(all.begin() + static_cast<std::ptrdiff_t>(index));
-    if (killedWith != 0) onExit(pid, -1, killedWith);
-    else onExit(pid, static_cast<int>(code), 0);
+    // The exit code is a DWORD: TerminateProcess(-1) is 4294967295, as node reports it.
+    if (killedWith != 0) onExit(pid, -1.0, killedWith);
+    else onExit(pid, static_cast<double>(code), 0);
   }
 }
 

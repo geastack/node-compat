@@ -3574,7 +3574,7 @@ inline void serve(int port, Responder responder) {
     const int parsed = std::atoi(env);
     if (parsed > 1 && parsed <= 256) workers = parsed;
   }
-  const bool isParent = platform::forkWorkers(workers);
+  const bool isParent = platform::forkWorkers(workers);  // 1 where the host cannot fork
   EventLoop &loop = clientEventLoop();
   HttpServer<Responder> server(loop, port, std::move(responder));
   if (!server.valid()) {
@@ -3582,8 +3582,13 @@ inline void serve(int port, Responder responder) {
     return;
   }
   if (isParent) {
-    if (workers > 1) std::fprintf(stderr, "gea-node: listening on http://127.0.0.1:%d (%d workers)\n", port, workers);
-    else std::fprintf(stderr, "gea-node: listening on http://127.0.0.1:%d\n", port);
+    // Formatted first and written once: an unbuffered stream would otherwise
+    // reach the file in pieces, interleaved with every other process writing
+    // to the same stderr (cluster workers).
+    char line[96];
+    if (workers > 1) std::snprintf(line, sizeof(line), "gea-node: listening on http://127.0.0.1:%d (%d workers)\n", port, workers);
+    else std::snprintf(line, sizeof(line), "gea-node: listening on http://127.0.0.1:%d\n", port);
+    std::fputs(line, stderr);
   }
   loop.addBorrowed(&server);
   listenerCloser() = [&loop, &server]() { loop.close(&server); };
@@ -3707,11 +3712,11 @@ inline int signalNumber(const std::string &name) {
 inline void reap() {
   State &s = state();
   bool any = false;
-  platform::reapExitedChildren([&](double pid, int code, int signal) {
+  platform::reapExitedChildren([&](double pid, double code, int signal) {
     ExitEvent event;
     event.pid = pid;
     if (signal != 0) event.signal = signalName(signal);
-    else if (code >= 0) event.code = static_cast<double>(code);
+    else if (code >= 0) event.code = code;
     s.exits.push_back(std::move(event));
     if (s.liveChildren > 0) --s.liveChildren;
     any = true;
