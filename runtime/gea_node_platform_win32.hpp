@@ -1105,9 +1105,21 @@ inline bool sharedClusterListener(const sockaddr *address, socklen_t length, int
   ClusterListenReply reply{};
   DWORD received = 0;
   const std::wstring name = wide(pipeName);
-  if (!::CallNamedPipeW(name.c_str(), &request, sizeof(request), &reply, sizeof(reply), &received, 5000) ||
-      received != sizeof(reply)) {
-    errno = errnoFromWin32(::GetLastError());
+  // The primary serves one request at a time and re-creates its pipe instance
+  // after each: a worker that asks in that gap finds no instance at all
+  // (ERROR_FILE_NOT_FOUND, not ERROR_PIPE_BUSY), so both mean "try again".
+  bool answered = false;
+  DWORD failure = ERROR_SUCCESS;
+  for (int attempt = 0; attempt < 200 && !answered; ++attempt) {
+    answered = ::CallNamedPipeW(name.c_str(), &request, sizeof(request), &reply, sizeof(reply), &received, 5000) &&
+               received == sizeof(reply);
+    if (answered) break;
+    failure = ::GetLastError();
+    if (failure != ERROR_FILE_NOT_FOUND && failure != ERROR_PIPE_BUSY && failure != ERROR_SEM_TIMEOUT) break;
+    ::Sleep(25);
+  }
+  if (!answered) {
+    errno = errnoFromWin32(failure == ERROR_SUCCESS ? ERROR_BROKEN_PIPE : failure);
     return true;
   }
   if (reply.error != 0) {
