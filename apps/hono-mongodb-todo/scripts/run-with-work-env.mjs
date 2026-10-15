@@ -14,14 +14,14 @@ if (!requestedCommand) {
   process.exit(2)
 }
 
-const command =
-  requestedCommand === 'node'
-    ? process.execPath
-    : process.platform === 'win32' && (requestedCommand === 'npm' || requestedCommand === 'npx')
-      ? `${requestedCommand}.cmd`
-      : requestedCommand
+const command = requestedCommand === 'node' ? process.execPath : requestedCommand
+// npm and npx are .cmd scripts on Windows, which node starts only through a
+// shell (spawning a .cmd directly is EINVAL since node's CVE-2024-27980 fix).
+// Their arguments here are script names and flags, so joining them loses nothing.
+const viaShell = process.platform === 'win32' && (command === 'npm' || command === 'npx')
 
-const child = spawn(command, args, {
+const child = spawn(viaShell ? [command, ...args].join(' ') : command, viaShell ? [] : args, {
+  shell: viaShell,
   cwd: appRoot,
   env: {
     ...process.env,
