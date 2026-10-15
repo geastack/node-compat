@@ -9,7 +9,7 @@ import { resolve } from 'node:path'
 const root = resolve(import.meta.dirname, '..')
 const output = resolve(root, 'apps/hono-mongodb-todo/dist')
 const source = resolve(root, 'apps/hono-mongodb-todo/correctness/native/net-auto-select-family.ts')
-const executable = resolve(output, 'net-auto-select-family')
+const executable = resolve(output, 'net-auto-select-family') + (process.platform === 'win32' ? '.exe' : '')
 const options = { cwd: root, encoding: 'utf8', env: { ...process.env, TMPDIR: output } }
 
 // The caller owns the shared compiler build window; this never rebuilds dist.

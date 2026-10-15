@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, "..", "..");
 const appDir = path.join(repo, "apps", "net-stub-pilot");
 const outDir = path.join(appDir, "dist");
-const executable = path.join(outDir, "server");
+const executable = path.join(outDir, "server") + (process.platform === 'win32' ? '.exe' : '');
 fs.rmSync(outDir, { recursive: true, force: true });
 
 const build = spawnSync(

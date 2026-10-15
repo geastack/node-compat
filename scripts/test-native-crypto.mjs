@@ -7,7 +7,7 @@ import { dirname, resolve } from 'node:path'
 import { compilerRuntimeInclude } from './resolve-compiler.mjs'
 
 const root = resolve(import.meta.dirname, '..')
-const executable = resolve(root, 'apps/hono-mongodb-todo/dist/native-crypto')
+const executable = resolve(root, 'apps/hono-mongodb-todo/dist/native-crypto') + (process.platform === 'win32' ? '.exe' : '')
 mkdirSync(dirname(executable), { recursive: true })
 const operations = []
 const expected = []
@@ -94,5 +94,5 @@ execFileSync(
   ],
   { input: code, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
 )
-assert.deepEqual(execFileSync(executable, { encoding: 'utf8', timeout: 30000 }).trimEnd().split('\n'), expected)
+assert.deepEqual(execFileSync(executable, { encoding: 'utf8', timeout: 30000 }).trimEnd().split(/\r?\n/), expected)
 console.log(`NATIVE_CRYPTO_OK:${expected.length}`)

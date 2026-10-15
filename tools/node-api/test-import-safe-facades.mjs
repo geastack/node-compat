@@ -13,7 +13,7 @@ const surface = JSON.parse(
 const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gea-node24-imports-'))
 const entry = path.join(rootDir, 'imports.ts')
 const outDir = path.join(rootDir, 'dist')
-const executable = path.join(outDir, 'imports')
+const executable = path.join(outDir, 'imports') + (process.platform === 'win32' ? '.exe' : '')
 const source = [
   '// Every generated Node 24 builtin must initialize without executing a stub.',
   ...Object.keys(surface.modules).map((moduleName) => `import ${JSON.stringify(moduleName)}`),

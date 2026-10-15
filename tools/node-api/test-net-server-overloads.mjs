@@ -11,7 +11,7 @@ const repo = path.resolve(here, '..', '..')
 const entry = path.join(repo, 'apps', 'net-server-overloads', 'server.ts')
 const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gea-node24-net-server-'))
 const outDir = path.join(rootDir, 'dist')
-const executable = path.join(outDir, 'server')
+const executable = path.join(outDir, 'server') + (process.platform === 'win32' ? '.exe' : '')
 
 const build = spawnSync(
   process.execPath,

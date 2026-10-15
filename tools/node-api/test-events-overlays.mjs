@@ -9,7 +9,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const repo = path.resolve(here, '..', '..')
 const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gea-node24-events-'))
 const outDir = path.join(rootDir, 'dist')
-const executable = path.join(outDir, 'server')
+const executable = path.join(outDir, 'server') + (process.platform === 'win32' ? '.exe' : '')
 const entry = path.join(repo, 'apps', 'events-overlays', 'server.ts')
 
 try {

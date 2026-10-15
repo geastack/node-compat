@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { deflateRawSync, deflateSync, gunzipSync, gzipSync, inflateRawSync, inflateSync } from 'node:zlib'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 
 import { compilerRuntimeInclude } from './resolve-compiler.mjs'
@@ -10,7 +10,7 @@ import { compilerRuntimeInclude } from './resolve-compiler.mjs'
 // byte-exactly, node decodes every one of ours, and malformed or truncated
 // input throws instead of returning a prefix.
 const root = resolve(import.meta.dirname, '..')
-const executable = resolve(root, 'apps/hono-mongodb-todo/dist/native-zlib')
+const executable = resolve(root, 'apps/hono-mongodb-todo/dist/native-zlib') + (process.platform === 'win32' ? '.exe' : '')
 mkdirSync(dirname(executable), { recursive: true })
 const bytes = (value) => `bytes("${value.toString('hex')}")`
 const inputs = [
@@ -39,6 +39,16 @@ for (const input of inputs) {
 const members = Buffer.concat([gzipSync(Buffer.from('first ')), gzipSync(Buffer.from('second'))])
 operations.push(`std::cout << hex(gea::node::zlib::inflate(${bytes(members)}, 31)) << '\\n';`)
 const truncated = gzipSync(inputs[3]).subarray(0, 40)
+// Windows has no system zlib: vcpkg's static build, found as scripts/build.mjs
+// finds it (VCPKG_ROOT, else C:\vcpkg), where the library is zs.lib.
+const vcpkg =
+  process.platform === 'win32'
+    ? [process.env.VCPKG_ROOT, 'C:\\vcpkg']
+        .filter(Boolean)
+        .map((vcpkgRoot) => resolve(vcpkgRoot, 'installed', 'x64-windows-static'))
+        .find((installed) => existsSync(resolve(installed, 'include', 'zlib.h')))
+    : undefined
+const zlibFlags = vcpkg ? [`-I${resolve(vcpkg, 'include')}`, `-L${resolve(vcpkg, 'lib')}`, '-lzs'] : ['-lz']
 const code = String.raw`
 #include "gea_node_buffer.hpp"
 #include "gea_node_zlib.hpp"
@@ -81,7 +91,7 @@ execFileSync(
     '-x',
     'c++',
     '-',
-    '-lz',
+    ...zlibFlags,
     '-o',
     executable
   ],
@@ -89,7 +99,7 @@ execFileSync(
 )
 const lines = execFileSync(executable, { encoding: 'utf8', timeout: 60000, maxBuffer: 256 * 1024 * 1024 })
   .trimEnd()
-  .split('\n')
+  .split(/\r?\n/)
 let at = 0
 const decoded = (line) => Buffer.from(line, 'hex')
 for (const input of inputs) {

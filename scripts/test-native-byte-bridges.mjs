@@ -8,7 +8,7 @@ import { promisify } from 'node:util'
 import { compilerRuntimeInclude } from './resolve-compiler.mjs'
 
 const root = resolve(import.meta.dirname, '..')
-const executable = resolve(root, 'apps/hono-mongodb-todo/dist/native-byte-bridges')
+const executable = resolve(root, 'apps/hono-mongodb-todo/dist/native-byte-bridges') + (process.platform === 'win32' ? '.exe' : '')
 mkdirSync(dirname(executable), { recursive: true })
 const code = String.raw`
 #include "gea_node.hpp"

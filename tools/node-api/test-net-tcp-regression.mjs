@@ -19,7 +19,7 @@ const rootDir = fs.mkdtempSync(
   path.join(os.tmpdir(), "gea-node24-net-regression-"),
 );
 const outDir = path.join(rootDir, "dist");
-const executable = path.join(outDir, "net-runtime-probe");
+const executable = path.join(outDir, "net-runtime-probe") + (process.platform === 'win32' ? '.exe' : '');
 
 const server = net.createServer((socket) => socket.pipe(socket));
 await new Promise((resolve, reject) => {
