@@ -124,6 +124,25 @@ erased so the library's hot path monomorphizes to fully typed C++ (see
 
 Every figure above and its history is in [BENCHMARKS.md](BENCHMARKS.md).
 
+### Windows
+
+Windows builds use LLVM's `clang++` and `lld-link` against the Visual Studio
+C++ build tools and Windows SDK (the clang driver finds them), and produce
+`dist/server.exe`. `node:zlib` links vcpkg's static zlib
+(`vcpkg install zlib --triplet x64-windows-static`, found under `VCPKG_ROOT`
+or `C:\vcpkg`); `node:crypto` uses Windows' own CNG, so nothing else is needed.
+
+The runtime behaves as on Linux, with node's Windows answers where node itself
+differs: `path` is `path.win32`, `process.platform` is `win32`, file URLs
+convert to drive-letter and UNC paths, and a socket error's `errno` uses
+libuv's Windows numbering (`ECONNREFUSED` is -4078). Differences that remain:
+
+- `GEA_WORKERS` needs `fork`, which Windows lacks; it serves with one worker.
+  `node:cluster` works: as in node on Windows, the primary owns each
+  listening socket and its workers accept from a shared duplicate.
+- `process.env` keeps the environment's own spelling of each name and is
+  case-sensitive (`process.env.Path`, not `PATH`), where node's is not.
+
 ## Layout
 
 - **[runtime/gea_node.cpp](runtime/gea_node.cpp)** — the native layer: a
