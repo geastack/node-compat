@@ -59,12 +59,16 @@ test('build output paths are relative to the application instead of the installe
 })
 
 test('the npm archive contains the runtime and driver, and no vendored package sources', () => {
-  const [archive] = JSON.parse(
-    execFileSync('npm', ['pack', '--dry-run', '--ignore-scripts', '--json'], {
-      cwd: root,
-      encoding: 'utf8'
-    })
+  // npm is npm.cmd on Windows, which only a shell can start; the arguments are
+  // fixed words, so the joined command line needs no quoting.
+  const pack = ['npm', 'pack', '--dry-run', '--ignore-scripts', '--json']
+  const packed = JSON.parse(
+    process.platform === 'win32'
+      ? execFileSync(pack.join(' '), { cwd: root, encoding: 'utf8', shell: true })
+      : execFileSync(pack[0], pack.slice(1), { cwd: root, encoding: 'utf8' })
   )
+  // npm 11 reports an array of archives, npm 12 an object keyed by package name.
+  const archive = Array.isArray(packed) ? packed[0] : packed['@geastack/node-compat']
   const paths = new Set(archive.files.map((file) => file.path))
   for (const file of [
     'scripts/build.mjs',
