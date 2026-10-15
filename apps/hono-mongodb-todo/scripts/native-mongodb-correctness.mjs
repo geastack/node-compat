@@ -29,6 +29,8 @@ const probeDir = path.join(appRoot, 'correctness/native')
 const buildRoot = path.join(appRoot, 'dist/correctness')
 const mongodbSourceProject = path.join(appRoot, 'node_modules/mongodb/tsconfig.json')
 const runTimeoutMs = 30_000
+// clang names a Windows executable `<name>.exe`, and CreateProcess looks for exactly that.
+const executableSuffix = process.platform === 'win32' ? '.exe' : ''
 const buildTimeoutMs = Number(process.env.MONGODB_CORRECTNESS_BUILD_TIMEOUT_MS ?? 30 * 60_000)
 
 const modes = ['--emit-only', '--link-only', '--skip-build']
@@ -67,7 +69,7 @@ const baseEnv = { ...process.env, TMPDIR: scratch, TMP: scratch, TEMP: scratch }
 function buildProbe(name) {
   const entry = path.join(probeDir, `${name}.ts`)
   const outDir = path.join(buildRoot, name)
-  const executable = path.join(outDir, name)
+  const executable = path.join(outDir, name) + executableSuffix
   const report = path.join(outDir, 'report.json')
   const importsMongodb = /from\s+['"]mongodb['"]/.test(fs.readFileSync(entry, 'utf8'))
   const nodeOptions = [baseEnv.NODE_OPTIONS, importsMongodb ? '--max-old-space-size=8192' : null]
@@ -103,7 +105,17 @@ function buildProbe(name) {
 function run(command, commandArgs, label) {
   return new Promise((resolve) => {
     // node-compat root: probes name repo-relative paths (`apps/hono-mongodb-todo/...`).
-    const child = spawn(command, commandArgs, { cwd: nodeCompatRoot, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
+    // A .cmd (tsx, npx on Windows) starts only through a shell since node's
+    // CVE-2024-27980 fix; quote its command line for cmd.exe.
+    const viaShell = process.platform === 'win32' && /\.cmd$/i.test(command)
+    const child = viaShell
+      ? spawn([command, ...commandArgs].map((part) => `"${part}"`).join(' '), [], {
+          cwd: nodeCompatRoot,
+          env: process.env,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          shell: true
+        })
+      : spawn(command, commandArgs, { cwd: nodeCompatRoot, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
     let stdout = ''
     let stderr = ''
     let timedOut = false
@@ -147,7 +159,7 @@ function diffLines(expected, actual) {
 
 const results = []
 for (const name of probes) {
-  let executable = path.join(buildRoot, name, name)
+  let executable = path.join(buildRoot, name, name) + executableSuffix
   if (mode !== '--skip-build') {
     const build = buildProbe(name)
     if (!build.ok) {
@@ -167,7 +179,13 @@ for (const name of probes) {
 
   const entry = path.join(probeDir, `${name}.ts`)
   const tsx = path.join(appRoot, 'node_modules/.bin', process.platform === 'win32' ? 'tsx.cmd' : 'tsx')
-  const reference = fs.existsSync(tsx) ? await run(tsx, [entry], 'node') : await run(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['tsx', entry], 'node')
+  // Without a local tsx, Windows runs the probe on node's own type stripping:
+  // `npx tsx` there resolves npx's shim against the caller's node_modules.
+  const reference = fs.existsSync(tsx)
+    ? await run(tsx, [entry], 'node')
+    : process.platform === 'win32'
+      ? await run(process.execPath, [entry], 'node')
+      : await run('npx', ['tsx', entry], 'node')
   const native = await run(executable, [], 'native')
   const problems = []
   if (reference.timedOut || reference.code !== 0) {
