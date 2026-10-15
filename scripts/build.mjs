@@ -1097,14 +1097,22 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
 // (A function-local constant: `--link-only` runs before any top-level `let` or
 // `const` this far down is initialized.)
 function ltoMode(phase, cxxIsClang) {
-  const splitDefault = 'full'
+  // Windows defaults to ThinLTO, single unit or split; GEA_LTO=full opts back
+  // in. LLVM 23.1.1's full-LTO pipeline crashes lld-link (a segfault in jump
+  // threading / instcombine) on coroutine code under the MSVC C++ exception
+  // model -- events.ts's captureRejections awaiting a gea::Promise coroutine,
+  // in an HTTP server app -- the same LLVM bug class that crashed a game's
+  // ThinLTO link on a generator. ThinLTO links that app (69 s, 6.7 MB) and it
+  // serves correctly.
+  const platformDefault = process.platform === 'win32' && cxxIsClang ? 'thin' : 'full'
+  const splitDefault = platformDefault
   if (!optimize) return null
   const requested = process.env.GEA_LTO
   if (requested === '0') return null
   if (requested === 'thin') return cxxIsClang ? 'thin' : 'full'
   if (requested === 'full' || requested === '1') return 'full'
   if (requested) throw new Error(`GEA_LTO must be 0, full or thin (got ${requested})`)
-  if (phase === 'all' || !cxxIsClang) return 'full'
+  if (phase === 'all' || !cxxIsClang) return platformDefault
   // --pgo builds of a split program. The instrumented executable only has to
   // run the training workload: instrumentation is inserted by the front end
   // (before any optimization), so the profile it writes is valid for the
