@@ -52,7 +52,7 @@ test('Process host metadata claims a finite, receiverless Process@1 protocol', (
 })
 
 test('Process getBuiltinModule uses the cached native builtin registry', () => {
-  const executable = resolve(root, 'apps/fastify-hello/dist/process-builtin-module')
+  const executable = resolve(root, 'apps/fastify-hello/dist/process-builtin-module') + (process.platform === 'win32' ? '.exe' : '')
   mkdirSync(dirname(executable), { recursive: true })
   execFileSync(
     process.env.CXX ?? 'clang++',
@@ -94,8 +94,9 @@ int main() {
 })
 
 test('Process getBuiltinModule preserves Node’s generic literal return type', () => {
-  const declaration = resolve(root, 'runtime/node/node-globals.ts')
-  const entry = resolve(root, 'fixtures/process-builtin-module-type.ts')
+  // TypeScript names files with forward slashes on every host.
+  const declaration = resolve(root, 'runtime/node/node-globals.ts').replaceAll('\\', '/')
+  const entry = resolve(root, 'fixtures/process-builtin-module-type.ts').replaceAll('\\', '/')
   const options = {
     target: ts.ScriptTarget.ES2022,
     module: ts.ModuleKind.ESNext,
@@ -123,7 +124,7 @@ test('Process getBuiltinModule preserves Node’s generic literal return type', 
   assert.ok(initializer)
   assert.equal(
     program.getTypeChecker().typeToString(program.getTypeChecker().getTypeAtLocation(initializer)),
-    `typeof import("${resolve(root, 'runtime/node/diagnostics_channel')}")`
+    `typeof import("${resolve(root, 'runtime/node/diagnostics_channel').replaceAll('\\', '/')}")`
   )
   const unavailable = source.statements[1].declarationList.declarations[0].initializer
   assert.ok(unavailable)
@@ -137,7 +138,7 @@ test('Process getBuiltinModule preserves Node’s generic literal return type', 
 })
 
 test('Process native state preserves environment identity, tuple ABI, next-tick priority, and exit semantics', () => {
-  const executable = resolve(root, 'apps/fastify-hello/dist/process-host-protocol')
+  const executable = resolve(root, 'apps/fastify-hello/dist/process-host-protocol') + (process.platform === 'win32' ? '.exe' : '')
   mkdirSync(dirname(executable), { recursive: true })
   execFileSync(
     process.env.CXX ?? 'clang++',

@@ -21,6 +21,7 @@ import { compilerRoot, compilerModuleUrl } from '../scripts/resolve-compiler.mjs
 import { intrinsics } from './intrinsics.mjs'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
+import { sep } from 'node:path'
 import { resolveBuiltinModules } from '../scripts/builtin-modules.mjs'
 
 const selectedCompiler = compilerRoot()
@@ -142,7 +143,7 @@ const builtinModuleSources = () =>
     [...resolveBuiltinModules(runtimeNodeDirectory, generatedFacadeDirectory).entries()]
       // A generated facade is declaration coverage with a throwing body, not a
       // runtime capability. `getBuiltinModule` must report it unavailable.
-      .filter(([, source]) => !source.startsWith(`${generatedFacadeDirectory}/`))
+      .filter(([, source]) => !source.startsWith(`${generatedFacadeDirectory}${sep}`))
   )
 
 const builtinModuleRegistry = (sources = builtinModuleSources()) =>

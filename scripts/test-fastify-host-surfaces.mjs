@@ -28,7 +28,7 @@ test('Fastify bare resolution reaches the URL declarations used by light-my-requ
 
   assert.ok(reachable.imports.some((edge) => edge.from === entry && edge.specifier === 'fastify'))
   assert.ok(
-    [...reachable.files].some((file) => file.endsWith('/light-my-request/lib/parse-url.js')),
+    [...reachable.files].some((file) => file.replaceAll('\\', '/').endsWith('/light-my-request/lib/parse-url.js')),
     'the real Fastify runtime graph must reach light-my-request rather than stopping at its .d.ts'
   )
   assert.deepEqual([...reachable.names].filter((name) => name === 'URL' || name === 'URLSearchParams').sort(), ['URL', 'URLSearchParams'])
