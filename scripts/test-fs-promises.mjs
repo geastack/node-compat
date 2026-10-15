@@ -69,7 +69,8 @@ const code = stripTypeScriptTypes(source, { mode: 'strip', disableExperimentalWa
 const context = vm.createContext({
   URL, Buffer, queueMicrotask, TextEncoder, TextDecoder, console, setTimeout, clearTimeout, process,
   __gea_node_fs_access(path, mode) { try { accessSync(path, mode); return true } catch { return false } },
-  __gea_node_fs_read_file: readFileSync
+  __gea_node_fs_read_file: readFileSync,
+  __gea_node_platform: () => process.platform
 })
 const fs = vm.runInContext(`${code}\nnodeFsPromises`, context)
 const file = fileURLToPath(modulePath)

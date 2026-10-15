@@ -20,12 +20,28 @@ const nodeFsConstants = {
   X_OK: 1
 }
 
+/** @gea-host-inert */
+declare function __gea_node_platform(): string
+
 function filePath(path: string | URL): string {
   if (typeof path === 'string') return path
   if (path.protocol !== 'file:') throw new TypeError('The URL must be of scheme file')
+  if (__gea_node_platform() === 'win32') return windowsFilePath(path)
   if (path.hostname !== '' && path.hostname !== 'localhost') throw new TypeError('File URL host must be localhost or empty')
   if (/%2f/i.test(path.pathname)) throw new TypeError('File URL path must not include encoded / characters')
   return decodeURIComponent(path.pathname)
+}
+
+// node's `fileURLToPath` on Windows: `file:///C:/a/b` is `C:\a\b`, and a URL
+// with a host names a UNC share, `\\host\share\...`.
+function windowsFilePath(path: URL): string {
+  if (/%2f|%5c/i.test(path.pathname)) throw new TypeError('File URL path must not include encoded \\ or / characters')
+  const pathname = decodeURIComponent(path.pathname.replace(/\//g, '\\'))
+  if (path.hostname !== '' && path.hostname !== 'localhost') return `\\\\${path.hostname}${pathname}`
+  const letter = pathname.charCodeAt(1) | 0x20
+  if (pathname.length < 3 || letter < 97 || letter > 122 || pathname.charAt(2) !== ':')
+    throw new TypeError('File URL path must be absolute')
+  return pathname.slice(1)
 }
 
 export class FsPromises {
