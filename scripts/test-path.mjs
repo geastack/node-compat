@@ -1,12 +1,13 @@
 // node:path is a full reimplementation (pure string manipulation, no native
-// binding), so this checks it two ways: exact-output parity against real
-// Node's own `path.posix` for the documented edge cases, plus the target's
-// own contract -- an explicit `nodeNotImplemented` refusal for `win32` and
-// `matchesGlob` rather than a silently wrong answer.
+// binding), so this checks it against real Node: `path.posix` and `path.win32`
+// output for the documented edge cases, the host-selected default (posix on a
+// posix host, win32 on Windows), plus the target's own contract -- an explicit
+// `nodeNotImplemented` refusal for `matchesGlob` rather than a silently wrong
+// answer.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
-import { posix as nodePosix } from 'node:path'
+import { posix as nodePosix, win32 as nodeWin32 } from 'node:path'
 import vm from 'node:vm'
 
 const modulePath = new URL('../runtime/node/path.ts', import.meta.url)
@@ -16,15 +17,19 @@ const source = readFileSync(modulePath, 'utf8')
 const code = stripTypeScriptTypes(source, { mode: 'strip', disableExperimentalWarning: true })
 
 let notImplementedCalls = []
-const context = vm.createContext({
-  process: { cwd: () => '/home/user/project' },
-  nodeNotImplemented(moduleName, memberName) {
-    notImplementedCalls.push(`${moduleName}.${memberName}`)
-    const error = new Error(`ERR_GEA_NODE_NOT_IMPLEMENTED: ${moduleName}.${memberName}`)
-    error.code = 'ERR_GEA_NODE_NOT_IMPLEMENTED'
-    throw error
-  }
-})
+// The module as a given host loads it: `platform` is what the native
+// `__gea_node_platform()` answers, `cwd` what `process.cwd()` does.
+const loadPath = (platform, cwd) => {
+  const context = vm.createContext({
+    process: { cwd: () => cwd },
+    __gea_node_platform: () => platform,
+    nodeNotImplemented(moduleName, memberName) {
+      notImplementedCalls.push(`${moduleName}.${memberName}`)
+      const error = new Error(`ERR_GEA_NODE_NOT_IMPLEMENTED: ${moduleName}.${memberName}`)
+      error.code = 'ERR_GEA_NODE_NOT_IMPLEMENTED'
+      throw error
+    }
+  })
 // The stripped `export { nodePathBasename as basename, ... }` block becomes a
 // bare comma expression (no binding named `basename` survives it), so the
 // result object below is built from the internal names it actually declares.
@@ -33,16 +38,18 @@ const context = vm.createContext({
 // thing as one statement -- the object literal *called* with `({...})` as
 // its argument -- which reads `win32` while its own declaration is still
 // initializing (a TDZ error), not two separate statements.
-const path = vm.runInContext(
-  `${code}\n;({
+  return vm.runInContext(
+    `${code}\n;({
     basename: nodePathBasename, delimiter, dirname: nodePathDirname, extname: nodePathExtname,
     format: nodePathFormat, isAbsolute: nodePathIsAbsolute, join: nodePathJoin,
     matchesGlob: nodePathMatchesGlob, normalize: nodePathNormalize, parse: nodePathParse,
     posix, relative: nodePathRelative, resolve: nodePathResolve, sep,
     toNamespacedPath: nodePathToNamespacedPath, win32
   })`,
-  context
-)
+    context
+  )
+}
+const path = loadPath('linux', '/home/user/project')
 
 // -- exact parity against real Node's path.posix for the documented edge cases --
 
@@ -111,50 +118,70 @@ assert.equal(path.resolve('a', 'b'), '/home/user/project/a/b')
 assert.equal(path.resolve('/a', 'b'), '/a/b')
 assert.equal(path.resolve('/a', '/b'), '/b')
 
-// posix is the same implementation again, not a second copy.
-assert.equal(path.posix.join, path.join)
+// posix is the posix implementation again, whatever the host.
+assert.equal(path.posix.join('a', 'b'), path.join('a', 'b'))
 assert.equal(path.posix.sep, '/')
 
-// -- explicit refusals: win32 and matchesGlob must throw ERR_GEA_NODE_NOT_IMPLEMENTED, never silently alias to posix --
+// -- exact parity against real Node's path.win32 --
 
-assert.throws(() => path.matchesGlob('/a/b', '*.js'), { code: 'ERR_GEA_NODE_NOT_IMPLEMENTED' })
-assert.deepEqual(notImplementedCalls, ['node:path.matchesGlob'])
+const win32 = path.win32
+assert.equal(win32.sep, '\\')
+assert.equal(win32.delimiter, ';')
+const windowsCwd = 'C:\\Users\\me\\project'
+const nodeWin32Resolve = (...args) => {
+  // Real Node consults its own cwd; give it ours by resolving against it.
+  const absolute = args.some((arg) => nodeWin32.isAbsolute(arg) && /^[\\/]{2}|^[a-zA-Z]:[\\/]/.test(arg))
+  return absolute ? nodeWin32.resolve(...args) : nodeWin32.resolve(windowsCwd, ...args)
+}
+const windowsPath = loadPath('win32', windowsCwd)
+const samples = [
+  '', '.', '..', '\\', '/', '\\\\', 'C:', 'C:\\', 'C:/', 'c:\\a\\..\\b', 'C:a\\b', 'C:\\a\\b\\', 'C:\\a\\\\b\\.\\c',
+  'a/b\\c', '\\\\server\\share', '\\\\server\\share\\', '\\\\server\\share\\dir\\file.txt', '//server/share/x',
+  '\\\\.\\PHYSICALDRIVE0', '\\\\?\\C:\\long\\path', 'dir\\file.tar.gz', '.hidden', '..bashrc', 'C:\\.hidden',
+  'file.', 'a\\b\\..\\..\\..\\c', 'C:\\..\\..', 'foo:bar', '.\\x:y', 'c:/windows//system32/'
+]
+for (const input of samples) {
+  for (const member of ['normalize', 'dirname', 'basename', 'extname', 'isAbsolute', 'toNamespacedPath']) {
+    if (member === 'toNamespacedPath' && !/^[\\/]{2}[^\\/]|^[a-zA-Z]:[\\/]/.test(input)) continue
+    assert.deepEqual(win32[member](input), nodeWin32[member](input), `win32.${member}(${JSON.stringify(input)})`)
+  }
+  assert.deepEqual({ ...win32.parse(input) }, { ...nodeWin32.parse(input) }, `win32.parse(${JSON.stringify(input)})`)
+}
+assert.equal(win32.basename('C:\\a\\b.txt', '.txt'), nodeWin32.basename('C:\\a\\b.txt', '.txt'))
+assert.equal(win32.basename('b.txt', 'b.txt'), nodeWin32.basename('b.txt', 'b.txt'))
+for (const args of [[], ['a', 'b'], ['C:\\a', '..\\b'], ['\\\\server', 'share'], ['//server', 'share', 'x'], ['', 'a', ''],
+  ['C:', 'a'], ['a', 'C:\\b'], ['\\', 'a'], ['//', 'a']]) {
+  assert.equal(win32.join(...args), nodeWin32.join(...args), `win32.join(${JSON.stringify(args)})`)
+}
+for (const args of [['a', 'b'], ['C:\\a', 'b'], ['C:\\a', 'D:\\b', 'c'], ['\\\\server\\share\\a', '..\\b'], ['C:\\a', '\\b'],
+  ['/x/y', 'z'], ['C:\\a\\b\\..']]) {
+  assert.equal(windowsPath.win32.resolve(...args), nodeWin32Resolve(...args), `win32.resolve(${JSON.stringify(args)})`)
+}
+for (const [from, to] of [
+  ['C:\\a\\b', 'C:\\a\\c'], ['C:\\a\\b', 'C:\\a\\b\\c\\d'], ['C:\\a\\b\\c', 'C:\\a'], ['C:\\', 'C:\\a'], ['C:\\a', 'C:\\'],
+  ['C:\\A\\b', 'c:\\a\\B\\c'], ['C:\\a', 'D:\\a'], ['\\\\server\\share\\a', '\\\\server\\share\\b'], ['C:\\a', 'C:\\a']
+]) {
+  assert.equal(win32.relative(from, to), nodeWin32.relative(from, to), `win32.relative(${from}, ${to})`)
+}
+for (const parsed of [{ dir: 'C:\\a', base: 'b.txt' }, { root: 'C:\\', name: 'b', ext: '.txt' }, { root: 'C:\\', name: 'b', ext: 'txt' }, { base: 'b' }]) {
+  assert.equal(win32.format(parsed), nodeWin32.format(parsed), `win32.format(${JSON.stringify(parsed)})`)
+}
+
+// On a Windows host the default export IS win32, and resolve() starts at the
+// process's (drive-letter) working directory.
+assert.equal(windowsPath.sep, '\\')
+assert.equal(windowsPath.delimiter, ';')
+assert.equal(windowsPath.join('a', 'b'), 'a\\b')
+assert.equal(windowsPath.resolve('a', 'b'), 'C:\\Users\\me\\project\\a\\b')
+assert.equal(windowsPath.resolve('\\x'), 'C:\\x')
+assert.equal(windowsPath.isAbsolute('C:\\x'), true)
+assert.equal(windowsPath.posix.join('a', 'b'), 'a/b')
+
+// -- explicit refusal: matchesGlob must throw ERR_GEA_NODE_NOT_IMPLEMENTED, never a partial matcher --
 
 notImplementedCalls = []
-assert.equal(path.win32.sep, '\\')
-assert.equal(path.win32.delimiter, ';')
-for (const [member, args] of [
-  ['basename', ['/a/b']],
-  ['dirname', ['/a/b']],
-  ['extname', ['/a/b']],
-  ['format', [{ base: 'a' }]],
-  ['isAbsolute', ['/a']],
-  ['join', ['a', 'b']],
-  ['matchesGlob', ['/a', '*']],
-  ['normalize', ['/a/b']],
-  ['parse', ['/a/b']],
-  ['relative', ['/a', '/b']],
-  ['resolve', ['/a']],
-  ['toNamespacedPath', ['/a']]
-]) {
-  assert.throws(() => path.win32[member](...args), { code: 'ERR_GEA_NODE_NOT_IMPLEMENTED' }, `win32.${member}`)
-}
-assert.deepEqual(
-  notImplementedCalls.sort(),
-  [
-    'node:path.win32.basename',
-    'node:path.win32.dirname',
-    'node:path.win32.extname',
-    'node:path.win32.format',
-    'node:path.win32.isAbsolute',
-    'node:path.win32.join',
-    'node:path.win32.matchesGlob',
-    'node:path.win32.normalize',
-    'node:path.win32.parse',
-    'node:path.win32.relative',
-    'node:path.win32.resolve',
-    'node:path.win32.toNamespacedPath'
-  ].sort()
-)
+assert.throws(() => path.matchesGlob('/a/b', '*.js'), { code: 'ERR_GEA_NODE_NOT_IMPLEMENTED' })
+assert.throws(() => path.win32.matchesGlob('/a/b', '*.js'), { code: 'ERR_GEA_NODE_NOT_IMPLEMENTED' })
+assert.deepEqual(notImplementedCalls, ['node:path.matchesGlob', 'node:path.win32.matchesGlob'])
 
-console.log('PASS: node:path matches Node posix semantics; win32/matchesGlob refuse explicitly')
+console.log('PASS: node:path matches Node posix and win32 semantics and the host default; matchesGlob refuses explicitly')
