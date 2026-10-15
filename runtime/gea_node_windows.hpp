@@ -56,6 +56,7 @@
 // cleanup header has run, an SDK header included afterwards would miss the
 // annotation macros it was written against.
 #include <bcrypt.h>
+#include <mstcpip.h>
 #include <shellapi.h>
 #include <tlhelp32.h>
 

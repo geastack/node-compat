@@ -143,6 +143,10 @@ inline int poll(pollfd *fds, std::size_t count, int timeoutMs) {
 
 inline const char *errorText(int error) { return std::strerror(error); }
 
+// The magnitude of libuv's code for a POSIX errno, which node reports negated
+// as `error.errno`: on every unix libuv's codes are the negated errnos.
+inline int uvErrorNumber(int error) { return error; }
+
 // ---- wake pipes ------------------------------------------------------------
 
 inline bool openWakePipe(Fd fds[2]) {

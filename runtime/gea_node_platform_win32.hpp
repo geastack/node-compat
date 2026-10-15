@@ -174,6 +174,61 @@ inline int errnoFromWin32(DWORD error) {
 
 inline void setErrnoFromWinsock() { errno = errnoFromWinsock(::WSAGetLastError()); }
 
+// The magnitude of libuv's code for a POSIX errno, which node reports
+// negated as `error.errno`. On Windows libuv numbers errors itself
+// (`ECONNREFUSED` is -4078), so node's errno there is not the C runtime's.
+inline int uvErrorNumber(int error) {
+  switch (error) {
+    case EACCES: return 4092;
+    case EADDRINUSE: return 4091;
+    case EADDRNOTAVAIL: return 4090;
+    case EAFNOSUPPORT: return 4089;
+    case EAGAIN: return 4088;
+    case EWOULDBLOCK: return 4088;
+    case EALREADY: return 4084;
+    case EBADF: return 4083;
+    case EBUSY: return 4082;
+    case ECANCELED: return 4081;
+    case ECONNABORTED: return 4079;
+    case ECONNREFUSED: return 4078;
+    case ECONNRESET: return 4077;
+    case ENETRESET: return 4077;
+    case EDESTADDRREQ: return 4076;
+    case EEXIST: return 4075;
+    case EFAULT: return 4074;
+    case EHOSTUNREACH: return 4073;
+    case EINTR: return 4072;
+    case EINVAL: return 4071;
+    case EIO: return 4070;
+    case EISCONN: return 4069;
+    case EISDIR: return 4068;
+    case EMFILE: return 4066;
+    case EMSGSIZE: return 4065;
+    case ENAMETOOLONG: return 4064;
+    case ENETDOWN: return 4063;
+    case ENETUNREACH: return 4062;
+    case ENFILE: return 4061;
+    case ENOBUFS: return 4060;
+    case ENOENT: return 4058;
+    case ENOMEM: return 4057;
+    case ENOSPC: return 4055;
+    case ENOTCONN: return 4053;
+    case ENOTDIR: return 4052;
+    case ENOTSOCK: return 4050;
+    case ENOTSUP: return 4049;
+    case EOPNOTSUPP: return 4049;
+    case EPERM: return 4048;
+    case EPIPE: return 4047;
+    case EPROTO: return 4046;
+    case EPROTONOSUPPORT: return 4045;
+    case EPROTOTYPE: return 4044;
+    case EROFS: return 4043;
+    case ETIMEDOUT: return 4039;
+    case ENOPROTOOPT: return 4035;
+    default: return error;
+  }
+}
+
 // The glibc text for each errno, so an error message reads the same as on
 // Linux (the UCRT's own strerror has no text for the socket errnos).
 inline const char *errorText(int error) {
@@ -306,9 +361,28 @@ inline int listenSocket(Fd fd, int backlog) {
   return -1;
 }
 
+inline bool isLoopback(const sockaddr *address) {
+  if (address->sa_family == AF_INET)
+    return (ntohl(reinterpret_cast<const sockaddr_in *>(address)->sin_addr.s_addr) >> 24) == 127;
+  if (address->sa_family == AF_INET6) return IN6_IS_ADDR_LOOPBACK(&reinterpret_cast<const sockaddr_in6 *>(address)->sin6_addr);
+  return false;
+}
+
 // A non-blocking connect that has started reports EINPROGRESS, as on POSIX
 // (Winsock says WSAEWOULDBLOCK).
+//
+// Windows answers a RST to a SYN by retransmitting the SYN, so a refused
+// connection to a local port takes two seconds to fail where Linux fails it at
+// once. For a loopback peer that retry can never succeed, and libuv turns it
+// off the same way (no SYN retransmissions), which is what node does here.
 inline int connectSocket(Fd fd, const sockaddr *address, socklen_t length) {
+  if (isLoopback(address)) {
+    TCP_INITIAL_RTO_PARAMETERS parameters{};
+    parameters.Rtt = TCP_INITIAL_RTO_UNSPECIFIED_RTT;
+    parameters.MaxSynRetransmissions = TCP_INITIAL_RTO_NO_SYN_RETRANSMISSIONS;
+    DWORD returned = 0;
+    (void)::WSAIoctl(fd, SIO_TCP_INITIAL_RTO, &parameters, sizeof(parameters), nullptr, 0, &returned, nullptr, nullptr);
+  }
   if (::connect(fd, address, length) == 0) return 0;
   const int error = ::WSAGetLastError();
   errno = error == WSAEWOULDBLOCK ? EINPROGRESS : errnoFromWinsock(error);

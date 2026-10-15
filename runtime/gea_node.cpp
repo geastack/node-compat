@@ -1835,11 +1835,14 @@ inline double net_create_native(std::string host, double requestedPort, double r
 
 inline std::string net_create_error() { return lastNetCreateError(); }
 
-inline double net_create_errno() { return static_cast<double>(lastNetCreateErrno()); }
+// Both errno accessors answer in libuv's numbering (`platform::uvErrorNumber`):
+// TypeScript negates the number into node's `error.errno` and names it with
+// `net_errno_name`, so the two agree on every platform.
+inline double net_create_errno() { return static_cast<double>(platform::uvErrorNumber(lastNetCreateErrno())); }
 
 inline double net_error_errno(double id) {
   ClientConnection *connection = findClientConnection(id);
-  return connection ? static_cast<double>(connection->errorNumber()) : 0.0;
+  return connection ? static_cast<double>(platform::uvErrorNumber(connection->errorNumber())) : 0.0;
 }
 
 inline std::string net_error_syscall(double id) {
@@ -1849,49 +1852,47 @@ inline std::string net_error_syscall(double id) {
 
 // libuv's error names for the errnos a TCP client can see. node spells a
 // system error's `code` with these (`ECONNREFUSED`), and its `errno` is the
-// negated POSIX value on every unix, which TypeScript computes.
+// negated libuv number -- the negated POSIX value on every unix, libuv's own
+// numbering on Windows -- which TypeScript computes from the same number.
 inline std::string net_errno_name(double requested) {
-  switch (static_cast<int>(requested)) {
+  const int wanted = static_cast<int>(requested);
 #define GEA_NODE_ERRNO_NAME(name) \
-  case name:                      \
-    return #name;
-    GEA_NODE_ERRNO_NAME(EACCES)
-    GEA_NODE_ERRNO_NAME(EADDRINUSE)
-    GEA_NODE_ERRNO_NAME(EADDRNOTAVAIL)
-    GEA_NODE_ERRNO_NAME(EAFNOSUPPORT)
-    GEA_NODE_ERRNO_NAME(EAGAIN)
-    GEA_NODE_ERRNO_NAME(EALREADY)
-    GEA_NODE_ERRNO_NAME(EBADF)
-    GEA_NODE_ERRNO_NAME(ECANCELED)
-    GEA_NODE_ERRNO_NAME(ECONNABORTED)
-    GEA_NODE_ERRNO_NAME(ECONNREFUSED)
-    GEA_NODE_ERRNO_NAME(ECONNRESET)
+  if (platform::uvErrorNumber(name) == wanted) return #name;
+  GEA_NODE_ERRNO_NAME(EACCES)
+  GEA_NODE_ERRNO_NAME(EADDRINUSE)
+  GEA_NODE_ERRNO_NAME(EADDRNOTAVAIL)
+  GEA_NODE_ERRNO_NAME(EAFNOSUPPORT)
+  GEA_NODE_ERRNO_NAME(EAGAIN)
+  GEA_NODE_ERRNO_NAME(EALREADY)
+  GEA_NODE_ERRNO_NAME(EBADF)
+  GEA_NODE_ERRNO_NAME(ECANCELED)
+  GEA_NODE_ERRNO_NAME(ECONNABORTED)
+  GEA_NODE_ERRNO_NAME(ECONNREFUSED)
+  GEA_NODE_ERRNO_NAME(ECONNRESET)
 #ifdef EHOSTDOWN
-    GEA_NODE_ERRNO_NAME(EHOSTDOWN)
+  GEA_NODE_ERRNO_NAME(EHOSTDOWN)
 #endif
-    GEA_NODE_ERRNO_NAME(EHOSTUNREACH)
-    GEA_NODE_ERRNO_NAME(EINTR)
-    GEA_NODE_ERRNO_NAME(EINVAL)
-    GEA_NODE_ERRNO_NAME(EIO)
-    GEA_NODE_ERRNO_NAME(EISCONN)
-    GEA_NODE_ERRNO_NAME(EMFILE)
-    GEA_NODE_ERRNO_NAME(EMSGSIZE)
-    GEA_NODE_ERRNO_NAME(ENETDOWN)
-    GEA_NODE_ERRNO_NAME(ENETUNREACH)
-    GEA_NODE_ERRNO_NAME(ENFILE)
-    GEA_NODE_ERRNO_NAME(ENOBUFS)
-    GEA_NODE_ERRNO_NAME(ENOMEM)
-    GEA_NODE_ERRNO_NAME(ENOTCONN)
-    GEA_NODE_ERRNO_NAME(ENOTSOCK)
-    GEA_NODE_ERRNO_NAME(EPERM)
-    GEA_NODE_ERRNO_NAME(EPIPE)
-    GEA_NODE_ERRNO_NAME(EPROTO)
-    GEA_NODE_ERRNO_NAME(EPROTONOSUPPORT)
-    GEA_NODE_ERRNO_NAME(ETIMEDOUT)
+  GEA_NODE_ERRNO_NAME(EHOSTUNREACH)
+  GEA_NODE_ERRNO_NAME(EINTR)
+  GEA_NODE_ERRNO_NAME(EINVAL)
+  GEA_NODE_ERRNO_NAME(EIO)
+  GEA_NODE_ERRNO_NAME(EISCONN)
+  GEA_NODE_ERRNO_NAME(EMFILE)
+  GEA_NODE_ERRNO_NAME(EMSGSIZE)
+  GEA_NODE_ERRNO_NAME(ENETDOWN)
+  GEA_NODE_ERRNO_NAME(ENETUNREACH)
+  GEA_NODE_ERRNO_NAME(ENFILE)
+  GEA_NODE_ERRNO_NAME(ENOBUFS)
+  GEA_NODE_ERRNO_NAME(ENOMEM)
+  GEA_NODE_ERRNO_NAME(ENOTCONN)
+  GEA_NODE_ERRNO_NAME(ENOTSOCK)
+  GEA_NODE_ERRNO_NAME(EPERM)
+  GEA_NODE_ERRNO_NAME(EPIPE)
+  GEA_NODE_ERRNO_NAME(EPROTO)
+  GEA_NODE_ERRNO_NAME(EPROTONOSUPPORT)
+  GEA_NODE_ERRNO_NAME(ETIMEDOUT)
 #undef GEA_NODE_ERRNO_NAME
-    default:
-      return "UNKNOWN";
-  }
+  return "UNKNOWN";
 }
 
 // ---------------------------------------------------------------------------
@@ -2109,7 +2110,7 @@ inline std::string net_resolve_error_code(double id) {
       return "EAI_SOCKTYPE";
 #ifdef EAI_SYSTEM
     case EAI_SYSTEM:
-      return net_errno_name(static_cast<double>(state->systemError));
+      return net_errno_name(static_cast<double>(platform::uvErrorNumber(state->systemError)));
 #endif
     default:
       return "EAI_FAIL";
@@ -2145,7 +2146,7 @@ inline double net_resolve_errno(double id) {
       return -3011;
 #ifdef EAI_SYSTEM
     case EAI_SYSTEM:
-      return -static_cast<double>(state->systemError);
+      return -static_cast<double>(platform::uvErrorNumber(state->systemError));
 #endif
     default:
       return -3004;
