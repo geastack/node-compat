@@ -99,7 +99,7 @@ if (!entryArg || entryArg.startsWith('--')) {
 }
 const entry = path.resolve(entryArg)
 const outDir = path.resolve(arg('--out', path.join(path.dirname(entry), 'dist')))
-const exePath = path.resolve(arg('--exe', path.join(outDir, 'server')))
+const exePath = path.resolve(arg('--exe', path.join(outDir, process.platform === 'win32' ? 'server.exe' : 'server')))
 const optimize = !process.argv.includes('--debug')
 const bolt = process.argv.includes('--bolt')
 // gold aborts (`internal error in do_layout`) linking a ThinLTO program with
@@ -910,7 +910,8 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
   // nothing on either compiler. g++ 13 is the opposite: `-Os` costs 25%, so it
   // keeps `-O2`. LTO helps both (clang: +3% and -4% size over plain `-O2`).
   // clang on Linux needs the gold plugin for LTO (ld.bfd has no LLVM plugin and
-  // lld is not installed everywhere). GEA_OPT_LEVEL overrides the level,
+  // lld is not installed everywhere); on Windows it needs lld-link, which ships
+  // with LLVM (Microsoft's link.exe reads no LLVM bitcode). GEA_OPT_LEVEL overrides the level,
   // GEA_LTO=0 drops the LTO, for a profile or a bisect; GEA_LTO=thin selects
   // ThinLTO (see `ltoMode`). Under LTO a per-unit
   // `-c` writes bitcode, so the link step passes the level and `-flto` again:
@@ -939,7 +940,7 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
         ? (process.env.GEA_PGO_GENERATE_OPT ?? '-O0')
         : (process.env.GEA_OPT_LEVEL ?? (cxxIsClang ? '-Os' : '-O2'))
       : '-O0',
-    ...(lto === 'full' ? ['-flto', ...(linking && process.platform === 'linux' && cxxIsClang ? ['-fuse-ld=gold'] : [])] : []),
+    ...(lto === 'full' ? ['-flto', ...(linking && cxxIsClang ? fullLtoLinkFlags() : [])] : []),
     ...(lto === 'thin' ? ['-flto=thin', ...(linking ? thinLtoLinkFlags() : [])] : []),
     ...(!optimize ? ['-g'] : []),
     // Symbols are for a profile, and a profile builds with -O0 -g above. An
@@ -950,7 +951,13 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
     // --bolt rewrites the linked executable from a sampled profile, and needs
     // both the symbol table and the relocations (`--emit-relocs`) to move whole
     // functions rather than only the blocks inside them; it strips afterwards.
-    ...(linking && optimize && !process.env.GEA_SYMBOLS && !bolt ? (process.platform === 'darwin' ? ['-Wl,-S,-x'] : ['-s']) : []),
+    // (A Windows executable carries no symbol table to strip: the symbols go to
+    // a .pdb, and only with -g.)
+    ...(linking && optimize && !process.env.GEA_SYMBOLS && !bolt && process.platform !== 'win32'
+      ? process.platform === 'darwin'
+        ? ['-Wl,-S,-x']
+        : ['-s']
+      : []),
     ...(linking && bolt ? ['-Wl,--emit-relocs'] : []),
     // A symbols build is a profile build, and ld64 folds identical functions
     // by default: every `RefOperationsFor<X>::destroy` with the same body
@@ -969,7 +976,11 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
       ? linking
         ? ['-Wl,-dead_strip']
         : []
-      : [...(compiling ? ['-ffunction-sections', '-fdata-sections'] : []), ...(linking ? ['-Wl,--gc-sections'] : [])]),
+      : [
+          ...(compiling ? ['-ffunction-sections', '-fdata-sections'] : []),
+          // lld-link and link.exe spell section garbage collection /opt:ref.
+          ...(linking ? [process.platform === 'win32' ? '-Wl,/opt:ref' : '-Wl,--gc-sections'] : [])
+        ]),
     // Fold byte-identical functions, as ld64 already does on macOS. Templates
     // instantiate the same machine code under many names -- every
     // `ArrayObject<CallableObject<void(Ref<X>)>>` member, one per event
@@ -984,6 +995,7 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
     // generated-unit directory available for generated support headers, after
     // the compiler and node-compat runtime roots.
     ...(compiling ? [`-I${compilerRuntimeDir}`, `-I${runtimeDir}`, `-I${path.join(runtimeDir, 'node')}`, `-I${outDir}`] : []),
+    ...(compiling && needsZlib && windowsLibraries() ? [`-I${path.join(windowsLibraries(), 'include')}`] : []),
     // Escape hatch for one-off builds that need a flag the pipeline does not
     // model -- `-g` for a profile or an allocation census, `-fsanitize=...` for
     // a leak hunt. Whitespace-separated, appended last so it can override an
@@ -1048,7 +1060,7 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
     // glibc before 2.34 keeps pthread_create out of libc.
     ...(process.platform === 'linux' ? ['-pthread'] : []),
     ...(linking && process.platform === 'linux' && needsCrypto ? ['-lcrypto'] : []),
-    ...(linking && needsZlib ? ['-lz'] : []),
+    ...(linking && needsZlib ? zlibLinkFlags() : []),
     '-o',
     output
   ]
@@ -1119,8 +1131,38 @@ function thinLtoLinkFlags() {
   const jobs = Math.max(1, Number.parseInt(process.env.GEA_LTO_JOBS ?? '', 10) || cores)
   const cache = path.join(outDir, 'lto-cache')
   if (process.platform === 'darwin') return [`-Wl,-mllvm,-threads=${jobs}`, `-Wl,-cache_path_lto,${cache}`]
+  if (process.platform === 'win32') return ['-fuse-ld=lld', `-Wl,/opt:lldltojobs=${jobs}`, `-Wl,/lldltocache:${cache}`]
   if (process.env.GEA_LD === 'lld') return ['-fuse-ld=lld', `-Wl,--thinlto-jobs=${jobs}`, `-Wl,--thinlto-cache-dir=${cache}`]
   return ['-fuse-ld=gold', `-Wl,-plugin-opt,jobs=${jobs}`, `-Wl,-plugin-opt,cache-dir=${cache}`]
+}
+
+// The native libraries a Windows build links (zlib for node:zlib) come from
+// vcpkg's static triplet -- static libraries over the static CRT, what a plain
+// clang++ link uses -- found under VCPKG_ROOT, else C:\vcpkg, the same way the
+// compiler's release checks find them (its scripts/host-toolchain.mjs).
+// Install with `vcpkg install zlib --triplet x64-windows-static`. Null
+// elsewhere: Linux and macOS link the system's libraries.
+function windowsLibraries() {
+  if (process.platform !== 'win32') return null
+  for (const root of [process.env.VCPKG_ROOT, 'C:\\vcpkg'].filter(Boolean)) {
+    const installed = path.join(root, 'installed', 'x64-windows-static')
+    if (fs.existsSync(path.join(installed, 'lib'))) return installed
+  }
+  return null
+}
+
+// zlib is libz everywhere but vcpkg's static Windows build, which names it zs.lib.
+function zlibLinkFlags() {
+  const windows = windowsLibraries()
+  return windows ? [`-L${path.join(windows, 'lib')}`, '-lzs'] : ['-lz']
+}
+
+// Full-LTO link flags for clang: the linker that reads LLVM bitcode -- gold's
+// plugin on Linux (see `cxxFlags`), lld-link on Windows, ld64 itself on macOS.
+function fullLtoLinkFlags() {
+  if (process.platform === 'linux') return ['-fuse-ld=gold']
+  if (process.platform === 'win32') return ['-fuse-ld=lld']
+  return []
 }
 
 // Runs `cxx` with `flags`, resolving to { ok, ms, stderr }. Asynchronous so

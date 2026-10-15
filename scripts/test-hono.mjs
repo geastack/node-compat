@@ -18,7 +18,7 @@ await new Promise((accept, reject) => {
 })
 await new Promise((accept) => probe.close(accept))
 
-const server = spawn(resolve(root, 'apps/hono-hello/dist/server'), [], {
+const server = spawn(resolve(root, 'apps/hono-hello/dist', process.platform === 'win32' ? 'server.exe' : 'server'), [], {
   stdio: ['ignore', 'pipe', 'pipe']
 })
 const stopped = once(server, 'exit')

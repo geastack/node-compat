@@ -12,14 +12,15 @@ import { resolve } from 'node:path'
 // server spun forever without answering even the first request.
 const root = resolve(import.meta.dirname, '..')
 const app = resolve(root, 'apps/http-overlapping-awaits')
-execFileSync(process.execPath, [resolve(root, 'scripts/build.mjs'), 'server.ts', '--out', 'dist', '--exe', 'dist/server'], {
+const exe = process.platform === 'win32' ? 'dist/server.exe' : 'dist/server'
+execFileSync(process.execPath, [resolve(root, 'scripts/build.mjs'), 'server.ts', '--out', 'dist', '--exe', exe], {
   cwd: app,
   env: { ...process.env, TMPDIR: resolve(app, 'dist') },
   stdio: ['ignore', 'ignore', 'inherit']
 })
 
 const port = 3314
-const server = spawn(resolve(app, 'dist/server'), [], { env: { ...process.env, PORT: String(port) }, stdio: 'ignore' })
+const server = spawn(resolve(app, exe), [], { env: { ...process.env, PORT: String(port) }, stdio: 'ignore' })
 const stopped = once(server, 'exit')
 try {
   await new Promise((accept) => setTimeout(accept, 500))
