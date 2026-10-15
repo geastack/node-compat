@@ -940,6 +940,15 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
         ? (process.env.GEA_PGO_GENERATE_OPT ?? '-O0')
         : (process.env.GEA_OPT_LEVEL ?? (cxxIsClang ? '-Os' : '-O2'))
       : '-O0',
+    // LLVM's IR verifier, which clang skips by default. clang 22 and 23
+    // targeting MSVC can produce invalid IR at -O1 and above for a coroutine
+    // whose catch handler assigns a local declared outside the try (CoroSplit:
+    // "Instruction does not dominate all uses" in a catch funclet); unverified,
+    // that build succeeds and runs miscompiled. Verified, it fails with "Broken
+    // function found". About 1% of compile time, nothing at run time; an
+    // interim safety net until the emitter avoids the trigger or LLVM is fixed.
+    // (lld-link's LTO backend verifies its inputs already.)
+    ...(compiling && cxxIsClang && process.platform === 'win32' ? ['-fverify-intermediate-code'] : []),
     ...(lto === 'full' ? ['-flto', ...(linking && cxxIsClang ? fullLtoLinkFlags() : [])] : []),
     ...(lto === 'thin' ? ['-flto=thin', ...(linking ? thinLtoLinkFlags() : [])] : []),
     ...(!optimize ? ['-g'] : []),
