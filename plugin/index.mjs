@@ -164,8 +164,8 @@ const processHostMembers = new Map([
   [`${processCarrier}.execArgv`, { kind: 'property', emit: 'gea::node::process::exec_argv()', store: null }],
   [`${processCarrier}.argv0`, { kind: 'property', emit: 'gea::node::process::argv0()', store: null }],
   [`${processCarrier}.execPath`, { kind: 'property', emit: 'gea::node::process::exec_path()', store: null }],
-  [`${processCarrier}.stdout`, { kind: 'property', emit: 'gea::node::process::stdout', store: null }],
-  [`${processCarrier}.stderr`, { kind: 'property', emit: 'gea::node::process::stderr', store: null }],
+  [`${processCarrier}.stdout`, { kind: 'property', emit: 'gea::node::process::standard_output', store: null }],
+  [`${processCarrier}.stderr`, { kind: 'property', emit: 'gea::node::process::standard_error', store: null }],
   [`${processCarrier}.versions`, { kind: 'property', emit: 'gea::node::process::versions', store: null }],
   // The host cell is always `number | undefined`; a read the checker narrowed
   // after an assignment (`= 3`, `= undefined`) converts from it at the site.

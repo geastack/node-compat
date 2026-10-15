@@ -38,35 +38,21 @@
 #include <utility>
 #include <vector>
 
-#include <arpa/inet.h>
-#include <dlfcn.h>
-#include <errno.h>
-#include <execinfo.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <poll.h>
-#include <pthread.h>
-#include <signal.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/utsname.h>
-#include <sys/wait.h>
-#include <spawn.h>
+#include <cctype>
+#include <cerrno>
 #include <climits>
+#include <cmath>
+#include <csignal>
+
+// Every system call below goes through this one interface (see the header).
+#include "gea_node_platform.hpp"
+
 #if defined(__APPLE__)
 #include <sys/event.h>
-#include <mach-o/dyld.h>
 #include <malloc/malloc.h>
-#include <sys/mman.h>
 #endif
-
-extern char **environ;
-#include <unistd.h>
 #ifdef __linux__
 #include <sys/epoll.h>
-#include <sys/random.h>
 #endif
 
 // ---------------------------------------------------------------------------
@@ -151,11 +137,12 @@ namespace gea::node {
 namespace {
 
 [[noreturn]] inline void mongodb_exchange_fail(const char *operation) {
-  std::fprintf(stderr, "gea: MongoDB wire %s failed: %s\n", operation, std::strerror(errno));
+  std::fprintf(stderr, "gea: MongoDB wire %s failed: %s\n", operation, platform::errorText(errno));
   std::abort();
 }
 
-inline int mongodb_connect_socket(const std::string &host, unsigned int port) {
+inline platform::Fd mongodb_connect_socket(const std::string &host, unsigned int port) {
+  platform::ensureSockets();
   const std::string service = std::to_string(port);
   addrinfo query{};
   query.ai_family = AF_UNSPEC;
@@ -163,19 +150,18 @@ inline int mongodb_connect_socket(const std::string &host, unsigned int port) {
   addrinfo *resolved = nullptr;
   if (::getaddrinfo(host.c_str(), service.c_str(), &query, &resolved) != 0) mongodb_exchange_fail("resolve");
 
-  int fd = -1;
+  platform::Fd fd = platform::kInvalidFd;
   for (addrinfo *candidate = resolved; candidate != nullptr; candidate = candidate->ai_next) {
-    fd = ::socket(candidate->ai_family, candidate->ai_socktype, candidate->ai_protocol);
-    if (fd < 0) continue;
-    int enabled = 1;
-    ::setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enabled, sizeof(enabled));
-    ::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &enabled, sizeof(enabled));
-    if (::connect(fd, candidate->ai_addr, candidate->ai_addrlen) == 0) break;
-    ::close(fd);
-    fd = -1;
+    fd = platform::openSocket(candidate->ai_family, candidate->ai_socktype, candidate->ai_protocol);
+    if (!platform::valid(fd)) continue;
+    platform::setIntOption(fd, SOL_SOCKET, SO_KEEPALIVE, 1);
+    platform::setIntOption(fd, IPPROTO_TCP, TCP_NODELAY, 1);
+    if (platform::connectSocket(fd, candidate->ai_addr, static_cast<socklen_t>(candidate->ai_addrlen)) == 0) break;
+    platform::closeSocket(fd);
+    fd = platform::kInvalidFd;
   }
   ::freeaddrinfo(resolved);
-  if (fd < 0) mongodb_exchange_fail("connect");
+  if (!platform::valid(fd)) mongodb_exchange_fail("connect");
   return fd;
 }
 
@@ -187,12 +173,12 @@ class MongoConnectionPool {
   }
 
   ~MongoConnectionPool() {
-    for (const int fd : idle_) ::close(fd);
+    for (const platform::Fd fd : idle_) platform::closeSocket(fd);
   }
 
-  int lease() {
+  platform::Fd lease() {
     if (!idle_.empty()) {
-      const int fd = idle_.back();
+      const platform::Fd fd = idle_.back();
       idle_.pop_back();
       ++leased_;
       return fd;
@@ -205,7 +191,7 @@ class MongoConnectionPool {
     return mongodb_connect_socket(host_, port_);
   }
 
-  void release(int fd) {
+  void release(platform::Fd fd) {
     if (leased_ == 0) {
       errno = EINVAL;
       mongodb_exchange_fail("pool release");
@@ -219,7 +205,7 @@ class MongoConnectionPool {
   unsigned int port_;
   std::size_t max_size_;
   std::size_t leased_ = 0;
-  std::vector<int> idle_;
+  std::vector<platform::Fd> idle_;
 };
 
 inline std::unordered_map<std::uint64_t, std::unique_ptr<MongoConnectionPool>> &mongodb_pools() {
@@ -241,24 +227,20 @@ inline MongoConnectionPool &mongodb_pool_for(double pool_id) {
   return *found->second;
 }
 
-inline void mongodb_send_all(int fd, const std::uint8_t *bytes, std::size_t length) {
+inline void mongodb_send_all(platform::Fd fd, const std::uint8_t *bytes, std::size_t length) {
   std::size_t sent = 0;
   while (sent < length) {
-#ifdef MSG_NOSIGNAL
-    const ssize_t count = ::send(fd, bytes + sent, length - sent, MSG_NOSIGNAL);
-#else
-    const ssize_t count = ::send(fd, bytes + sent, length - sent, 0);
-#endif
+    const platform::ssize count = platform::sendBytes(fd, bytes + sent, length - sent);
     if (count < 0 && errno == EINTR) continue;
     if (count <= 0) mongodb_exchange_fail("write");
     sent += static_cast<std::size_t>(count);
   }
 }
 
-inline void mongodb_read_all(int fd, std::uint8_t *bytes, std::size_t length) {
+inline void mongodb_read_all(platform::Fd fd, std::uint8_t *bytes, std::size_t length) {
   std::size_t received = 0;
   while (received < length) {
-    const ssize_t count = ::recv(fd, bytes + received, length - received, 0);
+    const platform::ssize count = platform::recvBytes(fd, bytes + received, length - received);
     if (count < 0 && errno == EINTR) continue;
     if (count <= 0) mongodb_exchange_fail("read");
     received += static_cast<std::size_t>(count);
@@ -278,7 +260,7 @@ inline double mongodb_pool_open(std::string host, double port, double max_size) 
 
 inline std::vector<std::uint8_t> mongodb_pool_exchange(double pool_id, const gea::TypedArray<std::uint8_t> &request) {
   MongoConnectionPool &pool = mongodb_pool_for(pool_id);
-  const int fd = pool.lease();
+  const platform::Fd fd = pool.lease();
   mongodb_send_all(fd, request.data(), request.size());
   std::uint8_t header[4]{};
   mongodb_read_all(fd, header, sizeof(header));
@@ -525,7 +507,7 @@ inline thread_local std::uint64_t g_callers_lost;
 
 inline void recordCallerSite() {
   void *raw[kCallerFrames + 3];
-  const int depth = ::backtrace(raw, static_cast<int>(kCallerFrames + 3));
+  const int depth = platform::captureStack(raw, static_cast<int>(kCallerFrames + 3));
   // Frame 0 is backtrace itself; 1 is allocate (or the operator new it was
   // inlined into). Start at 2 so the first recorded frame is request-path code.
   const int first = depth > 2 ? 2 : depth;
@@ -555,10 +537,7 @@ inline void recordCallerSite() {
 
 inline void reportCallerCensus() {
   if (allocCensusLevel() < 2) return;
-  Dl_info info;
-  std::uintptr_t base = 0;
-  if (::dladdr(reinterpret_cast<void *>(&reportCallerCensus), &info) && info.dli_fbase)
-    base = reinterpret_cast<std::uintptr_t>(info.dli_fbase);
+  const std::uintptr_t base = platform::imageBaseOf(reinterpret_cast<const void *>(&reportCallerCensus));
   std::vector<const CallerSite *> sites;
   for (std::size_t i = 0; i < kCallerSlots; ++i)
     if (g_callers[i].count != 0) sites.push_back(&g_callers[i]);
@@ -598,8 +577,7 @@ inline void installAllocCensusExit() {
   struct Handler {
     static void onSignal(int) { std::exit(0); }
   };
-  ::signal(SIGTERM, &Handler::onSignal);
-  ::signal(SIGINT, &Handler::onSignal);
+  platform::onTermination(&Handler::onSignal);
 }
 
 inline void reportAllocCensus() {
@@ -663,9 +641,8 @@ inline void reportRuntimeAllocationProfile() {
     std::fprintf(stderr, "  live-at-exit=%llu bytes=%llu block=%zu %s\n", static_cast<unsigned long long>(live),
                  static_cast<unsigned long long>(live * type->blockBytes), type->blockBytes, type->name);
   }
-  Dl_info info{};
-  const void *base = nullptr;
-  if (::dladdr(reinterpret_cast<void *>(&reportRuntimeAllocationProfile), &info) && info.dli_fbase) base = info.dli_fbase;
+  const void *base = reinterpret_cast<const void *>(
+      platform::imageBaseOf(reinterpret_cast<const void *>(&reportRuntimeAllocationProfile)));
   for (const auto *census = gea::detail::allocationSiteCensuses(); census != nullptr; census = census->next) {
     std::vector<std::pair<std::uint64_t, const gea::detail::AllocationSiteKey *>> rows;
     for (const auto &entry : census->sites) rows.emplace_back(entry.second, &entry.first);
@@ -729,30 +706,9 @@ inline std::size_t lookupChunkClass(std::uintptr_t base) {
 // pointer by asking every registered zone for its size, starting with the
 // default zone, and a chunk taken from that zone with posix_memalign would let
 // it claim the block first as an interior pointer of the 1 MB allocation.
-inline void *mapChunk() {
-#ifdef __APPLE__
-  void *raw = ::mmap(nullptr, kChunkSize * 2, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
-  if (raw == MAP_FAILED) return nullptr;
-  const std::uintptr_t start = reinterpret_cast<std::uintptr_t>(raw);
-  const std::uintptr_t aligned = (start + kChunkSize - 1) & ~(kChunkSize - 1);
-  if (aligned > start) ::munmap(raw, aligned - start);
-  const std::uintptr_t tail = aligned + kChunkSize;
-  if (tail < start + kChunkSize * 2) ::munmap(reinterpret_cast<void *>(tail), start + kChunkSize * 2 - tail);
-  return reinterpret_cast<void *>(aligned);
-#else
-  void *chunk = nullptr;
-  if (posix_memalign(&chunk, kChunkSize, kChunkSize) != 0) return nullptr;
-  return chunk;
-#endif
-}
+inline void *mapChunk() { return platform::reserveAlignedChunk(kChunkSize); }
 
-inline void unmapChunk(void *chunk) {
-#ifdef __APPLE__
-  ::munmap(chunk, kChunkSize);
-#else
-  std::free(chunk);
-#endif
-}
+inline void unmapChunk(void *chunk) { platform::releaseAlignedChunk(chunk, kChunkSize); }
 
 inline void release(void *ptr) noexcept;
 
@@ -941,7 +897,14 @@ inline void release(void *ptr) noexcept {
 
 }  // namespace gea::node::alloc
 
+// Exported so every image in the process resolves `operator new` to the pool.
+// A Windows executable has no such interposition: the replacement simply is
+// the program's `operator new`, linked statically.
+#if defined(_WIN32)
+#define GEA_ALLOC_EXPORT
+#else
 #define GEA_ALLOC_EXPORT __attribute__((visibility("default")))
+#endif
 #ifdef GEA_NODE_IMPLEMENTATION
 GEA_ALLOC_EXPORT void *operator new(std::size_t size) { return gea::node::alloc::allocate(size); }
 GEA_ALLOC_EXPORT void *operator new(std::size_t size, const std::nothrow_t &) noexcept { return gea::node::alloc::allocate(size); }
@@ -964,7 +927,7 @@ namespace gea::node {
 class IoWatcher {
 public:
   virtual ~IoWatcher() = default;
-  virtual int fd() const noexcept = 0;
+  virtual platform::Fd fd() const noexcept = 0;
   virtual short interestedEvents() const noexcept = 0;  // POLLIN | POLLOUT
   virtual void onReady(short revents) = 0;
   virtual bool isReferenced() const noexcept { return true; }
@@ -1080,7 +1043,8 @@ private:
     if (dispatchDepth_ == 0) purgeClosed();
   }
 
-  // poll() backend — the portable fallback (macOS, or epoll_create failure).
+  // poll() backend — the portable fallback (epoll_create failure), and the
+  // Windows backend (`platform::poll` is WSAPoll there).
   bool runPoll(StopPredicate done) {
     std::vector<pollfd> pfds;
     std::vector<IoWatcher *> polledWatchers;
@@ -1114,7 +1078,7 @@ private:
       gea::collectCyclesAtQuiescence();
       if (!gea::node::microtasks().empty() || !gea::node::next_ticks().empty()) continue;
       const int timeout = timersPending ? gea::node::timers::nextDelayMs() : -1;
-      const int events = ::poll(pfds.data(), static_cast<nfds_t>(pfds.size()), timeout);
+      const int events = platform::poll(pfds.data(), pfds.size(), timeout);
       if (events < 0) {
         if (errno == EINTR) continue;
         purgeClosedIfSafe();
@@ -1426,35 +1390,24 @@ inline EventLoop &clientEventLoop() {
 // ---------------------------------------------------------------------------
 class Socket {
 public:
-  explicit Socket(int fd) noexcept : fd_(fd) {
-#if defined(__APPLE__) && defined(SO_NOSIGPIPE)
-    if (fd_ >= 0) {
-      const int enabled = 1;
-      (void)::setsockopt(fd_, SOL_SOCKET, SO_NOSIGPIPE, &enabled, sizeof(enabled));
-    }
-#endif
+  explicit Socket(platform::Fd fd) noexcept : fd_(fd) {
+    if (platform::valid(fd_)) platform::configureStream(fd_);
   }
   Socket(const Socket &) = delete;
   Socket &operator=(const Socket &) = delete;
-  Socket(Socket &&other) noexcept : fd_(other.fd_) { other.fd_ = -1; }
+  Socket(Socket &&other) noexcept : fd_(other.fd_) { other.fd_ = platform::kInvalidFd; }
   ~Socket() {
-    if (fd_ >= 0) ::close(fd_);
+    if (platform::valid(fd_)) platform::closeSocket(fd_);
   }
 
-  int fd() const noexcept { return fd_; }
+  platform::Fd fd() const noexcept { return fd_; }
 
-  void makeNonBlocking() const {
-    const int flags = ::fcntl(fd_, F_GETFL, 0);
-    if (flags >= 0) ::fcntl(fd_, F_SETFL, flags | O_NONBLOCK);
-  }
+  void makeNonBlocking() const { platform::setNonBlocking(fd_); }
 
-  void setTcpNoDelay(bool enabled = true) const {
-    const int value = enabled ? 1 : 0;
-    ::setsockopt(fd_, IPPROTO_TCP, TCP_NODELAY, &value, sizeof(value));
-  }
+  void setTcpNoDelay(bool enabled = true) const { platform::setIntOption(fd_, IPPROTO_TCP, TCP_NODELAY, enabled ? 1 : 0); }
 
 private:
-  int fd_;
+  platform::Fd fd_;
 };
 
 // ---------------------------------------------------------------------------
@@ -1496,7 +1449,7 @@ public:
     if (onClosed_) onClosed_();
   }
 
-  int fd() const noexcept override { return socket_.fd(); }
+  platform::Fd fd() const noexcept override { return socket_.fd(); }
   bool isReferenced() const noexcept override { return referenced_; }
 
   short interestedEvents() const noexcept override {
@@ -1514,8 +1467,7 @@ public:
 
     if (!closing_ && (revents & (POLLERR | POLLNVAL))) {
       int socketError = 0;
-      socklen_t length = sizeof(socketError);
-      (void)::getsockopt(socket_.fd(), SOL_SOCKET, SO_ERROR, &socketError, &length);
+      (void)platform::readSocketError(socket_.fd(), socketError);
       fail(socketError == 0 ? EIO : socketError, "read");
     } else if (!closing_ && (revents & POLLHUP)) {
       closeFromPeer();
@@ -1614,8 +1566,7 @@ public:
 
   void resetAndDestroy() {
     if (closing_) return;
-    linger reset{1, 0};
-    (void)::setsockopt(socket_.fd(), SOL_SOCKET, SO_LINGER, &reset, sizeof(reset));
+    platform::setLingerReset(socket_.fd());
     destroy();
   }
 
@@ -1626,17 +1577,7 @@ public:
     if (!events_.empty()) notifySoon();
   }
 
-  void setKeepAlive(bool enabled, int initialDelayMs) {
-    const int value = enabled ? 1 : 0;
-    (void)::setsockopt(socket_.fd(), SOL_SOCKET, SO_KEEPALIVE, &value, sizeof(value));
-    if (!enabled || initialDelayMs <= 0) return;
-    const int seconds = std::max(1, initialDelayMs / 1000);
-#if defined(__APPLE__) && defined(TCP_KEEPALIVE)
-    (void)::setsockopt(socket_.fd(), IPPROTO_TCP, TCP_KEEPALIVE, &seconds, sizeof(seconds));
-#elif defined(TCP_KEEPIDLE)
-    (void)::setsockopt(socket_.fd(), IPPROTO_TCP, TCP_KEEPIDLE, &seconds, sizeof(seconds));
-#endif
-  }
+  void setKeepAlive(bool enabled, int initialDelayMs) { platform::setKeepAlive(socket_.fd(), enabled, initialDelayMs); }
 
   void setNoDelay(bool enabled) { socket_.setTcpNoDelay(enabled); }
 
@@ -1644,8 +1585,7 @@ private:
   void completeConnect() {
     int socketError = initialError_;
     if (socketError == 0) {
-      socklen_t length = sizeof(socketError);
-      if (::getsockopt(socket_.fd(), SOL_SOCKET, SO_ERROR, &socketError, &length) != 0) socketError = errno;
+      if (!platform::readSocketError(socket_.fd(), socketError)) socketError = errno;
     }
     connecting_ = false;
     if (socketError != 0) {
@@ -1659,11 +1599,7 @@ private:
 
   bool flushWrites() {
     while (outSent_ < outBuffer_.size()) {
-#ifdef MSG_NOSIGNAL
-      const ssize_t count = ::send(socket_.fd(), outBuffer_.data() + outSent_, outBuffer_.size() - outSent_, MSG_NOSIGNAL);
-#else
-      const ssize_t count = ::send(socket_.fd(), outBuffer_.data() + outSent_, outBuffer_.size() - outSent_, 0);
-#endif
+      const platform::ssize count = platform::sendBytes(socket_.fd(), outBuffer_.data() + outSent_, outBuffer_.size() - outSent_);
       if (count > 0) {
         outSent_ += static_cast<std::size_t>(count);
         continue;
@@ -1682,7 +1618,7 @@ private:
 
   void finishWriteSideIfReady() {
     if (!connected_ || !endRequested_ || finishEmitted_ || outSent_ < outBuffer_.size()) return;
-    (void)::shutdown(socket_.fd(), SHUT_WR);
+    platform::shutdownWrite(socket_.fd());
     finishEmitted_ = true;
     events_.push_back(static_cast<int>(ClientEvent::finish));
     if (peerEnded_) {
@@ -1694,7 +1630,7 @@ private:
   void readAvailable() {
     std::uint8_t bytes[65536];
     for (;;) {
-      const ssize_t count = ::recv(socket_.fd(), bytes, sizeof(bytes), 0);
+      const platform::ssize count = platform::recvBytes(socket_.fd(), bytes, sizeof(bytes));
       if (count > 0) {
         chunks_.emplace_back(bytes, bytes + count);
         events_.push_back(static_cast<int>(ClientEvent::data));
@@ -1728,7 +1664,7 @@ private:
 
   void fail(int error, const char *syscall) {
     if (closing_) return;
-    errorText_ = std::strerror(error);
+    errorText_ = platform::errorText(error);
     errorNumber_ = error;
     errorSyscall_ = syscall;
     events_.push_back(static_cast<int>(ClientEvent::error));
@@ -1791,7 +1727,7 @@ inline int &lastNetCreateErrno() {
   return error;
 }
 
-inline bool bindClientSocket(int fd, int family, int socketType, int protocol, const std::string &localAddress,
+inline bool bindClientSocket(platform::Fd fd, int family, int socketType, int protocol, const std::string &localAddress,
                       int localPort, std::string &error) {
   addrinfo query{};
   query.ai_family = family;
@@ -1809,21 +1745,21 @@ inline bool bindClientSocket(int fd, int family, int socketType, int protocol, c
   bool bound = false;
   int lastError = EADDRNOTAVAIL;
   for (addrinfo *candidate = resolved; candidate; candidate = candidate->ai_next) {
-    if (::bind(fd, candidate->ai_addr, candidate->ai_addrlen) == 0) {
+    if (platform::bindSocket(fd, candidate->ai_addr, static_cast<socklen_t>(candidate->ai_addrlen)) == 0) {
       bound = true;
       break;
     }
     lastError = errno;
   }
   ::freeaddrinfo(resolved);
-  if (!bound) error = std::strerror(lastError);
+  if (!bound) error = platform::errorText(lastError);
   return bound;
 }
 
 inline double net_create_native(std::string host, double requestedPort, double requestedFamily, double requestedHints,
                          std::string localAddress, double requestedLocalPort, bool bindLocal,
                          std::function<void()> notify) {
-  ::signal(SIGPIPE, SIG_IGN);
+  platform::ensureSockets();
   lastNetCreateError().clear();
   lastNetCreateErrno() = 0;
   if (requestedPort < 0 || requestedPort > 65535 || requestedLocalPort < 0 || requestedLocalPort > 65535) {
@@ -1846,27 +1782,27 @@ inline double net_create_native(std::string host, double requestedPort, double r
     return 0;
   }
 
-  int selectedFd = -1;
+  platform::Fd selectedFd = platform::kInvalidFd;
   int selectedFamily = AF_UNSPEC;
   std::string selectedAddress;
   int lastError = ECONNREFUSED;
   for (addrinfo *candidate = resolved; candidate; candidate = candidate->ai_next) {
-    const int fd = ::socket(candidate->ai_family, candidate->ai_socktype, candidate->ai_protocol);
-    if (fd < 0) {
+    const platform::Fd fd = platform::openSocket(candidate->ai_family, candidate->ai_socktype, candidate->ai_protocol);
+    if (!platform::valid(fd)) {
       lastError = errno;
       continue;
     }
-    const int flags = ::fcntl(fd, F_GETFL, 0);
-    if (flags >= 0) ::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    platform::setNonBlocking(fd);
     if (bindLocal &&
         !bindClientSocket(fd, candidate->ai_family, candidate->ai_socktype, candidate->ai_protocol,
                           localAddress, localPort, lastNetCreateError())) {
-      ::close(fd);
+      platform::closeSocket(fd);
       continue;
     }
-    if (::connect(fd, candidate->ai_addr, candidate->ai_addrlen) != 0 && errno != EINPROGRESS) {
+    if (platform::connectSocket(fd, candidate->ai_addr, static_cast<socklen_t>(candidate->ai_addrlen)) != 0 &&
+        errno != EINPROGRESS) {
       lastError = errno;
-      ::close(fd);
+      platform::closeSocket(fd);
       continue;
     }
     char numericHost[NI_MAXHOST]{};
@@ -1880,9 +1816,9 @@ inline double net_create_native(std::string host, double requestedPort, double r
     break;
   }
   ::freeaddrinfo(resolved);
-  if (selectedFd < 0) {
+  if (!platform::valid(selectedFd)) {
     if (lastNetCreateError().empty()) {
-      lastNetCreateError() = std::strerror(lastError);
+      lastNetCreateError() = platform::errorText(lastError);
       lastNetCreateErrno() = lastError;
     }
     return 0;
@@ -1930,7 +1866,9 @@ inline std::string net_errno_name(double requested) {
     GEA_NODE_ERRNO_NAME(ECONNABORTED)
     GEA_NODE_ERRNO_NAME(ECONNREFUSED)
     GEA_NODE_ERRNO_NAME(ECONNRESET)
+#ifdef EHOSTDOWN
     GEA_NODE_ERRNO_NAME(EHOSTDOWN)
+#endif
     GEA_NODE_ERRNO_NAME(EHOSTUNREACH)
     GEA_NODE_ERRNO_NAME(EINTR)
     GEA_NODE_ERRNO_NAME(EINVAL)
@@ -1959,57 +1897,68 @@ inline std::string net_errno_name(double requested) {
 // ---------------------------------------------------------------------------
 // Non-blocking name resolution for node:net's lookup (node's dns.lookup).
 //
-// getaddrinfo has no non-blocking form on either platform, so -- like libuv's
-// threadpool -- each lookup runs on a short-lived detached POSIX thread that
-// writes one byte to a pipe when it is done. The read end is a watcher on the
+// getaddrinfo has no non-blocking form on any platform, so -- like libuv's
+// threadpool -- each lookup runs on a short-lived detached thread that writes
+// one byte to a wake pipe when it is done. The read end is a watcher on the
 // shared reactor, so completion is delivered on the loop thread exactly like a
 // socket event: `notify` runs from onReady and TypeScript pulls the results
-// with primitive accessors. pthread (not std::thread) so a failed spawn is an
-// error code, not an exception; it falls back to resolving inline.
+// with primitive accessors. A failed thread start falls back to resolving
+// inline.
 //
-// The state is shared between the thread and the registry; whichever lets go
-// last closes both pipe ends, so the worker's write never hits a closed pipe
-// even when the lookup was released (cancelled) while it was still running.
+// The lookup thread touches nothing but the state's plain fields and the
+// resolver's own `addrinfo` list: it allocates nothing through `operator new`
+// and frees nothing, because the pool allocator's free lists belong to the
+// loop thread. The numeric strings are built on the loop thread (`collect`),
+// and the state is only ever destroyed there: a lookup released before it
+// finished keeps its watcher -- unreferenced, so it holds no process open --
+// until the thread's byte arrives.
 // ---------------------------------------------------------------------------
 struct ResolveState {
-  int readFd = -1;
-  int writeFd = -1;
+  platform::Fd readFd = platform::kInvalidFd;
+  platform::Fd writeFd = platform::kInvalidFd;
   std::string host;
   int family = AF_UNSPEC;
   int hints = 0;
   int status = 0;       // getaddrinfo status (0 = ok)
   int systemError = 0;  // errno when status == EAI_SYSTEM
+  addrinfo *resolved = nullptr;  // the lookup thread's answer, until `collect`
   std::vector<std::pair<std::string, int>> addresses;
   std::atomic<bool> done{false};
 
   ~ResolveState() {
-    if (readFd >= 0) ::close(readFd);
-    if (writeFd >= 0) ::close(writeFd);
+    if (resolved != nullptr) ::freeaddrinfo(resolved);
+    platform::closeWake(readFd);
+    platform::closeWake(writeFd);
   }
 
+  // The lookup thread's whole job.
   void resolve() {
     addrinfo query{};
     query.ai_family = family;
     query.ai_socktype = SOCK_STREAM;
     query.ai_flags = hints;
-    addrinfo *resolved = nullptr;
     status = ::getaddrinfo(host.c_str(), nullptr, &query, &resolved);
+#ifdef EAI_SYSTEM
     if (status == EAI_SYSTEM) systemError = errno;
-    if (status == 0) {
-      for (addrinfo *candidate = resolved; candidate; candidate = candidate->ai_next) {
-        if (candidate->ai_family != AF_INET && candidate->ai_family != AF_INET6) continue;
-        char numeric[NI_MAXHOST]{};
-        if (::getnameinfo(candidate->ai_addr, candidate->ai_addrlen, numeric, sizeof(numeric), nullptr, 0,
-                          NI_NUMERICHOST) != 0)
-          continue;
-        addresses.emplace_back(numeric, candidate->ai_family == AF_INET6 ? 6 : 4);
-      }
-      ::freeaddrinfo(resolved);
-    }
+#endif
+    if (status != 0) resolved = nullptr;
     done.store(true, std::memory_order_release);
-    const char byte = 1;
-    while (::write(writeFd, &byte, 1) < 0 && errno == EINTR) {
+    platform::wakeWrite(writeFd);
+  }
+
+  // Loop thread: the answer as numeric addresses, once.
+  void collect() {
+    if (resolved == nullptr || !done.load(std::memory_order_acquire)) return;
+    for (addrinfo *candidate = resolved; candidate; candidate = candidate->ai_next) {
+      if (candidate->ai_family != AF_INET && candidate->ai_family != AF_INET6) continue;
+      char numeric[NI_MAXHOST]{};
+      if (::getnameinfo(candidate->ai_addr, static_cast<socklen_t>(candidate->ai_addrlen), numeric, sizeof(numeric),
+                        nullptr, 0, NI_NUMERICHOST) != 0)
+        continue;
+      addresses.emplace_back(numeric, candidate->ai_family == AF_INET6 ? 6 : 4);
     }
+    ::freeaddrinfo(resolved);
+    resolved = nullptr;
   }
 };
 
@@ -2030,28 +1979,32 @@ public:
   ResolveWatcher(EventLoop &loop, std::uint64_t id, std::shared_ptr<ResolveState> state, std::function<void()> notify)
       : loop_(loop), id_(id), state_(std::move(state)), notify_(std::move(notify)) {}
 
-  int fd() const noexcept override { return state_->readFd; }
+  platform::Fd fd() const noexcept override { return state_->readFd; }
   short interestedEvents() const noexcept override { return finished_ ? 0 : POLLIN; }
+  bool isReferenced() const noexcept override { return !cancelled_; }
 
   void onReady(short revents) override {
     if (finished_) return;
     if (!state_->done.load(std::memory_order_acquire) && !(revents & (POLLERR | POLLHUP | POLLNVAL))) return;
     char byte = 0;
-    (void)::read(state_->readFd, &byte, 1);
+    (void)platform::wakeRead(state_->readFd, &byte, 1);
     finished_ = true;
     loop_.close(this);
+    state_->collect();
+    if (cancelled_) return;
     const auto found = resolveRegistry().find(id_);
     if (found != resolveRegistry().end()) found->second.watcher = nullptr;
     auto notify = std::move(notify_);
     if (notify) notify();
   }
 
-  // Released before completion: stop watching; the worker finishes into the
-  // shared state and the last owner closes the pipe.
+  // Released before completion: nobody is told, but the watcher (and with it
+  // the state the lookup thread is still writing) stays until the thread's
+  // byte arrives.
   void cancel() {
     if (finished_) return;
-    finished_ = true;
-    loop_.close(this);
+    cancelled_ = true;
+    notify_ = nullptr;
   }
 
 private:
@@ -2060,39 +2013,33 @@ private:
   std::shared_ptr<ResolveState> state_;
   std::function<void()> notify_;
   bool finished_ = false;
+  bool cancelled_ = false;
 };
 
-inline void *resolveThreadMain(void *argument) {
-  auto *owned = static_cast<std::shared_ptr<ResolveState> *>(argument);
-  (*owned)->resolve();
-  delete owned;
-  return nullptr;
-}
+inline void resolveThreadMain(void *argument) { static_cast<ResolveState *>(argument)->resolve(); }
 
 inline double net_resolve_native(std::string host, double requestedFamily, double requestedHints,
                                  std::function<void()> notify) {
   static std::uint64_t nextId = 0;
+  platform::ensureSockets();
   auto state = std::make_shared<ResolveState>();
   state->host = std::move(host);
   state->family = requestedFamily == 4 ? AF_INET : requestedFamily == 6 ? AF_INET6 : AF_UNSPEC;
   state->hints = static_cast<int>(requestedHints);
-  int fds[2] = {-1, -1};
-  if (::pipe(fds) != 0) {
+  platform::Fd fds[2] = {platform::kInvalidFd, platform::kInvalidFd};
+  if (!platform::openWakePipe(fds)) {
     // No pipe: resolve inline and complete on the next microtask, so the
     // callback still never runs synchronously inside the caller.
     state->resolve();
+    state->collect();
   } else {
     state->readFd = fds[0];
     state->writeFd = fds[1];
-    for (int fd : fds) {
-      const int flags = ::fcntl(fd, F_GETFD, 0);
-      if (flags >= 0) ::fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
-    }
   }
   const std::uint64_t id = ++nextId;
   ResolveEntry &entry = resolveRegistry()[id];
   entry.state = state;
-  if (state->readFd < 0) {
+  if (!platform::valid(state->readFd)) {
     gea::node::queue_microtask([notify = std::move(notify)]() mutable {
       if (notify) notify();
     });
@@ -2101,12 +2048,7 @@ inline double net_resolve_native(std::string host, double requestedFamily, doubl
   auto watcher = std::make_unique<ResolveWatcher>(clientEventLoop(), id, state, std::move(notify));
   entry.watcher = watcher.get();
   clientEventLoop().adopt(std::move(watcher));
-  pthread_t thread;
-  auto *argument = new std::shared_ptr<ResolveState>(state);
-  if (::pthread_create(&thread, nullptr, resolveThreadMain, argument) == 0) {
-    ::pthread_detach(thread);
-  } else {
-    delete argument;
+  if (!platform::startThread<&resolveThreadMain>(state.get())) {
     state->resolve();  // writes the completion byte; the watcher fires next pass
   }
   return static_cast<double>(id);
@@ -2114,7 +2056,9 @@ inline double net_resolve_native(std::string host, double requestedFamily, doubl
 
 inline ResolveState *findResolveState(double id) {
   const auto found = resolveRegistry().find(static_cast<std::uint64_t>(id));
-  return found == resolveRegistry().end() ? nullptr : found->second.state.get();
+  if (found == resolveRegistry().end()) return nullptr;
+  found->second.state->collect();
+  return found->second.state.get();
 }
 
 // -1 when the lookup failed; the error accessors below then describe it.
@@ -2163,8 +2107,10 @@ inline std::string net_resolve_error_code(double id) {
       return "EAI_SERVICE";
     case EAI_SOCKTYPE:
       return "EAI_SOCKTYPE";
+#ifdef EAI_SYSTEM
     case EAI_SYSTEM:
       return net_errno_name(static_cast<double>(state->systemError));
+#endif
     default:
       return "EAI_FAIL";
   }
@@ -2197,8 +2143,10 @@ inline double net_resolve_errno(double id) {
       return -3010;
     case EAI_SOCKTYPE:
       return -3011;
+#ifdef EAI_SYSTEM
     case EAI_SYSTEM:
       return -static_cast<double>(state->systemError);
+#endif
     default:
       return -3004;
   }
@@ -2382,7 +2330,7 @@ public:
     if (state_->listener == this) state_->listener = nullptr;
   }
 
-  int fd() const noexcept override { return socket_.fd(); }
+  platform::Fd fd() const noexcept override { return socket_.fd(); }
   short interestedEvents() const noexcept override { return POLLIN; }
   bool isReferenced() const noexcept override { return state_->referenced; }
 
@@ -2391,9 +2339,8 @@ public:
     if (revents & POLLIN) acceptAvailable();
     if (!state_->closing && (revents & (POLLERR | POLLHUP | POLLNVAL))) {
       int socketError = 0;
-      socklen_t length = sizeof(socketError);
-      (void)::getsockopt(socket_.fd(), SOL_SOCKET, SO_ERROR, &socketError, &length);
-      state_->errorText = std::strerror(socketError == 0 ? EIO : socketError);
+      (void)platform::readSocketError(socket_.fd(), socketError);
+      state_->errorText = platform::errorText(socketError == 0 ? EIO : socketError);
       state_->push(NetServerEvent::error);
       stop();
     }
@@ -2412,20 +2359,19 @@ private:
     for (;;) {
       sockaddr_storage peer{};
       socklen_t peerLength = sizeof(peer);
-      const int clientFd = ::accept(socket_.fd(), reinterpret_cast<sockaddr *>(&peer), &peerLength);
-      if (clientFd < 0) {
+      const platform::Fd clientFd = platform::acceptSocket(socket_.fd(), reinterpret_cast<sockaddr *>(&peer), &peerLength);
+      if (!platform::valid(clientFd)) {
         if (errno == EINTR) continue;
         if (errno == EAGAIN || errno == EWOULDBLOCK) return;
-        state_->errorText = std::strerror(errno);
+        state_->errorText = platform::errorText(errno);
         state_->push(NetServerEvent::error);
         return;
       }
 
-      const int flags = ::fcntl(clientFd, F_GETFL, 0);
-      if (flags >= 0) (void)::fcntl(clientFd, F_SETFL, flags | O_NONBLOCK);
+      platform::setNonBlocking(clientFd);
 
       if (state_->maxConnections != 0 && state_->connections >= state_->maxConnections) {
-        ::close(clientFd);
+        platform::closeSocket(clientFd);
         state_->push(NetServerEvent::drop);
         continue;
       }
@@ -2459,7 +2405,7 @@ private:
 inline double net_server_listen_native(std::string host, double requestedPort, double requestedFamily,
                                 double requestedBacklog, bool reusePort, bool ipv6Only,
                                 double requestedMaxConnections, std::function<void()> notify) {
-  ::signal(SIGPIPE, SIG_IGN);
+  platform::ensureSockets();
   lastNetServerCreateError().clear();
   if (requestedPort < 0 || requestedPort > 65535) {
     lastNetServerCreateError() = "Invalid TCP port";
@@ -2480,49 +2426,38 @@ inline double net_server_listen_native(std::string host, double requestedPort, d
     return 0;
   }
 
-  int selectedFd = -1;
+  platform::Fd selectedFd = platform::kInvalidFd;
   int selectedFamily = AF_UNSPEC;
   int lastError = EADDRNOTAVAIL;
   for (addrinfo *candidate = resolved; candidate; candidate = candidate->ai_next) {
-    const int fd = ::socket(candidate->ai_family, candidate->ai_socktype, candidate->ai_protocol);
-    if (fd < 0) {
+    const platform::Fd fd = platform::openSocket(candidate->ai_family, candidate->ai_socktype, candidate->ai_protocol);
+    if (!platform::valid(fd)) {
       lastError = errno;
       continue;
     }
-    const int enabled = 1;
-    (void)::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &enabled, sizeof(enabled));
-#if defined(SO_REUSEPORT)
     // A cluster worker shares its port with its siblings the way makeListener
     // already does for node:http: the kernel distributes the connections.
-    if (reusePort || std::getenv("GEA_CLUSTER_WORKER_ID") != nullptr)
-      (void)::setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &enabled, sizeof(enabled));
-#else
-    (void)reusePort;
-#endif
-    if (candidate->ai_family == AF_INET6) {
-      const int only = ipv6Only ? 1 : 0;
-      (void)::setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &only, sizeof(only));
-    }
-    if (::bind(fd, candidate->ai_addr, candidate->ai_addrlen) != 0) {
+    platform::configureListener(fd, reusePort || std::getenv("GEA_CLUSTER_WORKER_ID") != nullptr);
+    if (candidate->ai_family == AF_INET6) platform::setIntOption(fd, IPPROTO_IPV6, IPV6_V6ONLY, ipv6Only ? 1 : 0);
+    if (platform::bindSocket(fd, candidate->ai_addr, static_cast<socklen_t>(candidate->ai_addrlen)) != 0) {
       lastError = errno;
-      ::close(fd);
+      platform::closeSocket(fd);
       continue;
     }
     const int backlog = std::max(1, static_cast<int>(requestedBacklog));
-    if (::listen(fd, backlog) != 0) {
+    if (platform::listenSocket(fd, backlog) != 0) {
       lastError = errno;
-      ::close(fd);
+      platform::closeSocket(fd);
       continue;
     }
-    const int flags = ::fcntl(fd, F_GETFL, 0);
-    if (flags >= 0) (void)::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    platform::setNonBlocking(fd);
     selectedFd = fd;
     selectedFamily = candidate->ai_family;
     break;
   }
   ::freeaddrinfo(resolved);
-  if (selectedFd < 0) {
-    lastNetServerCreateError() = std::strerror(lastError);
+  if (!platform::valid(selectedFd)) {
+    lastNetServerCreateError() = platform::errorText(lastError);
     return 0;
   }
 
@@ -2533,8 +2468,8 @@ inline double net_server_listen_native(std::string host, double requestedPort, d
   if (::getsockname(selectedFd, reinterpret_cast<sockaddr *>(&bound), &boundLength) != 0 ||
       ::getnameinfo(reinterpret_cast<sockaddr *>(&bound), boundLength, boundHost, sizeof(boundHost), boundService,
                     sizeof(boundService), NI_NUMERICHOST | NI_NUMERICSERV) != 0) {
-    lastNetServerCreateError() = std::strerror(errno);
-    ::close(selectedFd);
+    lastNetServerCreateError() = platform::errorText(errno);
+    platform::closeSocket(selectedFd);
     return 0;
   }
 
@@ -2899,7 +2834,7 @@ inline const std::string &cachedHttpDate() {
   if (now != cache.second) {
     cache.second = now;
     tm parts{};
-    ::gmtime_r(&now, &parts);
+    platform::utcTime(now, parts);
     char buffer[64];
     const std::size_t n = ::strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S GMT", &parts);
     cache.text.assign(buffer, n);
@@ -2966,7 +2901,7 @@ class HttpServer;  // forward
 template <typename Responder>
 class HttpConnection final : public HttpConnectionBase {
 public:
-  HttpConnection(EventLoop &loop, HttpServer<Responder> &server, int fd)
+  HttpConnection(EventLoop &loop, HttpServer<Responder> &server, platform::Fd fd)
       : loop_(loop), server_(server), socket_(fd), id_(nextConnectionId()) {
     socket_.makeNonBlocking();
     socket_.setTcpNoDelay();
@@ -2978,7 +2913,7 @@ public:
     invalidateConnectionCache(id_);
   }
 
-  int fd() const noexcept override { return socket_.fd(); }
+  platform::Fd fd() const noexcept override { return socket_.fd(); }
   short interestedEvents() const noexcept override {
     return static_cast<short>(POLLIN | (outsent_ >= outbuf_.size() ? 0 : POLLOUT));
   }
@@ -3198,10 +3133,10 @@ private:
   bool readAvailable() {
     char buffer[65536];
     for (;;) {
-      const ssize_t n = ::recv(socket_.fd(), buffer, sizeof(buffer), 0);
+      const platform::ssize n = platform::recvBytes(socket_.fd(), buffer, sizeof(buffer));
       if (n > 0) {
         inbuf_.append(buffer, static_cast<std::size_t>(n));
-        if (n < static_cast<ssize_t>(sizeof(buffer))) return true;  // likely drained
+        if (n < static_cast<platform::ssize>(sizeof(buffer))) return true;  // likely drained
         continue;
       }
       if (n == 0) return false;  // peer closed
@@ -3493,7 +3428,7 @@ private:
 
   bool flush() {
     while (outsent_ < outbuf_.size()) {
-      const ssize_t n = ::send(socket_.fd(), outbuf_.data() + outsent_, outbuf_.size() - outsent_, 0);
+      const platform::ssize n = platform::sendBytes(socket_.fd(), outbuf_.data() + outsent_, outbuf_.size() - outsent_);
       if (n > 0) {
         outsent_ += static_cast<std::size_t>(n);
         continue;
@@ -3567,38 +3502,34 @@ public:
   HttpServer(EventLoop &loop, int port, Responder responder)
       : loop_(loop), listener_(makeListener(port)), responder_(std::move(responder)) {}
 
-  bool valid() const noexcept { return listener_.fd() >= 0; }
+  bool valid() const noexcept { return platform::valid(listener_.fd()); }
   const Responder &responder() const noexcept { return responder_; }
   Responder &responder() noexcept { return responder_; }
 
-  int fd() const noexcept override { return listener_.fd(); }
+  platform::Fd fd() const noexcept override { return listener_.fd(); }
   short interestedEvents() const noexcept override { return POLLIN; }
 
   void onReady(short revents) override {
     if ((revents & POLLIN) == 0) return;
     for (;;) {
-      const int clientFd = ::accept(listener_.fd(), nullptr, nullptr);
-      if (clientFd < 0) break;  // EAGAIN: drained
+      const platform::Fd clientFd = platform::acceptSocket(listener_.fd(), nullptr, nullptr);
+      if (!platform::valid(clientFd)) break;  // EAGAIN: drained
       loop_.adopt(std::make_unique<HttpConnection<Responder>>(loop_, *this, clientFd));
     }
   }
 
 private:
   static Socket makeListener(int port) {
-    const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    const platform::Fd fd = platform::openSocket(AF_INET, SOCK_STREAM, 0);
     Socket socket(fd);
-    if (fd < 0) return socket;
-    const int one = 1;
-    ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-#ifdef SO_REUSEPORT
-    ::setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
-#endif
+    if (!platform::valid(fd)) return socket;
+    platform::configureListener(fd, true);
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(static_cast<uint16_t>(port));
-    if (::bind(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) return Socket(-1);
-    if (::listen(fd, 1024) < 0) return Socket(-1);
+    if (platform::bindSocket(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) return Socket(platform::kInvalidFd);
+    if (platform::listenSocket(fd, 1024) < 0) return Socket(platform::kInvalidFd);
     socket.makeNonBlocking();
     return socket;
   }
@@ -3636,25 +3567,17 @@ inline std::string makeResponse(const char *contentType, const std::string &body
 // process exactly as they do today. The parent serves as worker 0.
 template <typename Responder>
 inline void serve(int port, Responder responder) {
-  ::signal(SIGPIPE, SIG_IGN);
+  platform::ensureSockets();
   int workers = 1;
   if (const char *env = std::getenv("GEA_WORKERS")) {
     const int parsed = std::atoi(env);
     if (parsed > 1 && parsed <= 256) workers = parsed;
   }
-  bool isParent = true;
-  if (workers > 1) {
-    ::signal(SIGCHLD, SIG_IGN);  // auto-reap workers that exit
-    for (int i = 1; i < workers && isParent; ++i) {
-      const pid_t pid = ::fork();
-      if (pid == 0) isParent = false;
-      else if (pid < 0) std::fprintf(stderr, "gea-node: fork failed for worker %d: %s\n", i, std::strerror(errno));
-    }
-  }
+  const bool isParent = platform::forkWorkers(workers);
   EventLoop &loop = clientEventLoop();
   HttpServer<Responder> server(loop, port, std::move(responder));
   if (!server.valid()) {
-    std::fprintf(stderr, "gea-node: failed to bind port %d: %s\n", port, std::strerror(errno));
+    std::fprintf(stderr, "gea-node: failed to bind port %d: %s\n", port, platform::errorText(errno));
     return;
   }
   if (isParent) {
@@ -3683,39 +3606,7 @@ static std::vector<std::uint8_t> randomByteVector(double requested_size) {
   }
   std::vector<std::uint8_t> out(static_cast<std::size_t>(requested_size));
   if (out.empty()) return out;
-  std::uint8_t *data = out.data();
-
-  std::size_t offset = 0;
-#ifdef __linux__
-  while (offset < out.size()) {
-    const ssize_t count = ::getrandom(data + offset, out.size() - offset, 0);
-    if (count > 0) {
-      offset += static_cast<std::size_t>(count);
-      continue;
-    }
-    if (count < 0 && errno == EINTR) continue;
-    break;
-  }
-#elif defined(__APPLE__)
-  ::arc4random_buf(data, out.size());
-  offset = out.size();
-#endif
-
-  // Portable fallback for hosts without getrandom/arc4random, or for a short
-  // kernel read. /dev/urandom is the same OS CSPRNG Node ultimately relies on.
-  if (offset < out.size()) {
-    const int fd = ::open("/dev/urandom", O_RDONLY);
-    if (fd >= 0) {
-      while (offset < out.size()) {
-        const ssize_t count = ::read(fd, data + offset, out.size() - offset);
-        if (count > 0) offset += static_cast<std::size_t>(count);
-        else if (count < 0 && errno == EINTR) continue;
-        else break;
-      }
-      ::close(fd);
-    }
-  }
-  if (offset < out.size()) {
+  if (!platform::fillRandom(out.data(), out.size())) {
     byteOperationError("Error", "Unable to obtain secure random bytes");
     return {};
   }
@@ -3723,27 +3614,12 @@ static std::vector<std::uint8_t> randomByteVector(double requested_size) {
 }
 
 static std::vector<std::uint8_t> readFileByteVector(const std::string &path) {
-  const int fd = ::open(path.c_str(), O_RDONLY);
-  if (fd < 0) {
-    byteOperationError("Error", std::string("open '") + path + "': " + std::strerror(errno));
+  std::vector<std::uint8_t> out;
+  std::string failure;
+  if (!platform::readWholeFile(path, out, failure)) {
+    byteOperationError("Error", failure);
     return {};
   }
-  // Read until EOF rather than relying on st_size: /proc metadata files report
-  // zero length, and the MongoDB handshake reads that metadata on Linux.
-  std::vector<std::uint8_t> out;
-  std::uint8_t bytes[65536];
-  for (;;) {
-    const ssize_t count = ::read(fd, bytes, sizeof(bytes));
-    if (count > 0) out.insert(out.end(), bytes, bytes + count);
-    else if (count == 0) break;
-    else if (errno != EINTR) {
-      const int error = errno;
-      ::close(fd);
-      byteOperationError("Error", std::string("read '") + path + "': " + std::strerror(error));
-      return {};
-    }
-  }
-  ::close(fd);
   return out;
 }
 
@@ -3786,9 +3662,7 @@ struct State {
   std::function<void()> notify;
   std::vector<std::string> arguments;
   std::string spawnError;
-  int channelRead = -1;
-  int channelWrite = -1;
-  int signalPipe[2] = {-1, -1};
+  platform::Fd exitNotifier = platform::kInvalidFd;
   int liveChildren = 0;
   bool watcherInstalled = false;
 };
@@ -3829,43 +3703,28 @@ inline int signalNumber(const std::string &name) {
   return -1;
 }
 
-// Async-signal-safe: one byte into the self-pipe, nothing else.
-static void onSigChld(int) {
-  const int fd = state().signalPipe[1];
-  if (fd < 0) return;
-  const int saved = errno;
-  const char byte = 1;
-  (void)::write(fd, &byte, 1);
-  errno = saved;
-}
-
 inline void reap() {
   State &s = state();
   bool any = false;
-  while (true) {
-    int status = 0;
-    const pid_t pid = ::waitpid(-1, &status, WNOHANG);
-    if (pid <= 0) break;
+  platform::reapExitedChildren([&](double pid, int code, int signal) {
     ExitEvent event;
-    event.pid = static_cast<double>(pid);
-    if (WIFEXITED(status)) event.code = static_cast<double>(WEXITSTATUS(status));
-    else if (WIFSIGNALED(status)) event.signal = signalName(WTERMSIG(status));
+    event.pid = pid;
+    if (signal != 0) event.signal = signalName(signal);
+    else if (code >= 0) event.code = static_cast<double>(code);
     s.exits.push_back(std::move(event));
     if (s.liveChildren > 0) --s.liveChildren;
     any = true;
-  }
+  });
   if (any && s.notify) s.notify();
 }
 
 class ChildWatcher final : public IoWatcher {
 public:
-  int fd() const noexcept override { return state().signalPipe[0]; }
+  platform::Fd fd() const noexcept override { return state().exitNotifier; }
   short interestedEvents() const noexcept override { return POLLIN; }
   bool isReferenced() const noexcept override { return state().liveChildren > 0; }
   void onReady(short) override {
-    char buffer[64];
-    while (::read(state().signalPipe[0], buffer, sizeof buffer) > 0) {
-    }
+    platform::drainChildExitNotifier(state().exitNotifier);
     reap();
   }
 };
@@ -3873,62 +3732,20 @@ public:
 inline bool ensureWatcher() {
   State &s = state();
   if (s.watcherInstalled) return true;
-  if (::pipe(s.signalPipe) != 0) {
-    s.spawnError = std::strerror(errno);
-    return false;
-  }
-  for (const int fd : s.signalPipe) {
-    (void)::fcntl(fd, F_SETFL, ::fcntl(fd, F_GETFL) | O_NONBLOCK);
-    (void)::fcntl(fd, F_SETFD, FD_CLOEXEC);
-  }
-  struct sigaction action {};
-  action.sa_handler = onSigChld;
-  sigemptyset(&action.sa_mask);  // a macro on macOS, so no `::`
-  action.sa_flags = SA_RESTART | SA_NOCLDSTOP;
-  (void)::sigaction(SIGCHLD, &action, nullptr);
+  if (!platform::installChildExitNotifier(s.exitNotifier, s.spawnError)) return false;
   static ChildWatcher watcher;
   clientEventLoop().addBorrowed(&watcher);
   s.watcherInstalled = true;
   return true;
 }
 
-inline bool ensureChannel() {
-  State &s = state();
-  if (s.channelWrite >= 0) return true;
-  int fds[2] = {-1, -1};
-  if (::pipe(fds) != 0) {
-    s.spawnError = std::strerror(errno);
-    return false;
-  }
-  s.channelRead = fds[0];
-  s.channelWrite = fds[1];
-  // The write end must die with the primary and with nothing else: CLOEXEC
-  // keeps it out of every worker. The read end is inherited on purpose.
-  (void)::fcntl(s.channelWrite, F_SETFD, FD_CLOEXEC);
-  return true;
-}
-
-inline std::string executablePath() {
-#if defined(__APPLE__)
-  std::uint32_t size = 0;
-  (void)_NSGetExecutablePath(nullptr, &size);
-  std::string path(size, '\0');
-  if (_NSGetExecutablePath(path.data(), &size) != 0) return "";
-  path.resize(std::strlen(path.c_str()));
-  return path;
-#else
-  char buffer[PATH_MAX];
-  const ssize_t length = ::readlink("/proc/self/exe", buffer, sizeof buffer - 1);
-  if (length <= 0) return "";
-  buffer[length] = '\0';
-  return std::string(buffer);
-#endif
-}
+inline std::string executablePath() { return platform::executablePath(); }
 
 // `envPairs` is the caller's `fork(env)` as "k=v" entries separated by 0x1f.
 inline double spawn(double id, const std::string &envPairs) {
   State &s = state();
-  if (!ensureChannel() || !ensureWatcher()) return 0;
+  std::string channel;
+  if (!platform::createLivenessChannel(channel, s.spawnError) || !ensureWatcher()) return 0;
   const std::string exe = executablePath();
   if (exe.empty()) {
     s.spawnError = "cannot resolve the executable path of this process";
@@ -3940,8 +3757,8 @@ inline double spawn(double id, const std::string &envPairs) {
     return false;
   };
   std::vector<std::string> env;
-  for (char **entry = environ; entry != nullptr && *entry != nullptr; ++entry)
-    if (!isReserved(*entry)) env.emplace_back(*entry);
+  for (std::string &entry : platform::environmentEntries())
+    if (!isReserved(entry)) env.push_back(std::move(entry));
   std::size_t start = 0;
   while (start < envPairs.size()) {
     std::size_t end = envPairs.find('\x1f', start);
@@ -3958,37 +3775,25 @@ inline double spawn(double id, const std::string &envPairs) {
   const std::string idText = std::to_string(static_cast<long long>(id));
   env.push_back("GEA_CLUSTER_WORKER_ID=" + idText);
   env.push_back("NODE_UNIQUE_ID=" + idText);
-  env.push_back("GEA_CLUSTER_CHANNEL_FD=" + std::to_string(s.channelRead));
-  std::vector<char *> envp;
-  envp.reserve(env.size() + 1);
-  for (std::string &entry : env) envp.push_back(entry.data());
-  envp.push_back(nullptr);
+  env.push_back("GEA_CLUSTER_CHANNEL_FD=" + channel);
   std::vector<std::string> args = s.arguments.empty() ? std::vector<std::string>{exe} : s.arguments;
-  std::vector<char *> argv;
-  argv.reserve(args.size() + 1);
-  for (std::string &arg : args) argv.push_back(arg.data());
-  argv.push_back(nullptr);
-  pid_t pid = 0;
-  const int rc = ::posix_spawn(&pid, exe.c_str(), nullptr, nullptr, argv.data(), envp.data());
-  if (rc != 0) {
-    s.spawnError = std::strerror(rc);
-    return 0;
-  }
+  const double pid = platform::spawnChild(exe, std::move(args), std::move(env), s.spawnError);
+  if (pid == 0) return 0;
   ++s.liveChildren;
-  return static_cast<double>(pid);
+  return pid;
 }
 
 // Worker side: EOF on the inherited liveness pipe means the primary is gone.
 class ChannelWatcher final : public IoWatcher {
 public:
-  ChannelWatcher(int fd, std::function<void()> onDisconnect) : fd_(fd), onDisconnect_(std::move(onDisconnect)) {}
-  int fd() const noexcept override { return fd_; }
+  ChannelWatcher(platform::Fd fd, std::function<void()> onDisconnect) : fd_(fd), onDisconnect_(std::move(onDisconnect)) {}
+  platform::Fd fd() const noexcept override { return fd_; }
   short interestedEvents() const noexcept override { return POLLIN; }
   // Unreferenced: a worker with nothing to serve exits, as under Node.
   bool isReferenced() const noexcept override { return false; }
   void onReady(short revents) override {
     char buffer[16];
-    const ssize_t n = ::read(fd_, buffer, sizeof buffer);
+    const platform::ssize n = platform::wakeRead(fd_, buffer, sizeof buffer);
     const bool closed = n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) ||
                         (revents & (POLLHUP | POLLERR)) != 0;
     if (!closed) return;
@@ -3997,16 +3802,15 @@ public:
   }
 
 private:
-  int fd_;
+  platform::Fd fd_;
   std::function<void()> onDisconnect_;
 };
 
 inline void watchChannel(std::function<void()> onDisconnect) {
   const char *env = std::getenv("GEA_CLUSTER_CHANNEL_FD");
   if (env == nullptr) return;
-  const int fd = std::atoi(env);
-  if (fd < 0) return;
-  (void)::fcntl(fd, F_SETFL, ::fcntl(fd, F_GETFL) | O_NONBLOCK);
+  const platform::Fd fd = platform::openLivenessChannel(env);
+  if (!platform::valid(fd)) return;
   clientEventLoop().adopt(std::make_unique<ChannelWatcher>(fd, std::move(onDisconnect)));
 }
 
@@ -4016,11 +3820,7 @@ namespace gea::node {
 
 inline void cluster_set_notify_native(std::function<void()> notify) { cluster::state().notify = std::move(notify); }
 inline void cluster_watch_channel_native(std::function<void()> onDisconnect) { cluster::watchChannel(std::move(onDisconnect)); }
-inline void set_process_arguments(int argc, char **argv) {
-  std::vector<std::string> &arguments = cluster::state().arguments;
-  arguments.clear();
-  for (int index = 0; index < argc; ++index) arguments.emplace_back(argv[index]);
-}
+inline void set_process_arguments(int argc, char **argv) { cluster::state().arguments = platform::arguments(argc, argv); }
 
 }  // namespace gea::node
 
@@ -4042,17 +3842,16 @@ inline std::string __gea_node_cluster_exit_signal() { return gea::node::cluster:
 inline bool __gea_node_cluster_kill(double pid, std::string signal) {
   const int number = gea::node::cluster::signalNumber(signal);
   if (number < 0) return false;
-  return ::kill(static_cast<pid_t>(pid), number) == 0;
+  return gea::node::platform::signalProcess(pid, number);
 }
-inline double __gea_node_process_pid() { return static_cast<double>(::getpid()); }
-inline double __gea_node_process_ppid() { return static_cast<double>(::getppid()); }
+inline double __gea_node_process_pid() { return gea::node::platform::processId(); }
+inline double __gea_node_process_ppid() { return gea::node::platform::parentProcessId(); }
 inline void __gea_node_process_exit(double code) {
   std::fflush(nullptr);
-  ::_exit(static_cast<int>(code));
+  gea::node::platform::exitImmediately(static_cast<int>(code));
 }
 inline double __gea_node_os_available_parallelism() {
-  const long count = ::sysconf(_SC_NPROCESSORS_ONLN);
-  return count > 0 ? static_cast<double>(count) : 1.0;
+  return static_cast<double>(gea::node::platform::onlineProcessors());
 }
 
 // ---- intrinsics exposed to geatsc-generated code --------------------------
@@ -4249,20 +4048,9 @@ inline std::string __gea_node_platform() {
 #endif
 }
 
-static struct utsname __gea_node_uname() {
-  struct utsname value {};
-  (void)::uname(&value);
-  return value;
-}
+inline std::string __gea_node_os_arch() { return gea::node::platform::machineArch(); }
 
-inline std::string __gea_node_os_arch() {
-  const std::string machine = __gea_node_uname().machine;
-  if (machine == "aarch64" || machine == "arm64") return "arm64";
-  if (machine == "x86_64" || machine == "amd64") return "x64";
-  return machine;
-}
-
-inline std::string __gea_node_os_release() { return __gea_node_uname().release; }
+inline std::string __gea_node_os_release() { return gea::node::platform::kernelRelease(); }
 
 inline std::string __gea_node_os_type() {
 #if defined(__APPLE__)
@@ -4272,7 +4060,7 @@ inline std::string __gea_node_os_type() {
 #elif defined(_WIN32)
   return "Windows_NT";
 #else
-  return __gea_node_uname().sysname;
+  return gea::node::platform::systemName();
 #endif
 }
 
@@ -4283,7 +4071,7 @@ inline void __gea_node_stdio_write(double fd, std::string data) {
 }
 
 inline bool __gea_node_fs_access(std::string path, double mode) {
-  return ::access(path.c_str(), static_cast<int>(mode)) == 0;
+  return gea::node::platform::canAccess(path, static_cast<int>(mode));
 }
 
 // The same refusal under both runtimes, raised the way each one raises: v1

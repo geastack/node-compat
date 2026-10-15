@@ -34,9 +34,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#ifdef __APPLE__
-#include <crt_externs.h>
-#endif
 
 // The microtask queue, declared before the reactor because the reactor's own
 // loop drains it.
@@ -59,14 +56,7 @@ void drain_next_ticks();
 /** The process environment as the typed dictionary declared by node:process. */
 inline gea::Ref<gea::Dictionary<gea::Optional<std::string>>> gea_cpp_process_env() {
   auto result = gea::makeRef<gea::Dictionary<gea::Optional<std::string>>>();
-#ifdef __APPLE__
-  char **entries = *_NSGetEnviron();
-#else
-  extern char **environ;
-  char **entries = environ;
-#endif
-  for (char **entry = entries; entry && *entry; ++entry) {
-    const std::string item(*entry);
+  for (const std::string &item : gea::node::platform::environmentEntries()) {
     const std::size_t separator = item.find('=');
     if (separator == std::string::npos) continue;
     (*result)[item.substr(0, separator)] = gea::Optional<std::string>(item.substr(separator + 1));
@@ -92,8 +82,9 @@ namespace process {
 
 inline Process process{};
 inline const ProcessVersions versions{};
-inline const ProcessWriteStream stdout{1};
-inline const ProcessWriteStream stderr{2};
+// Not `stdout`/`stderr`: the Windows C runtime defines both as macros.
+inline const ProcessWriteStream standard_output{1};
+inline const ProcessWriteStream standard_error{2};
 inline const ProcessHrTime hrtime_facade{};
 
 inline gea::Ref<gea::Dictionary<gea::Optional<std::string>>> env() {
@@ -107,11 +98,7 @@ inline gea::Ref<gea::Dictionary<gea::Optional<std::string>>> env() {
 inline std::string exec_path() {
   static const std::string value = [] {
     std::string path = cluster::executablePath();
-    if (!path.empty()) {
-      char resolved[PATH_MAX];
-      if (::realpath(path.c_str(), resolved) != nullptr) return std::string(resolved);
-      return path;
-    }
+    if (!path.empty()) return platform::canonicalPath(path);
     const std::vector<std::string>& raw = cluster::state().arguments;
     return raw.empty() ? std::string() : raw.front();
   }();
@@ -153,9 +140,10 @@ inline gea::Ref<gea::ArrayObject<std::string>> exec_argv() {
 inline gea::Value get_builtin_module(const std::string& name) { return gea::commonjs::getBuiltinModule(name); }
 
 inline std::string cwd() {
-  char path[PATH_MAX];
-  if (::getcwd(path, sizeof(path)) == nullptr) {
-    throw gea::Value::box(gea::Value::Tag::String, std::string("process.cwd failed: ") + std::strerror(errno));
+  std::string path;
+  int error = 0;
+  if (!platform::currentDirectory(path, error)) {
+    throw gea::Value::box(gea::Value::Tag::String, std::string("process.cwd failed: ") + platform::errorText(error));
   }
   return path;
 }
@@ -266,7 +254,7 @@ inline int default_exit_status() {
   const int status = exit_status(code);
   emit_exit(status);
   std::fflush(nullptr);
-  ::_exit(status);
+  platform::exitImmediately(status);
 }
 [[noreturn]] inline void exit() { exit(static_cast<double>(default_exit_status())); }
 
@@ -316,7 +304,7 @@ namespace gea::node {
 
 inline int run_compiled_program(int argc, char **argv, void (*entry)()) {
   set_process_arguments(argc, argv);
-  std::setvbuf(stdout, nullptr, _IOLBF, 0);
+  platform::startProcess();
   gea::setPromiseWaitPump(::__gea_node_pump_until);
   gea::detail::setNextTickDrain(&drain_next_ticks);
   // Promise jobs share the microtask queue this reactor drains; the language
