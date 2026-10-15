@@ -27,9 +27,23 @@ A single-threaded reactor, written as namespaced RAII C++:
 
 - **Event loop**: epoll on Linux (O(ready) kernel wait; interest changes
   re-armed via `EPOLL_CTL_MOD` only when a watcher's interest actually
-  changed), `poll()` as the portable fallback (macOS). Each pass drains the
-  geatsc microtask queue — this is what makes async handlers (promise
-  continuations) progress — and fires due timers.
+  changed), kqueue on macOS, and the `poll()` backend everywhere else —
+  WSAPoll on Windows. Each pass drains the geatsc microtask queue — this is
+  what makes async handlers (promise continuations) progress — and fires due
+  timers.
+- **Platform interface**: the reactor names no system call itself.
+  `runtime/gea_node_platform.hpp` is the one interface (sockets, readiness
+  polling, wake pipes, threads, files, random bytes, process metadata, aligned
+  memory, `node:cluster`'s child processes), answered by
+  `gea_node_platform_posix.hpp` (Linux, macOS) and
+  `gea_node_platform_win32.hpp`. On Windows, whatever is not a socket and must
+  wake the loop — a finished DNS lookup, a cluster worker's exit, a cluster
+  primary's death — becomes a socket event: a helper thread or a thread-pool
+  wait writes to (or closes) one end of a loopback socket pair the loop
+  watches. Errors cross as POSIX `errno` values with glibc's texts; node's
+  `error.errno` uses libuv's numbering per platform. Helper threads never
+  allocate through `operator new`: the pool allocator's free lists belong to
+  the loop thread.
 - **HTTP/1.x parser**: request line + header validation (whitespace-in-name
   smuggling guard, duplicate content-length check), content-length and
   chunked bodies (extensions ignored, trailers parsed and discarded), 16 KB
@@ -54,7 +68,7 @@ A single-threaded reactor, written as namespaced RAII C++:
   `setTimeout`/`setInterval`/`clearTimeout` to intrinsics, and the loop's
   poll timeout is the next due delay. (The stock geatsc fallback degrades a
   delay to an immediate microtask — servers need real delays.)
-- **Pool allocator** (Linux only): global `operator new/delete` override.
+- **Pool allocator** (Linux and Windows): global `operator new/delete` override.
   Blocks are carved from 1 MB-aligned arena chunks registered in a lookup
   table; `release` masks a pointer to its chunk base — a hit recycles onto a
   per-size-class free list, a miss means "not ours" and routes to `free()`
@@ -65,7 +79,9 @@ A single-threaded reactor, written as namespaced RAII C++:
   out-of-line `std::string::__grow_by_and_replace`) that no operator
   override can intercept; a pooled buffer freed there aborts. Linux
   interposition through the executable's exported operators is the
-  documented, fully consistent mechanism.
+  documented, fully consistent mechanism. On Windows the replacement simply
+  is the statically linked program's `operator new`, and chunks come from
+  `VirtualAlloc`.
 
 ### Layer 2 — the Node builtins (`runtime/node/*.ts`)
 

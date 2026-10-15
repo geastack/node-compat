@@ -1,7 +1,7 @@
 # node-compat
 
 Compiles Node.js HTTP apps — using the `node:http` API and the `hono` npm
-library — to native macOS/Linux binaries with
+library — to native macOS, Linux and Windows binaries with
 [geatsc](https://github.com/geastack/compiler), and checks the result against
 Node.
 
@@ -127,9 +127,12 @@ Every figure above and its history is in [BENCHMARKS.md](BENCHMARKS.md).
 ## Layout
 
 - **[runtime/gea_node.cpp](runtime/gea_node.cpp)** — the native layer: a
-  single-threaded reactor (epoll on Linux, poll fallback), a full HTTP/1.x
-  request parser, per-connection response streaming, reactor-integrated
-  timers, and a size-class pool allocator (Linux).
+  single-threaded reactor (epoll on Linux, kqueue on macOS, WSAPoll on
+  Windows), a full HTTP/1.x request parser, per-connection response
+  streaming, reactor-integrated timers, and a size-class pool allocator. Every
+  system call goes through
+  [runtime/gea_node_platform.hpp](runtime/gea_node_platform.hpp), answered by
+  a POSIX and a Win32 header.
 - **[runtime/node/](runtime/node)** — `node:http` and `node:events` written in
   TypeScript and compiled by geatsc itself, sitting on the reactor through a
   small intrinsic surface. Response serialization matches Node byte-for-byte;
