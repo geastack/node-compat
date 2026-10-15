@@ -2431,6 +2431,18 @@ inline double net_server_listen_native(std::string host, double requestedPort, d
   int selectedFamily = AF_UNSPEC;
   int lastError = EADDRNOTAVAIL;
   for (addrinfo *candidate = resolved; candidate; candidate = candidate->ai_next) {
+    // A cluster worker on Windows listens on the primary's socket.
+    platform::Fd shared = platform::kInvalidFd;
+    if (platform::sharedClusterListener(candidate->ai_addr, static_cast<socklen_t>(candidate->ai_addrlen),
+                                        std::max(1, static_cast<int>(requestedBacklog)), ipv6Only, shared)) {
+      if (!platform::valid(shared)) {
+        lastError = errno;
+        continue;
+      }
+      selectedFd = shared;
+      selectedFamily = candidate->ai_family;
+      break;
+    }
     const platform::Fd fd = platform::openSocket(candidate->ai_family, candidate->ai_socktype, candidate->ai_protocol);
     if (!platform::valid(fd)) {
       lastError = errno;
@@ -3521,14 +3533,18 @@ public:
 
 private:
   static Socket makeListener(int port) {
-    const platform::Fd fd = platform::openSocket(AF_INET, SOCK_STREAM, 0);
-    Socket socket(fd);
-    if (!platform::valid(fd)) return socket;
-    platform::configureListener(fd, true);
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(static_cast<uint16_t>(port));
+    // A cluster worker on Windows listens on the primary's socket.
+    platform::Fd shared = platform::kInvalidFd;
+    if (platform::sharedClusterListener(reinterpret_cast<sockaddr *>(&addr), sizeof(addr), 1024, false, shared))
+      return Socket(shared);
+    const platform::Fd fd = platform::openSocket(AF_INET, SOCK_STREAM, 0);
+    Socket socket(fd);
+    if (!platform::valid(fd)) return socket;
+    platform::configureListener(fd, true);
     if (platform::bindSocket(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) return Socket(platform::kInvalidFd);
     if (platform::listenSocket(fd, 1024) < 0) return Socket(platform::kInvalidFd);
     socket.makeNonBlocking();

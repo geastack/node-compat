@@ -453,15 +453,12 @@ inline void setKeepAlive(Fd fd, bool enabled, int initialDelayMs) {
 }
 
 // Windows rebinds a port in TIME_WAIT without being asked, and its
-// SO_REUSEADDR means something else entirely: a second socket may bind a port
-// that is already listening. So a listener sets nothing -- a second server on
-// the same port fails with EADDRINUSE exactly as on Linux -- except in a
-// cluster worker, where sharing the primary's port is the point. (Windows has
-// no SO_REUSEPORT distribution: the workers all bind, and the system hands
-// each connection to one of them.)
-inline void configureListener(Fd fd, bool sharePort) {
-  if (sharePort && std::getenv("GEA_CLUSTER_WORKER_ID") != nullptr) setIntOption(fd, SOL_SOCKET, SO_REUSEADDR, 1);
-}
+// SO_REUSEADDR means something else entirely: any later socket may bind -- and
+// steal -- a port that is already listening. So a listener never sets it; a
+// second server on the same port fails with EADDRINUSE exactly as on Linux.
+// Cluster workers do not bind at all: they share the primary's listener
+// (`sharedClusterListener`), which is node's own Windows design.
+inline void configureListener(Fd, bool) {}
 
 inline void configureStream(Fd) {}
 
@@ -858,6 +855,8 @@ inline Fd &childExitWriteFd() {
   return fd;
 }
 
+inline void forgetClusterChild(DWORD pid);
+
 // A thread-pool callback: one byte to the loop, nothing else.
 inline void CALLBACK onChildExited(void *context, BOOLEAN) {
   wakeWrite(static_cast<Fd>(reinterpret_cast<std::uintptr_t>(context)));
@@ -893,6 +892,7 @@ inline void reapExitedChildren(OnExit &&onExit) {
     (void)::GetExitCodeProcess(child.process, &code);
     if (child.wait != nullptr) (void)::UnregisterWaitEx(child.wait, INVALID_HANDLE_VALUE);
     ::CloseHandle(child.process);
+    forgetClusterChild(child.pid);
     const double pid = static_cast<double>(child.pid);
     const int killedWith = child.killedWith;
     all.erase(all.begin() + static_cast<std::ptrdiff_t>(index));
@@ -926,8 +926,210 @@ inline void appendQuotedArgument(std::wstring &line, const std::wstring &argumen
   line.push_back(L'"');
 }
 
+// ---- cluster listeners: node's Windows design -------------------------------
+//
+// Windows has no SO_REUSEPORT, and SO_REUSEADDR there lets any process steal
+// a listening port, so workers must not each bind it. As in node (whose
+// default scheduling on Windows is SCHED_NONE), the PRIMARY owns the one
+// listening socket -- bound with SO_EXCLUSIVEADDRUSE, so nothing else can take
+// the port while the cluster runs -- and hands every worker that asks a
+// duplicate of it (WSADuplicateSocketW); the workers accept from the shared
+// queue. The request travels over a named pipe the primary serves from a
+// helper thread: a worker sends the address it wants, the primary binds it
+// once per address and answers with the protocol info of a duplicate made for
+// that worker's process. Only processes this primary started are answered.
+//
+// The helper thread uses fixed-size state only and allocates nothing through
+// `operator new` (the pool allocator's free lists belong to the loop thread).
+
+struct ClusterListenRequest {
+  std::uint32_t magic;
+  std::int32_t backlog;
+  std::int32_t ipv6Only;
+  std::int32_t addressLength;
+  sockaddr_storage address;
+};
+
+struct ClusterListenReply {
+  std::int32_t error;  // a POSIX errno, 0 on success
+  WSAPROTOCOL_INFOW info;
+};
+
+inline constexpr std::uint32_t kClusterListenMagic = 0x6765614cu;  // "geaL"
+
+struct ClusterListenerSlot {
+  sockaddr_storage address;
+  int addressLength;
+  SOCKET socket;
+};
+
+struct ClusterListenerService {
+  CRITICAL_SECTION lock;
+  DWORD children[256];
+  int childCount = 0;
+  ClusterListenerSlot slots[64];
+  int slotCount = 0;
+  wchar_t pipeName[64] = {};
+  bool started = false;
+};
+
+inline ClusterListenerService &clusterListenerService() {
+  static ClusterListenerService *service = [] {
+    static ClusterListenerService value;
+    ::InitializeCriticalSection(&value.lock);
+    return &value;
+  }();
+  return *service;
+}
+
+inline void registerClusterChild(DWORD pid) {
+  ClusterListenerService &service = clusterListenerService();
+  ::EnterCriticalSection(&service.lock);
+  int free = -1;
+  for (int index = 0; index < service.childCount; ++index)
+    if (service.children[index] == 0) free = index;
+  if (free >= 0) service.children[free] = pid;
+  else if (service.childCount < 256) service.children[service.childCount++] = pid;
+  ::LeaveCriticalSection(&service.lock);
+}
+
+inline void forgetClusterChild(DWORD pid) {
+  ClusterListenerService &service = clusterListenerService();
+  ::EnterCriticalSection(&service.lock);
+  for (int index = 0; index < service.childCount; ++index)
+    if (service.children[index] == pid) service.children[index] = 0;
+  ::LeaveCriticalSection(&service.lock);
+}
+
+// One request, on the helper thread: the reply for `request` from `pid`.
+inline ClusterListenReply answerClusterListen(const ClusterListenRequest &request, DWORD pid) {
+  ClusterListenReply reply{};
+  ClusterListenerService &service = clusterListenerService();
+  if (request.magic != kClusterListenMagic || request.addressLength <= 0 ||
+      request.addressLength > static_cast<int>(sizeof(sockaddr_storage))) {
+    reply.error = EINVAL;
+    return reply;
+  }
+  ::EnterCriticalSection(&service.lock);
+  bool known = false;
+  for (int index = 0; index < service.childCount; ++index)
+    if (service.children[index] == pid) known = true;
+  SOCKET listener = INVALID_SOCKET;
+  if (!known) {
+    reply.error = EACCES;
+  } else {
+    for (int index = 0; index < service.slotCount; ++index) {
+      const ClusterListenerSlot &slot = service.slots[index];
+      if (slot.addressLength == request.addressLength &&
+          std::memcmp(&slot.address, &request.address, static_cast<std::size_t>(request.addressLength)) == 0)
+        listener = slot.socket;
+    }
+    if (listener == INVALID_SOCKET) {
+      const int family = request.address.ss_family;
+      listener = ::WSASocketW(family, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED | WSA_FLAG_NO_HANDLE_INHERIT);
+      bool ok = listener != INVALID_SOCKET;
+      if (ok) {
+        setIntOption(listener, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, 1);
+        if (family == AF_INET6) setIntOption(listener, IPPROTO_IPV6, IPV6_V6ONLY, request.ipv6Only != 0 ? 1 : 0);
+        ok = ::bind(listener, reinterpret_cast<const sockaddr *>(&request.address), request.addressLength) == 0 &&
+             ::listen(listener, request.backlog > 0 ? request.backlog : SOMAXCONN) == 0;
+      }
+      if (!ok) {
+        reply.error = errnoFromWinsock(::WSAGetLastError());
+        if (listener != INVALID_SOCKET) ::closesocket(listener);
+        listener = INVALID_SOCKET;
+      } else if (service.slotCount < 64) {
+        ClusterListenerSlot &slot = service.slots[service.slotCount++];
+        std::memcpy(&slot.address, &request.address, static_cast<std::size_t>(request.addressLength));
+        slot.addressLength = request.addressLength;
+        slot.socket = listener;
+      }
+    }
+    if (listener != INVALID_SOCKET && ::WSADuplicateSocketW(listener, pid, &reply.info) != 0)
+      reply.error = errnoFromWinsock(::WSAGetLastError());
+  }
+  ::LeaveCriticalSection(&service.lock);
+  return reply;
+}
+
+inline void serveClusterListens(void *) {
+  ClusterListenerService &service = clusterListenerService();
+  for (;;) {
+    const HANDLE pipe = ::CreateNamedPipeW(service.pipeName, PIPE_ACCESS_DUPLEX,
+                                           PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+                                           PIPE_UNLIMITED_INSTANCES, sizeof(ClusterListenReply), sizeof(ClusterListenRequest), 0,
+                                           nullptr);
+    if (pipe == INVALID_HANDLE_VALUE) return;
+    if (::ConnectNamedPipe(pipe, nullptr) || ::GetLastError() == ERROR_PIPE_CONNECTED) {
+      ClusterListenRequest request{};
+      DWORD read = 0;
+      ULONG pid = 0;
+      if (::ReadFile(pipe, &request, sizeof(request), &read, nullptr) && read == sizeof(request) &&
+          ::GetNamedPipeClientProcessId(pipe, &pid)) {
+        const ClusterListenReply reply = answerClusterListen(request, pid);
+        DWORD written = 0;
+        (void)::WriteFile(pipe, &reply, sizeof(reply), &written, nullptr);
+        (void)::FlushFileBuffers(pipe);
+      }
+    }
+    ::DisconnectNamedPipe(pipe);
+    ::CloseHandle(pipe);
+  }
+}
+
+// The pipe name a worker is told (`GEA_CLUSTER_LISTEN_PIPE`), the service
+// started on first use.
+inline std::string clusterListenPipe() {
+  ClusterListenerService &service = clusterListenerService();
+  if (!service.started) {
+    std::swprintf(service.pipeName, 64, L"\\\\.\\pipe\\gea-cluster-%lu", static_cast<unsigned long>(::GetCurrentProcessId()));
+    service.started = startThread<&serveClusterListens>(nullptr);
+  }
+  return narrow(service.pipeName, std::wcslen(service.pipeName));
+}
+
+// In a cluster worker: the primary's shared listener for `address`, as a
+// non-blocking socket of this process (true; `out` invalid with errno set on
+// failure). Everywhere else false, and the caller binds its own socket.
+inline bool sharedClusterListener(const sockaddr *address, socklen_t length, int backlog, bool ipv6Only, Fd &out) {
+  const char *pipeName = std::getenv("GEA_CLUSTER_LISTEN_PIPE");
+  if (pipeName == nullptr || std::getenv("GEA_CLUSTER_WORKER_ID") == nullptr) return false;
+  out = INVALID_SOCKET;
+  ensureSockets();
+  ClusterListenRequest request{};
+  request.magic = kClusterListenMagic;
+  request.backlog = backlog;
+  request.ipv6Only = ipv6Only ? 1 : 0;
+  request.addressLength = static_cast<std::int32_t>(std::min<std::size_t>(static_cast<std::size_t>(length), sizeof(sockaddr_storage)));
+  std::memcpy(&request.address, address, static_cast<std::size_t>(request.addressLength));
+  ClusterListenReply reply{};
+  DWORD received = 0;
+  const std::wstring name = wide(pipeName);
+  if (!::CallNamedPipeW(name.c_str(), &request, sizeof(request), &reply, sizeof(reply), &received, 5000) ||
+      received != sizeof(reply)) {
+    errno = errnoFromWin32(::GetLastError());
+    return true;
+  }
+  if (reply.error != 0) {
+    errno = reply.error;
+    return true;
+  }
+  out = ::WSASocketW(FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, &reply.info, 0,
+                     WSA_FLAG_OVERLAPPED | WSA_FLAG_NO_HANDLE_INHERIT);
+  if (out == INVALID_SOCKET) {
+    setErrnoFromWinsock();
+    return true;
+  }
+  setNonBlocking(out);
+  return true;
+}
+
 inline double spawnChild(const std::string &executable, std::vector<std::string> args, std::vector<std::string> env,
                          std::string &error) {
+  // Workers ask this process for their listening sockets.
+  const std::string listenPipeKey = "GEA_CLUSTER_LISTEN_PIPE=";
+  std::erase_if(env, [&](const std::string &entry) { return entry.compare(0, listenPipeKey.size(), listenPipeKey) == 0; });
+  env.push_back(listenPipeKey + clusterListenPipe());
   std::wstring commandLine;
   for (const std::string &arg : args) appendQuotedArgument(commandLine, wide(arg));
   // CreateProcessW wants the block sorted by name, case-insensitively.
@@ -952,11 +1154,14 @@ inline double spawnChild(const std::string &executable, std::vector<std::string>
   const std::wstring program = wide(executable);
   // Handles are inherited so the worker gets the liveness handle and the
   // standard streams; every socket this runtime opens is non-inheritable.
-  if (!::CreateProcessW(program.c_str(), commandLine.data(), nullptr, nullptr, TRUE, CREATE_UNICODE_ENVIRONMENT,
-                        block.data(), nullptr, &startup, &info)) {
+  // Started suspended so it is known to the listener service before it can ask.
+  if (!::CreateProcessW(program.c_str(), commandLine.data(), nullptr, nullptr, TRUE,
+                        CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED, block.data(), nullptr, &startup, &info)) {
     error = errorText(errnoFromWin32(::GetLastError()));
     return 0;
   }
+  registerClusterChild(info.dwProcessId);
+  ::ResumeThread(info.hThread);
   ::CloseHandle(info.hThread);
   ChildRecord record;
   record.pid = info.dwProcessId;

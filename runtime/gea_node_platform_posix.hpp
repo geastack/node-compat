@@ -127,6 +127,11 @@ inline void configureListener(Fd fd, bool sharePort) {
 #endif
 }
 
+// Only Windows cluster workers share the primary's listener; here every
+// process binds its own (SO_REUSEPORT lets the kernel distribute a cluster's
+// connections), so the caller always does.
+inline bool sharedClusterListener(const sockaddr *, socklen_t, int, bool, Fd &) { return false; }
+
 // Every connected stream socket the reactor owns. macOS has no MSG_NOSIGNAL,
 // so the socket itself is told not to raise SIGPIPE.
 inline void configureStream(Fd fd) {

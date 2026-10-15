@@ -44,8 +44,10 @@
 //   reserveAlignedChunk / releaseAlignedChunk
 //                                      size-aligned memory for the pool
 //   installChildExitNotifier / drainChildExitNotifier / reapExitedChildren /
-//   spawnChild / signalProcess / createLivenessChannel / openLivenessChannel
-//                                      node:cluster's process management
+//   spawnChild / signalProcess / createLivenessChannel / openLivenessChannel /
+//   sharedClusterListener              node:cluster's process management, and
+//                                      on Windows the primary-owned listener
+//                                      its workers share (node's design there)
 //
 // Everything here is inline: the reactor is compiled into the program's own
 // translation unit (see `gea_node.hpp`), and so is this.
