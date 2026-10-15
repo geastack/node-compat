@@ -988,7 +988,15 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
       : [
           ...(compiling ? ['-ffunction-sections', '-fdata-sections'] : []),
           // lld-link and link.exe spell section garbage collection /opt:ref.
-          ...(linking ? [process.platform === 'win32' ? '-Wl,/opt:ref' : '-Wl,--gc-sections'] : [])
+          // Both then also fold identical functions (/opt:icf) unless told
+          // not to, and that folding ignores whether a function's address is
+          // taken. The runtime keys callables by their thunk's address: once
+          // two classes' unbound-method thunks -- one body, two receiver
+          // checks -- shared an address, `pipeline` into a PassThrough
+          // checked it as a Writable and threw "a native method receiver is
+          // outside its authenticated class family". link.exe has no
+          // safe-ICF spelling, so folding stays off.
+          ...(linking ? (process.platform === 'win32' ? ['-Wl,/opt:ref', '-Wl,/opt:noicf'] : ['-Wl,--gc-sections']) : [])
         ]),
     // Fold byte-identical functions, as ld64 already does on macOS. Templates
     // instantiate the same machine code under many names -- every
