@@ -43,7 +43,7 @@ declare global {
     // Real Node's `console.info`/`console.warn` are literal aliases of
     // `log`/`error` (Node's `lib/internal/console/constructor.js` binds both
     // pairs to the same underlying writer) -- declared here because
-    // `@hono/node-server`'s own `listener.ts`/`early-hints.ts` call them, but
+    // an HTTP framework's Node server adapter calls them, but
     // NEITHER is in the compiler's own host table
     // (`compiler/src/targets/cpp/host/host-members.ts`'s `coreHostMembers`
     // claims only `Console.log`/`Console.error`, a file this target does not
@@ -92,7 +92,7 @@ declare global {
   function queueMicrotask(callback: () => void): void
 
   // `TextDecoder.decode`'s parameter type. Not claimed by any compiler table --
-  // just a shape both this file and `globals.ts` (hono's `cookie.ts` HMAC
-  // signing) need to name.
+  // just a shape both this file and `globals.ts` (an HTTP framework's cookie
+  // HMAC signing) need to name.
   type BufferSource = ArrayBufferView | ArrayBuffer
 }

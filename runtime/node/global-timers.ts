@@ -5,9 +5,9 @@
 // Like `globals.ts`, `whatwg-streams.ts` and `abort-events.ts` this file is a
 // SCRIPT, never a module: it must have NO top-level `import`/`export`, because
 // that is the whole mechanism putting these declarations in real global scope.
-// `@hono/node-server`'s `listener.ts` writes `setTimeout(forceClose, ms)` and
-// `clearTimeout(timer)` with no import of either name in sight, and hono's own
-// `timeout` middleware and `utils/concurrent.ts` do the same, so the names have
+// An HTTP framework's Node server adapter writes `setTimeout(forceClose, ms)`
+// and `clearTimeout(timer)` with no import of either name in sight, and the
+// framework's own timeout middleware and concurrency helper do the same, so the names have
 // to resolve by themselves.
 //
 // This used to be an ambient `const setTimeout: typeof import('./timers.js')
@@ -22,7 +22,8 @@
 // directions: the host symbol takes `(std::function<void()>, double)` and
 // returns a `double`, while the program's own types say the callback is
 // variadic, the delay is optional, and the result is a `Timeout` OBJECT whose
-// `.unref?.()` `listener.ts` calls. Nine clang errors in hono-hello came out of
+// `.unref?.()` that adapter calls. Nine clang errors in the HTTP framework test
+// app came out of
 // that one disagreement. `plugin/index.mjs` no longer claims the bare names; the
 // only host symbols are the `__gea_node_timer_*` ones below, and this file is
 // the implementation.
@@ -72,8 +73,8 @@ class Timeout {
 
 // `callback` takes an `any` rest list -- Node's own spelling -- so a real
 // caller like a `Promise` executor's `resolve: (value: T) => void` (the
-// `new Promise((resolve) => setTimeout(resolve))` idiom `@hono/node-server`'s
-// `listener.ts`/`request.ts` rely on) is assignable here even though the
+// `new Promise((resolve) => setTimeout(resolve))` idiom an HTTP framework's
+// Node server adapter relies on) is assignable here even though the
 // native timer never actually forwards any argument to the callback.
 //
 // NOT a `never` rest list: that is how geatsc spells a callable carrying

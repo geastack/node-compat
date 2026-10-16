@@ -2,8 +2,8 @@
 //
 // The generated facade declares `spawn(...args: unknown[]): never`, which is
 // honest about the run time (nothing here can start a process) but not about
-// the TYPE: a caller that stores the result -- the MongoDB driver's
-// `MongocryptdManager` keeps `this._child = spawn(...)` and then subscribes
+// the TYPE: a caller that stores the result -- a database driver's
+// helper-process manager keeps `this._child = spawn(...)` and then subscribes
 // `this._child.on('error', ...)` -- sees its field narrowed to `never` and
 // fails to type-check. Node declares a `ChildProcess`, an EventEmitter, so
 // that is what `spawn` states here. Spawning still throws the facade's

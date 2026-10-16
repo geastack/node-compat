@@ -213,7 +213,7 @@ inline bool readWholeFile(const std::string &path, std::vector<std::uint8_t> &ou
     return false;
   }
   // Read until EOF rather than relying on st_size: /proc metadata files report
-  // zero length, and the MongoDB handshake reads that metadata on Linux.
+  // zero length, and a database driver's handshake reads that metadata on Linux.
   std::uint8_t bytes[65536];
   for (;;) {
     const ssize_t count = ::read(fd, bytes, sizeof(bytes));

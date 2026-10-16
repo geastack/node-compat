@@ -137,9 +137,9 @@ export function randomFillSync<T extends Uint8Array>(buffer: T, offset: number =
 }
 
 // Node's cipher and signing classes, at the shapes node declares. The
-// operations are not implemented on this target yet; the MongoDB client-side
-// encryption hooks that name them are only reached through `mongocrypt`'s
-// native addon, which this target cannot load either.
+// operations are not implemented on this target yet; a database driver's
+// client-side encryption hooks that name them are only reached through an
+// optional native addon, which this target cannot load either.
 export class Cipher {
   setAutoPadding(_autoPadding: boolean = true): Cipher {
     return this

@@ -1,5 +1,5 @@
-// node:fs subset needed by MongoDB handshake metadata, its optional TLS file
-// loader, and (below) @hono/node-server's static-file middleware. Host
+// node:fs subset needed by a database driver's handshake metadata, its optional
+// TLS file loader, and (below) an HTTP framework's static-file middleware. Host
 // syscalls are synchronous; Promise wrapping preserves the observable driver
 // API without routing file bytes through a dynamic value.
 
@@ -74,7 +74,7 @@ export function existsSync(path: string | URL): boolean {
 }
 
 // The real Node.js `fs.Stats` shape. Declared in full because callers
-// (`@hono/node-server`'s serveStatic) narrow on it structurally, but see
+// (an HTTP framework's static-file middleware) narrow on it structurally, but see
 // `statSync` below: nothing on this target can actually produce one of these,
 // so the type exists without a value ever legitimately carrying it.
 export interface Stats {
@@ -132,7 +132,7 @@ export interface ReadStreamOptions {
 // via Readable's own `setEncoding`, and defers a read failure to the next
 // microtask so a caller who attaches `.on('error', ...)` only after
 // `createReadStream()` returns -- the normal pattern, and exactly what
-// @hono/node-server's serve-static does -- still observes it, matching Node's
+// an HTTP framework's static-file middleware does -- still observes it, matching Node's
 // async error-emission contract instead of throwing synchronously out of the
 // constructor before anyone is listening.
 //

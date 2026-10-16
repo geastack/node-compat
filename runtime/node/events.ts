@@ -7,7 +7,7 @@
 // Map (a symbol name, which is rare, is found by scanning the group list).
 // Node keys its listeners by name the same way; the flat per-(name, listener)
 // arrays this replaced made every emit compare the name against every
-// listener the emitter held, and mongodb relays each pool event through four
+// listener the emitter held, and a database driver relays each pool event through four
 // emitters of 17-30 relay listeners apiece. A group is a class instance, not
 // a nested array: element access on a nested vector yields a value copy in
 // the emitted C++, so mutations through it would be silently lost.
@@ -51,7 +51,7 @@ export type EventName = string | symbol
  * `EventEmitter<TEvents>` whose members read `TEvents[K]` was measured on
  * 2026-09-15 and reverted). An indexed access over a type parameter has no
  * member set until the class is monomorphized, and this class never is: the
- * generic version cost 30 blocking diagnostics on `hono-hello` -- every
+ * generic version cost 30 blocking diagnostics on the HTTP framework test app -- every
  * listener array and dispatch signature in `addEntry`/`emitDispatch` picked
  * up a carrier containing `unresolved(an indexed access whose object type is
  * still a type parameter has no member set to resolve)`. Concrete per-class
@@ -299,7 +299,7 @@ export class EventEmitter {
   // Node's own guard (`events.newListener !== undefined` in lib/events.js):
   // the meta-event is dispatched only when someone listens for it. Without
   // it every registration packed an argument array and ran a full dispatch
-  // to find nobody -- the mongodb driver registers and removes several
+  // to find nobody -- a database driver registers and removes several
   // listeners per operation.
   private hasListenersFor(name: EventName): boolean {
     return this.groupOf(name) !== undefined
@@ -384,7 +384,7 @@ export class EventEmitter {
   //    but cost 30 blocking diagnostics: `TEvents[K]` has no member set until
   //    the class is monomorphized, which never happens, so the listener array
   //    in `addEntry` and the dispatch signature in `emitDispatch` both took an
-  //    `unresolved` carrier. Measured on `hono-hello`, 2026-09-15.
+  //    `unresolved` carrier. Measured on the HTTP framework test app, 2026-09-15.
   //
   // Return type `this`, not `EventEmitter`, so a subclass's `.on(...)` chain
   // keeps the subclass type.
@@ -801,8 +801,8 @@ export class EventIterator {
 }
 
 // Node's own check (`validateNumber(n, 'setMaxListeners', 0)`) rejects NaN and
-// negatives only: `Infinity` is the documented "unlimited", and mongodb's
-// connection pool sets it on its cancellation token.
+// negatives only: `Infinity` is the documented "unlimited", and a database
+// driver's connection pool sets it on its cancellation token.
 function validateMaxListeners(n: number): void {
   if (Number.isNaN(n) || n < 0) {
     const error = new RangeError('The value of "n" is out of range. It must be a non-negative number.') as RangeError & {

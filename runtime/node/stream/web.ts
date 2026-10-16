@@ -36,7 +36,7 @@ type ReadableStreamReadResultAlias<R> = ReadableStreamReadResult<R>
 // chunk type for inference to find, so the default IS the answer: `Uint8Array`
 // there declares a byte stream the program never asked for, and a dynamic call
 // enqueueing a string aborts against it. The global keeps `Uint8Array` because
-// library code names it bare and means bytes (Fetch bodies, `@hono/node-server`).
+// library code names it bare and means bytes (Fetch bodies, Node server adapters).
 // `unknown` is exactly the dynamic boundary: the `unknown` copy is the one
 // `TransformStream` already exposes, so no further physical class is minted.
 //

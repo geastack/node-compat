@@ -1,7 +1,8 @@
 // Node's own GLOBALS, as ambient names in the real global scope.
 //
 // `Buffer` is a global in Node, and library code says `Buffer.from(...)` with
-// no import in sight -- mongodb's driver and bson say it in almost every file.
+// no import in sight -- a database driver and its serializer say it in almost
+// every file.
 // Nothing in node-compat put that name in global scope: `runtime/node/
 // buffer.ts` has top-level `export`s, which makes it a MODULE, so its
 // `export declare const Buffer` is module-scoped and invisible to any file
@@ -123,8 +124,8 @@ declare global {
   var process: NodeJS.Process
 
   // Node's own alias for the object `globalThis` already names -- kept
-  // because library code still spells it this way. `@hono/node-server`'s
-  // `listener.ts`/`request.ts`/`response.ts` read and
+  // because library code still spells it this way. An HTTP framework's
+  // Node server adapter reads and
   // `Object.defineProperty(global, 'Request', ...)`-write `global.Request`/
   // `global.Response` at module load, to detect and override the platform's
   // default Request/Response with faster ones -- so this has to be the SAME
@@ -141,7 +142,7 @@ declare global {
   // the bare name as the `__gea_node_set_timeout` intrinsic, whose `double`
   // return and `std::function<void()>` parameter contradict the `Timeout`
   // object and variadic callback this source states -- nine clang errors in
-  // hono-hello.
+  // the HTTP framework test app.
   //
   // The implementations live in `global-timers.ts` instead, a SCRIPT, so the
   // globals are ordinary source declarations resolved by name -- the same
@@ -157,7 +158,7 @@ declare global {
   // that does not exist, and the compiler believed it -- every member of the
   // class got a `native-handle` representation demanding a
   // `native-boundary:ReadableStream@1` protocol no table backs, which refused
-  // 329 of hono-hello's 823 roots.
+  // 329 of the HTTP framework test app's 823 roots.
   //
   // The classes live in `whatwg-streams.ts` instead, a SCRIPT, so the globals
   // are ordinary source declarations resolved by name -- the same mechanism
@@ -183,8 +184,8 @@ declare global {
     type Platform = typeof import('./process.js').platform
 
     // Node's own shape for a system-call error (`errno`/`code`/`syscall`/
-    // `path`, layered onto a real `Error`) -- `@hono/node-server`'s own
-    // `request.ts` reads `.code` off a caught `IncomingMessage` stream error
+    // `path`, layered onto a real `Error`) -- an HTTP framework's Node
+    // server adapter reads `.code` off a caught `IncomingMessage` stream error
     // (`(errored as NodeJS.ErrnoException).code !== 'ECONNRESET'`) to tell a
     // client disconnect from an application-thrown error. A plain `Error`
     // has no `.code` at all, so this has to be a real interface, not an
@@ -201,9 +202,8 @@ declare global {
   //
   // No `lib` is set for these projects (`scripts/build.mjs` writes only
   // `target: ES2022`), so `lib.dom.d.ts` is out of scope and this name is
-  // undeclared -- while mongodb reads `performance.now()` on the connection
-  // path (`cmap/connect.ts`), in every timeout computation (`timeout.ts`) and in
-  // `utils.ts`'s `now()`. Node's own `Performance` is a large interface with
+  // undeclared -- while a database driver reads `performance.now()` on its
+  // connection path, in every timeout computation and in its `now()` helper. Node's own `Performance` is a large interface with
   // marks, measures, entry buffers and an event-loop-utilization hook, and
   // declaring the whole of it would be declaring a surface this host does not
   // provide: a claim the plugin cannot back is worse than an absent name,

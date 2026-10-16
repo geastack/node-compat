@@ -105,7 +105,7 @@ const FLAG_KEEP_ALIVE = 1
 const FLAG_FIRST_ON_CONNECTION = 2
 
 // NOTE: deliberately NOT named `METHODS`: geatsc keys module-level globals by
-// bare name and hono's router exports its own `METHODS` const. The compiler
+// bare name and an HTTP framework's router exports its own `METHODS` const. The compiler
 // now REJECTS such collisions at compile time (rename this back to see the
 // diagnostic); classes got full symbol-based disambiguation, globals keep the
 // loud error until they get the same. `http.METHODS` is available via the
@@ -221,7 +221,7 @@ export const STATUS_CODES: { [code: string]: string } = {
  * `toLowerCase()` -- which allocates a fresh string AND goes through the
  * runtime's `asciiCase`, calling libc's locale-aware `tolower` once per
  * character. Well-behaved callers already pass lowercase (`'content-type'`),
- * and so does Hono, so that work produced a byte-for-byte copy of its input.
+ * and so do HTTP frameworks, so that work produced a byte-for-byte copy of its input.
  * Scanning first is a few compares over a short string with no allocation;
  * only a name that genuinely has an uppercase letter pays for the conversion.
  */
@@ -279,7 +279,7 @@ function isSingletonHeader(lower: string): boolean {
 // class with its own private fields, never sharing so much as a common ancestor with net.ts's
 // real `Socket` (which tls.ts's `TLSSocket` correctly extends). Two Socket classes standing in
 // for one Node type is exactly the kind of two-authorities defect this codebase avoids elsewhere:
-// hono's `request.ts` does `(incoming.socket as TLSSocket).encrypted` (a plain duck-typed check
+// an HTTP framework's adapter does `(incoming.socket as TLSSocket).encrypted` (a plain duck-typed check
 // for HTTPS), and TypeScript refuses that cast unless the source is a real super/subtype of
 // TLSSocket. Extending net.ts's Socket instead of inventing a third shape fixes the cast without
 // touching net.ts or tls.ts.
@@ -293,7 +293,7 @@ function isSingletonHeader(lower: string): boolean {
 // `__gea_http_destroy` on the real `connId_`).
 export class Socket extends NetSocket {
   private connId_: number
-  // The HTTP reactor serves plaintext only. `@hono/node-server` reads this
+  // The HTTP reactor serves plaintext only. An HTTP framework's Node server adapter reads this
   // through a `TLSSocket` cast to pick the URL scheme; a plain Node socket has
   // no such property, which reads the same falsy way.
   readonly encrypted: boolean = false
@@ -341,7 +341,7 @@ export class Socket extends NetSocket {
 
 // One `Socket` per connection, as in Node: every request a keep-alive
 // connection carries reads the same `req.socket`. Building one per request cost
-// @hono/node-server 7% of its CPU, because `newRequest` reads
+// an HTTP framework's Node server adapter 7% of its CPU, because its request conversion reads
 // `incoming.socket.encrypted` on every request. The reactor reports no close to
 // JavaScript, so the table is pruned against it whenever it doubles past the
 // size it had after the last prune -- amortized O(1) per new connection, and
@@ -420,7 +420,7 @@ export class IncomingMessage extends Readable {
   complete: boolean
   // Not a Node property but a widely honoured adapter convention: a body
   // parser that has already drained the request stashes the raw bytes here,
-  // and `@hono/node-server`'s `request.ts` re-reads them (`'rawBody' in
+  // and an HTTP framework's Node server adapter re-reads them (`'rawBody' in
   // incoming && incoming.rawBody instanceof Buffer`) inside a ReadableStream
   // `start` callback. TypeScript drops an `instanceof` narrowing of a
   // property path once it crosses into a callback, so with the field
@@ -467,7 +467,7 @@ export class IncomingMessage extends Readable {
   }
 
   // Typed as `net.Socket` (the real Node return type for `IncomingMessage.socket`), not the
-  // concrete `Socket` subclass constructed below. hono's `request.ts` does
+  // concrete `Socket` subclass constructed below. An HTTP framework's adapter does
   // `(incoming.socket as TLSSocket).encrypted`: TLSSocket extends net.Socket directly, so casting
   // from the WIDER net.Socket type is a plain, valid downcast. Casting from the narrower `Socket`
   // subclass declared in this file would not be (it carries its own private `connId_` that
@@ -522,7 +522,7 @@ export class IncomingMessage extends Readable {
       if (raw !== undefined) {
         for (let i = 0; i + 1 < raw.length; i += 2) addIncomingHeader(headers, lowerHeaderName(raw[i]), raw[i + 1])
       } else {
-        // Straight off the head: `@hono/node-server` reads `headers.host` on
+        // Straight off the head: an HTTP framework's Node server adapter reads `headers.host` on
         // every request, and going through `rawHeaders` built an array of every
         // name and value only to copy each one again into this map.
         const head = this.rawHead_
@@ -611,7 +611,7 @@ export class IncomingMessage extends Readable {
 
   // Node's 'data' hands out Buffers unless setEncoding was called; the stored
   // reactor string is wrapped for the same reason `read()` wraps it.
-  // `Readable.toWeb` and @hono/node-server's body reader both expect bytes.
+  // `Readable.toWeb` and a Node server adapter's body reader both expect bytes.
   protected override emittedChunk(chunk: unknown): unknown {
     const emitted = super.emittedChunk(chunk)
     return this.readableEncoding === null && typeof emitted === 'string' ? __gea_http_body_bytes(emitted) : emitted
@@ -629,7 +629,7 @@ export class IncomingMessage extends Readable {
 // typed no-arg closure slot, no boxing.
 export type ResponseListener = () => void
 
-// Extends Writable (not EventEmitter) so this is assignable everywhere `@hono/node-server`
+// Extends Writable (not EventEmitter) so this is assignable everywhere an HTTP framework's Node server adapter
 // types a response as `Writable` -- see the "Writable extends Stream" comment on stream.ts for
 // the hierarchy change that made this cheap: ServerResponse now carries Writable's own field set
 // (writable/writableAborted/writableCorked/writableHighWaterMark/writableLength/writableNeedDrain/
@@ -1066,7 +1066,7 @@ export class ServerResponse extends Writable {
   // `string | Uint8Array`, as Node's own `write`/`end` take. The byte arm is
   // not a convenience: a `Uint8Array` body is arbitrary octets, and routing it
   // through the string call would require it to be valid UTF-8 to survive.
-  // `@hono/node-server`'s `listener.ts` reaches both arms of this union on the
+  // An HTTP framework's Node server adapter reaches both arms of this union on the
   // ordinary response path (`outgoing.end(body)` for a string body, and again
   // for a `Uint8Array` one).
   override write(chunk: string | Uint8Array): boolean {
@@ -1165,7 +1165,7 @@ type ServerListener = EventHandler | RequestListener | ConnectionListener
  * production.
  *
  * The name itself has to exist regardless of what is in it:
- * `@hono/node-server`'s `types.ts` imports it (`ServerOptions as
+ * an HTTP framework's Node server adapter imports it (`ServerOptions as
  * HttpServerOptions`) to type its own `serverOptions?` field, so an absent
  * export is a `TS2614` before any option is ever set.
  */
@@ -1179,11 +1179,11 @@ export interface ServerOptions {}
 // needs the map to accept the same widened type.
 export class Server extends EventEmitter {
   // Concrete per-event overloads, NOT an `EventEmitter<ServerEventMap>` type
-  // argument: `@hono/node-server` writes `server.on('upgrade', (req, socket,
+  // argument: an HTTP framework's Node server adapter writes `server.on('upgrade', (req, socket,
   // head) => ...)` with no annotations, so the parameters have to come from
   // here, but a generic base whose members read `TEvents[K]` gave every
   // listener array in `events.ts` an unresolved carrier (measured: 30 blocking
-  // diagnostics on `hono-hello`, 2026-09-15). These are plain overloads over
+  // diagnostics on the HTTP framework test app, 2026-09-15). These are plain overloads over
   // literal name types -- no type parameter, so nothing to monomorphize.
   //
   // The trailing catch-all is what keeps this class's own internal
@@ -1306,7 +1306,7 @@ export class Server extends EventEmitter {
     return super.removeAllListeners(name)
   }
 
-  // The typed arrays count toward `listenerCount` -- `@hono/node-server`
+  // The typed arrays count toward `listenerCount` -- a Node server adapter
   // and Node's own `_http_server` both gate work on it -- but only by name:
   // matching a specific `listener` would compare a typed callable against
   // `unknown`, which boxes it, and the base's answer already covers every
@@ -1339,7 +1339,7 @@ export class Server extends EventEmitter {
   }
 
   // Node's own shape is `listen(port?, host?, backlog?, callback?)`, and
-  // `@hono/node-server`'s `serve()` calls the three-argument form:
+  // an HTTP framework's Node server adapter's `serve()` calls the three-argument form:
   // `server.listen(options.port ?? 3000, options.hostname, () => ...)`.
   //
   // `hostname` is accepted and CHECKED rather than accepted and dropped. The
@@ -1440,7 +1440,7 @@ export function get(
   // Node's real signature: `string | URL`. `URL` is named through a
   // type-only import of `whatwg-url.ts`, so it is in scope whether or not the
   // program loads the WHATWG globals and costs no module at run time. The
-  // MongoDB driver's cloud-metadata `get` passes a `URL`.
+  // cloud-metadata `get` of a database driver passes a `URL`.
   url: string | WhatwgURL,
   options: RequestOptions,
   callback: ClientResponseListener
@@ -1449,7 +1449,7 @@ export function get(
 }
 
 // Node's `createServer(options, listener)` form as well as `createServer(listener)`:
-// `@hono/node-server` always passes its `serverOptions` first. No option is
+// An HTTP framework's Node server adapter always passes its `serverOptions` first. No option is
 // honored yet, so the options object is only skipped.
 //
 // `@gea-exact-arms`: the `as RequestListener` below is reached only on the

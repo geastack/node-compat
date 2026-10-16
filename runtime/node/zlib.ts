@@ -3,7 +3,7 @@
 // The synchronous functions are node's `*Sync` family; the callback forms run
 // the same codec and report on a later turn, as node's do. Streams
 // (`createGzip` and friends) are not provided. Buffer never crosses a dynamic
-// carrier: the MongoDB driver's wire compression and saslprep's code-point
+// carrier: a database driver's wire compression and saslprep's code-point
 // tables both hand over a whole Buffer and take a whole Buffer back.
 
 import { Buffer } from './buffer'

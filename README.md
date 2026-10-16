@@ -1,7 +1,7 @@
 # node-compat
 
-Compiles Node.js HTTP apps — using the `node:http` API and the `hono` npm
-library — to native macOS, Linux and Windows binaries with
+Compiles Node.js HTTP apps — using the `node:http` API and npm HTTP
+frameworks — to native macOS, Linux and Windows binaries with
 [geatsc](https://github.com/geastack/compiler), and checks the result against
 Node.
 
@@ -103,9 +103,10 @@ erased so the library's hot path monomorphizes to fully typed C++ (see
   under g++, because the right level depends on the compiler. Measured on the
   bench host (clang 18, four pinned workers, compiler 1.0.17): `-Os -flto` is
   level with `-O2 -flto` on the raw HTTP server (307-320k vs 304-308k req/s,
-  inside the round-to-round spread) and 5-7% faster on the compiled Hono app
+  inside the round-to-round spread) and 5-7% faster on the compiled HTTP
+  framework test app
   (150-152k vs 141-144k), at binaries about a third smaller (1.05 MB / 5.04 MB
-  against 1.64 MB / 7.27 MB) and less memory — Hono runs more instructions at
+  against 1.64 MB / 7.27 MB) and less memory — the framework runs more instructions at
   `-Os` but fewer cycles, so its hot path is instruction-cache bound.
   `-O3` gives no gain on either compiler. g++ 13 is the other way round (`-Os`
   costs 25%) and is 4-10% behind clang on the same emitted source, so the

@@ -91,7 +91,7 @@ export interface PipeOptions {
 // destination's `this` was boxed on its way out of `end()`/`once()`, and an
 // `EventHandler` written as another function type is converted on the way
 // in. Either one published the destination class -- and everything its fields
-// reach, the MongoDB driver's connection and logger among them -- to dynamic
+// reach, a database driver's connection and logger among them -- to dynamic
 // code (the compiler then refused their `this.method.bind(this)`). `emit`
 // states `EventEmitter.emit`'s own frame for the same reason: as `(string,
 // ...unknown[])` the bound method converted its name and rest, the view of a
@@ -153,7 +153,7 @@ export class Stream extends EventEmitter {
   // `'pipe'`/`'unpipe'` listeners receive the source Readable. Delivered
   // through `emit(name, ...unknown[])`, that source was boxed, and a boxed
   // Readable exposes every field of every Readable subclass to dynamic code:
-  // the MongoDB driver's cursor streams reach its cursors, sessions and client,
+  // a database driver's cursor streams reach its cursors, sessions and client,
   // all of which went to full reflection from this one `emit`. So these two
   // events keep their listeners typed, as `http.ts`'s `Server` does for
   // `'request'`: registered through `addStreamListener`, delivered by
@@ -590,7 +590,7 @@ export class Readable extends Stream {
     // Block bodies on these `'error'` forwarders: `destroy` returns the stream,
     // and an expression body handed it back through the listener's result,
     // which the `EventHandler` adapter boxes -- publishing every Readable
-    // subclass (the MongoDB driver's cursors and sessions among them).
+    // subclass (a database driver's cursors and sessions among them).
     this.once('error', (...args: unknown[]) => {
       output.destroy((args[0] as Error | undefined) ?? null)
     })
@@ -735,7 +735,7 @@ export class Readable extends Stream {
 }
 
 // `value` is `any`, as node declares a Readable's async iterator: a subclass
-// may state what its chunks are (the MongoDB driver's cursor stream is
+// may state what its chunks are (a database driver's cursor stream is
 // `Readable & AsyncIterable<TSchema>`), and an `unknown` chunk refuses that
 // assignment. The chunk was already the dynamic carrier either way.
 interface NodeReadableIteratorResult {
@@ -1319,7 +1319,8 @@ export class Duplex extends Readable {
 // and the census to agree on shadowing; until they do, an attached `toWeb`
 // would be an API this target cannot emit.
 //
-// Nothing in this target or in `@hono/node-server` calls `Duplex.toWeb` --
+// Nothing in this target or in an HTTP framework's Node server adapter calls
+// `Duplex.toWeb` --
 // only `Readable.toWeb` and `Writable.toWeb`, which are ordinary statics on
 // their own classes and work. The bridge itself stays available as a function,
 // so restoring the static costs one line once the compiler can carry it. Same
@@ -1433,8 +1434,8 @@ function readableFromWeb(readableStream: unknown, options: unknown = undefined):
 // producer pushed (`Readable.from(['to-web'])` yields strings), so the stream
 // handed back is one of two physical classes and its static type is the one
 // that admits both: `ReadableStream<any>`, which derives to the union of the
-// stream's copies. `ReadableStream<Uint8Array>` is the copy `@hono/node-server`
-// reads (`Readable.toWeb(incoming) as ReadableStream<Uint8Array>`), and
+// stream's copies. `ReadableStream<Uint8Array>` is the copy an HTTP
+// framework's Node server adapter reads (`Readable.toWeb(incoming) as ReadableStream<Uint8Array>`), and
 // `ReadableStream<any>` is the copy that carries arbitrary chunks natively
 // (boxed, because an object-mode chunk IS a genuinely dynamic value). Asserting
 // an object-mode chunk to `Uint8Array` instead -- as this did -- is a checked

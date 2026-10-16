@@ -6,9 +6,9 @@
 // fetch classes: a file with neither is a TypeScript SCRIPT, and a script's
 // top-level declarations land in the global scope every other file already
 // sees. That is what makes `new ReadableStream(...)` resolve to THIS class in
-// library code that imports nothing -- `@hono/node-server`'s `utils/stream.ts`
-// constructs it, `utils.ts`/`listener.ts` name `ReadableStreamReadResult`
-// bare, `request.ts` names `ReadableStreamDefaultController` bare.
+// library code that imports nothing -- an HTTP framework's Node server adapter constructs
+// it and names `ReadableStreamReadResult` and
+// `ReadableStreamDefaultController` bare.
 //
 // The globals used to be declared instead, in `node-globals.ts`:
 //
@@ -41,8 +41,8 @@
 // `ReadableByteStreamController`'s own un-genericized state above.
 //
 // `start`/`pull` take the REAL `ReadableStreamDefaultController<R>` class,
-// not an ad hoc shape: `@hono/node-server`'s own `utils/stream.ts` and
-// `request.ts` assign the controller they receive to a variable explicitly
+// not an ad hoc shape: an HTTP framework's Node server adapter
+// assigns the controller they receive to a variable explicitly
 // typed `ReadableStreamDefaultController<Uint8Array>`, which only a genuine
 // instance -- never an object literal, since the class has a private field --
 // can satisfy. `ReadableStream`'s constructor and `readInternal` (below)
@@ -66,15 +66,15 @@ interface QueuingStrategyInit {
 
 // WHATWG Streams §4.4's read-result shape (`{ done: false, value: R } |
 // { done: true, value: undefined }`), reused by every reader below.
-// `@hono/node-server`'s own `utils.ts`/`listener.ts` name this type bare, with
+// An HTTP framework's Node server adapter names this type bare, with
 // no import -- which this file being a script is what makes possible; see the
 // header. `node:stream/web` re-exports it too, for the code that does import.
 type ReadableStreamReadResult<R> = { done: false; value: R } | { done: true; value: undefined }
 
 // `R` is the chunk type: this class is global at this generic arity
 // (`ReadableStream<Uint8Array>`, etc.), and callers -- both
-// `stream.ts`'s `readableToWeb` and `@hono/node-server`'s
-// `utils/stream.ts#createStreamBody` -- construct against a concrete element
+// `stream.ts`'s `readableToWeb` and a Node server adapter's
+// stream-body builder -- construct against a concrete element
 // type, not `unknown`. `stream_`/`enqueue`'s internal wiring is a real
 // `ReadableStream<R>` reference now, not an opaque one: a receiver geatsc's
 // host-global census cannot type stamps a WILDCARD across the whole host
@@ -179,8 +179,8 @@ class ReadableStreamIterator<R = Uint8Array> {
 // It DEFAULTS TO `Uint8Array`, and that default is load-bearing rather than a
 // convenience. `lib.dom.d.ts` and `@types/node` both write `ReadableStream<R =
 // any>`, and library code leans on it in both directions at once:
-// `@hono/node-server`'s `writeFromReadableStream` takes
-// `ReadableStream<Uint8Array>` while hono's own `Data` union and
+// an HTTP framework's Node server adapter's readable-stream writer takes
+// `ReadableStream<Uint8Array>` while the framework's own `Data` union and
 // `ClientResponse#body` spell the name BARE, and `any` is what lets one flow
 // into the other. `unknown` does not -- the parameter is invariant, so
 // `ReadableStream<unknown>` and `ReadableStream<Uint8Array>` are mutually
@@ -193,7 +193,7 @@ class ReadableStreamIterator<R = Uint8Array> {
 // `new ReadableStream<string>(...)` -- and is checked against it.
 //
 // The class is in bare global scope at this generic arity --
-// `@hono/node-server`'s `utils/stream.ts` writes `new ReadableStream<Uint8Array>(...)`
+// an HTTP framework's Node server adapter writes `new ReadableStream<Uint8Array>(...)`
 // with no import in sight, and expects that call to be checked against a real
 // chunk type, not `unknown`.
 //
@@ -202,8 +202,8 @@ class ReadableStreamIterator<R = Uint8Array> {
 // mutable state (`queue_: R[]`, `reader_`), which makes it INVARIANT, so
 // `ReadableStream<unknown>` and `ReadableStream<Uint8Array>` stop being
 // assignable to each other in either direction. It fixed one third-party
-// checker error and manufactured five more (`hono-base.ts:38`,
-// `context.ts:638`, `client/utils.ts:113`, `listener.ts:202`/`247`), taking
+// checker error and manufactured five more (in an HTTP framework and its
+// Node server adapter), taking
 // blocking diagnostics 15 -> 20. `lib.dom` gets away with it because its
 // `ReadableStream` is an INTERFACE with no `R`-typed storage.
 class ReadableStream<R = Uint8Array> {
@@ -247,8 +247,8 @@ class ReadableStream<R = Uint8Array> {
   // WHATWG Streams §4.2's `closed` promise, settled exactly once, on the
   // STREAM rather than per-reader-acquisition (this implementation only ever
   // has one reader locked at a time, so there is no second acquisition for a
-  // per-reader promise to distinguish). `@hono/node-server`'s own `utils.ts`
-  // (`writeFromReadableStreamDefaultReader`) awaits `reader.closed` to know
+  // per-reader promise to distinguish). An HTTP framework's Node server adapter
+  // (its stream-reader writer) awaits `reader.closed` to know
   // when to stop listening for `close`/`error` on the destination `Writable`.
   private closedResolve_!: () => void
   private closedReject_!: (reason?: unknown) => void
@@ -288,7 +288,7 @@ class ReadableStream<R = Uint8Array> {
     // file's previous ad hoc controller literal, forced by an external
     // constraint (see `UnderlyingReadableStreamSource`'s comment) rather
     // than chosen for its own sake -- and it is arguably a fix, not a
-    // regression: `@hono/node-server`'s `utils/stream.ts#createStreamBody`
+    // regression: a Node server adapter's stream-body builder
     // reads `controller.desiredSize` on every chunk to decide whether to
     // pause its source stream, which a frozen snapshot could never make
     // go non-positive.
@@ -456,7 +456,7 @@ class ReadableStream<R = Uint8Array> {
   // element type for `ReadableStream`, and geatsc emits ONE calling convention per
   // function DECLARATION (a `FunctionId` is `fn|decl|<file>|<node>`, with no
   // instantiation segment). One emitted `enqueue` cannot hold both `Uint8Array`
-  // -- what `Response.body`, `@hono/node-server` and `stream.ts#readableToWeb`
+  // -- what `Response.body`, a Node server adapter and `stream.ts#readableToWeb`
   // reach it at -- and `dynamic`.
   //
   // MEASURED: deleting this method outright cleared both blockers and nothing
@@ -528,7 +528,7 @@ class ReadableStream<R = Uint8Array> {
 
 // `R` matches `ReadableStream<R>`'s own element type -- this class is in bare
 // global scope at the same arity, and
-// `@hono/node-server`'s `request.ts` imports it from `node:stream/web` as
+// an HTTP framework's Node server adapter imports it from `node:stream/web` as
 // `ReadableStreamDefaultReader<Uint8Array>` (a real generic instantiation,
 // not the bare name -- it was erroring with "Type 'ReadableStreamDefaultReader'
 // is not generic" before this class took a type parameter).
@@ -564,8 +564,8 @@ class ReadableStreamDefaultReader<R = Uint8Array> {
   // WHATWG Streams §4.5.3. Distinct from `cancelAndRelease` (below, this
   // implementation's own non-standard combined helper): the spec method
   // cancels the underlying stream but does NOT release the reader's lock --
-  // `@hono/node-server`'s own `utils.ts`
-  // (`writeFromReadableStreamDefaultReader`) calls this from a `close`/`error`
+  // an HTTP framework's Node server adapter
+  // (its stream-reader writer) calls this from a `close`/`error`
   // listener on the destination it is piping to, and separately awaits
   // `closed` (below) to know when to detach those listeners.
   cancel(reason?: unknown): Promise<void> {
@@ -656,7 +656,7 @@ interface UnderlyingWritableStreamSink {
 // single concrete type the compiler can specialize this class to), and every
 // obligation naming that carrier became a blocking diagnostic: 35 roots in
 // this file alone, the two largest clusters at exactly these two call sites,
-// measured on `hono-hello`, 2026-09-15. `unknown` chunk types throughout
+// measured on the HTTP framework test app, 2026-09-15. `unknown` chunk types throughout
 // (here and in the sink dictionary above) buy back the same flexibility with
 // a carrier the compiler can actually name -- see `EventEmitter.on` in
 // `events.ts` and `Server` in `http.ts` for the same fix on the same defect.

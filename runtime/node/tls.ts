@@ -1,5 +1,6 @@
-// Compile-time-compatible TLS surface. The first MongoDB correctness target is
-// explicitly plain mongodb://127.0.0.1, so entering this path is a loud error.
+// Compile-time-compatible TLS surface. The first database correctness target
+// is explicitly a plain connection to 127.0.0.1, so entering this path is a
+// loud error.
 
 import { Socket } from './net'
 import type { Buffer } from './buffer'
@@ -57,7 +58,7 @@ export class TLSSocket extends Socket {
   disableRenegotiation(): void {}
 }
 
-// Node's `connect(options, secureConnectListener?)`: the MongoDB driver's
+// Node's `connect(options, secureConnectListener?)`: a database driver's
 // client-side-encryption KMS path passes the listener.
 function nodeTlsConnect(_options: ConnectionOptions, _secureConnectListener?: () => void): TLSSocket {
   throw new Error('TLS is not implemented by the gea node-compat runtime')

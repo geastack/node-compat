@@ -5,10 +5,9 @@
 // a library, so the load fails the way node's does when an addon cannot be
 // opened: an `Error` whose `code` is `ERR_DLOPEN_FAILED`, thrown from the
 // `require` call. Packages that wrap an optional addon -- `kerberos`, and
-// `mongodb-client-encryption`'s `mongocrypt` -- already `try` exactly that
-// require, and the MongoDB driver turns the failure into its
-// `MongoMissingDependencyError` module, the same state as the package being
-// absent.
+// a database driver's client-side encryption library -- already `try` exactly
+// that require, and the driver turns the failure into its missing-dependency
+// error, the same state as the package being absent.
 //
 // The node-compat plugin's source transform rewrites each such require into a
 // call of the function below (see `nativeAddonRequireTransform`), before the

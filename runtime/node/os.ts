@@ -1,4 +1,4 @@
-// Synchronous host OS metadata used in the MongoDB handshake document.
+// Synchronous host OS metadata, as a database driver's handshake document uses it.
 
 /** @gea-host-inert */
 declare function __gea_node_platform(): string

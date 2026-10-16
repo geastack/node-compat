@@ -1,7 +1,7 @@
 // Typed `node:dns` surface over the generated facade.
 //
 // `dns.promises` was the facade's `unknown`, so `dns.promises.resolveSrv(...)`
-// failed to type-check in every library that uses it (the MongoDB driver's
+// failed to type-check in every library that uses it (a database driver's
 // connection-string and SRV-polling paths). `promises` is the typed
 // `node:dns/promises` module; the record types and node's string error codes
 // are re-exported from it so `dns.SrvRecord` and `dns.TIMEOUT` mean what node

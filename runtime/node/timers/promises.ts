@@ -1,5 +1,5 @@
-// Promise-based timer surface used by the MongoDB driver's retry and OIDC
-// throttling paths. MongoDB only awaits completion and never consumes Node's
+// Promise-based timer surface used by a database driver's retry and OIDC
+// throttling paths. The driver only awaits completion and never consumes Node's
 // optional generic value, so this deliberately keeps a concrete Promise<void>
 // ABI rather than boxing an unconstrained T.
 

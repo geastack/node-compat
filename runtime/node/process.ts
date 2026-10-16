@@ -1,4 +1,4 @@
-// Minimal typed node:process surface used by the official MongoDB driver's
+// Minimal typed node:process surface used by a database driver's
 // connection-string, handshake metadata, and logger paths.
 
 declare function __gea_node_process_env(): { [key: string]: string | undefined }

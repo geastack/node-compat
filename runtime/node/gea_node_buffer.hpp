@@ -497,7 +497,8 @@ inline gea::Ref<View> from(const gea::Ref<gea::SharedArrayBuffer>& block) { retu
  * `Buffer.from(view.buffer, ...)`: `Uint8Array.prototype.buffer` is declared
  * `ArrayBufferLike`, so the argument arrives as the `ArrayBuffer |
  * SharedArrayBuffer` union and each arm forwards to its overload above. The
- * MongoDB driver's `ByteUtils.toLocalBufferType` is this call.
+ * byte-utility helper of a database driver that converts to the local buffer
+ * type is this call.
  */
 template <typename... Arms, typename... Rest>
 inline gea::Ref<View> from(const gea::TaggedUnion<Arms...>& block, Rest... rest) {

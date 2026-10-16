@@ -266,8 +266,8 @@ inline double __gea_node_process_default_exit_status() { return static_cast<doub
 
 // `performance`, as the ONE member of it any of this target's libraries reads.
 //
-// mongodb calls `performance.now()` and nothing else -- in `utils.ts`,
-// `timeout.ts` and `cmap/connect.ts`, always immediately differenced against
+// A database driver calls `performance.now()` and nothing else -- in its
+// timeout and connection code, always immediately differenced against
 // an earlier reading -- so the surface this host owes is a single monotonic
 // millisecond clock, which the reactor's timer wheel already keeps
 // (`gea::node::timers::nowMs`, `steady_clock`).
@@ -314,7 +314,7 @@ inline int run_compiled_program(int argc, char **argv, void (*entry)()) {
   gea::detail::setPromiseJobSink(+[](gea::detail::PromiseJob&& job) { microtasks().push_back(std::move(job)); });
   // Trial deletion re-traces every live object reachable from the buffered
   // candidates, and a request's objects reach the server, the app and its
-  // router. At the runtime default of 64 candidates hono-hello collected 1.8
+  // router. At the runtime default of 64 candidates the HTTP framework test app collected 1.8
   // times per request and traced 400 nodes for 44 it freed: 21% of CPU on
   // the bench box. A larger buffer amortizes the live re-trace over more
   // garbage; the knob is here so a box run can sweep it.
@@ -323,7 +323,7 @@ inline int run_compiled_program(int argc, char **argv, void (*entry)()) {
   // `gea::collectCyclesAtQuiescence`), where a request's garbage is dead and
   // its live state small. The threshold is then only the bound for a stretch
   // that never reaches the loop, so it sits well above what one request
-  // buffers (~400 on the mongodb driver) -- at 64 the safepoint still fired
+  // buffers (~400 on a database driver) -- at 64 the safepoint still fired
   // five times per operation and the quiescent pass found nothing left.
   {
     std::size_t candidates = 4096;

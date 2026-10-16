@@ -1,7 +1,7 @@
 // `whatwg-url`, answered by the WHATWG classes this target already compiles.
 //
-// `mongodb-connection-string-url` -- which the driver's own
-// `connection_string.ts` imports -- says `import { URL, URLSearchParams } from
+// A database driver's connection-string URL package -- which the driver's own
+// connection-string module imports -- says `import { URL, URLSearchParams } from
 // 'whatwg-url'` and builds its whole `ConnectionString` on it
 // (`class URLWithoutHost extends URL`). The npm package is JavaScript with no
 // type declarations at all, so with no entry for the specifier TypeScript

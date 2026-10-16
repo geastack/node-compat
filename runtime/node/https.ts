@@ -4,9 +4,9 @@
 //
 // This target's reactor has no TLS layer (see runtime/node/tls.ts), so
 // there is nothing here to make real: every value export still throws
-// `nodeNotImplemented`. The only defect Hono's source actually hits is a
-// missing TYPE — `ServerOptions` — needed so `createHttpsOptions` in
-// `@hono/node-server`'s types.ts type-checks; it is never constructed on
+// `nodeNotImplemented`. The only defect an HTTP framework's source actually
+// hits is a missing TYPE — `ServerOptions` — needed so the HTTPS options in
+// its Node server adapter's types type-check; it is never constructed on
 // this target (the field is only read by the https arm of `createServer`,
 // which is unreachable since `https.createServer` below throws first).
 import { nodeNotImplemented } from './not-implemented'
@@ -14,8 +14,8 @@ import { Buffer } from './buffer-types'
 
 // Real Node https.ServerOptions is `http.ServerOptions & tls.TlsOptions`.
 // http.ts does not (yet) export a `ServerOptions` type for this target, so
-// this carries the TLS-option half directly — the half Hono's own
-// `createHttpsOptions` actually needs a name for.
+// this carries the TLS-option half directly — the half such an adapter's
+// HTTPS options actually need a name for.
 export interface ServerOptions {
   key?: string | Buffer | readonly (string | Buffer)[]
   cert?: string | Buffer | readonly (string | Buffer)[]

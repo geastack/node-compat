@@ -1,4 +1,4 @@
-// Small typed node:util surface required by MongoDB's structured logger.
+// Small typed node:util surface required by a database driver's structured logger.
 // `inspect` is intentionally a dynamic boundary: its public contract accepts
 // arbitrary JavaScript values. Options remain a concrete record and the result
 // is always a native string.
@@ -20,7 +20,7 @@ export interface InspectOptions {
 
 function nodeUtilInspect(value: unknown, options?: InspectOptions): string {
   // The first native implementation only promises a deterministic printable
-  // representation. MongoDB uses this on an opt-in logger path, not on BSON or
+  // representation. A database driver uses this on an opt-in logger path, not on BSON or
   // wire data. Keep the unused options typed so call sites do not become `any`.
   if (options?.colors === true) {
     throw new Error('util.inspect colors are not supported by the gea node-compat runtime')

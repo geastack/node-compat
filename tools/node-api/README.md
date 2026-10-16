@@ -24,7 +24,7 @@ default) is inert.
 
 `check:imports` compiles and executes an entry that imports all 57 generated
 facades without touching any export. `check:tcp` preserves the existing
-MongoDB-oriented bare-`net` client path by connecting to a local echo server
+database-client bare-`net` client path by connecting to a local echo server
 and verifying a complete write/read/close exchange.
 
 `check` also generates a type-only import probe for every inventoried export and

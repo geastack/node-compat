@@ -1,5 +1,5 @@
-// Node-compatible diagnostics channels used by Fastify and other source-built
-// libraries. Messages and callbacks are deliberately dynamic: diagnostics
+// Node-compatible diagnostics channels used by HTTP frameworks and other
+// source-built libraries. Messages and callbacks are deliberately dynamic: diagnostics
 // channels are an application-defined observation boundary, while the channel
 // registry and tracing objects remain ordinary native source classes.
 

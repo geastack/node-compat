@@ -6,7 +6,7 @@
 // they must typecheck in every program -- not only in a `--globals` one that
 // asked for the WHATWG fetch classes. Leaving them in `globals.ts` made
 // `apps/raw-http-hello` fail with 13 `Cannot find name 'AbortSignal'` /
-// `'Event'` errors while `apps/hono-hello` compiled, purely because the
+// `'Event'` errors while the HTTP framework test app compiled, purely because the
 // latter pulls `globals.ts` in and the former does not.
 //
 // Like `globals.ts` and `whatwg-streams.ts` this file is a SCRIPT, never a
@@ -17,7 +17,7 @@
 
 // DOM Standard §2.2's base dictionary every `*EventInit` extends
 // (`MessageEventInit`/`CloseEventInit`/`ErrorEventInit` below, and
-// `@hono/node-server`'s own `websocket.ts`-local `CloseEventInit`/
+// an HTTP framework's Node server adapter's own module-local `CloseEventInit`/
 // `ErrorEventInit`, which spell `extends EventInit` with no import). Fields
 // are accepted and stored nowhere: nothing in this file or in any app this
 // target builds reads a dispatched event's `bubbles`/`cancelable`/
@@ -133,7 +133,7 @@ class AbortSignal {
 
   // The READ is `any`, as Node and the DOM declare it, even though the storage
   // above is `unknown`: libraries written against those declarations pass
-  // `this.reason` straight into an `Error`-typed parameter (the MongoDB
+  // `this.reason` straight into an `Error`-typed parameter (a database
   // driver's abort listeners all do), which an `unknown` getter refuses to
   // type-check. An abort reason is a genuinely dynamic value, so the read is
   // the honest dynamic boundary.

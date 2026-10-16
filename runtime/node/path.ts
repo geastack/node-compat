@@ -3,7 +3,7 @@
 // a full implementation rather than a native-binding facade. The algorithms
 // below follow Node's own path semantics faithfully, posix and win32 alike,
 // including the trailing-separator/`.`/`..`-segment, drive-letter and UNC edge
-// cases: many programs (this target's own hono-hello app among them) depend on
+// cases: many programs (this target's own HTTP framework test app among them) depend on
 // exact behavioural parity, not an approximation.
 //
 // Node's own `path` module picks its default export's behaviour from

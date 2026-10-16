@@ -67,7 +67,7 @@ try {
   assert.doesNotMatch(
     `${output.stdout}\n${output.stderr}`,
     /ERR_GEA_NODE_NOT_IMPLEMENTED/,
-    "the existing MongoDB-oriented TCP client subset must remain implemented",
+    "the existing database-client TCP subset must remain implemented",
   );
 } finally {
   await new Promise((resolve) => server.close(resolve));

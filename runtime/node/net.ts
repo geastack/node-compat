@@ -1,4 +1,4 @@
-// Typed node:net TCP client subset for the official MongoDB driver. Native
+// Typed node:net TCP client subset for database drivers. Native
 // notifications are zero-argument; data is pulled separately as Buffer, which
 // keeps every wire byte off gea_cpp_value.
 
@@ -892,7 +892,7 @@ export class Socket extends EventEmitter {
   // to one another however identical they look. `T extends Writable` therefore
   // rejected every `Duplex`/`Transform`, the most ordinary destination there
   // is: `socket.pipe(new EchoCollector(socket))` in
-  // `apps/hono-mongodb-todo/tests/net-runtime-probe.ts` did not type-check.
+  // the net runtime probe of the database test app did not type-check.
   //
   // The structural spelling -- `pipe<T>` plus a cast to `PipeDestination`, the
   // way `Readable.pipe` writes it -- does not lower: no runtime conversion is
@@ -949,7 +949,7 @@ export class Socket extends EventEmitter {
     if (target !== null) {
       // Narrow per arm: a method call on the Writable | Duplex union is an unknown
       // call boundary that boxes the target and publishes every stream subclass
-      // (mongodb cursor streams -> sessions -> client) to full reflection.
+      // (a database driver's cursor streams -> sessions -> client) to full reflection.
       if (target instanceof Duplex) target.write(chunk)
       else target.write(chunk)
     } else if (this.encoding_ === '') {
@@ -1399,7 +1399,7 @@ export class Socket extends EventEmitter {
 // listener, so the cast projects that arm. Without it the narrowed
 // `ServerOpts | ConnectionListener` was ADAPTED into the listener's convention,
 // and the adapter boxed the `Socket` it forwards -- publishing every stream
-// subclass, and behind mongodb's cursor streams its sessions and client, to
+// subclass, and behind a database driver's cursor streams its sessions and client, to
 // full reflection.
 /** @gea-exact-arms */
 function connectionListenerArm(
@@ -1468,8 +1468,8 @@ export class Server extends EventEmitter {
   // so a `(socket: Socket) => void` stored there is installed behind an
   // adapter that BOXES the socket, and a boxed `Socket` publishes its
   // `pipeTarget_` (`Writable | Duplex`) and through it every stream subclass
-  // -- mongodb's cursor streams, and behind them `ClientSession`,
-  // `MongoClient` and every cursor -- to full reflection. So the typed name
+  // -- a database driver's cursor streams, and behind them its session,
+  // its client and every cursor -- to full reflection. So the typed name
   // keeps its listeners in a typed array that the accept loop calls natively,
   // and `@gea-exact-arms` (on `addServerListener`) makes the `as` cast a
   // projection of the arm the caller's overload named: a listener whose static

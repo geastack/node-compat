@@ -4,8 +4,8 @@
 //
 // This target's reactor (runtime/gea_node.cpp) speaks HTTP/1.x only — there is
 // no HTTP/2 frame layer, no multiplexed streams, nothing to bind a real
-// Http2Server to. The honest model is NOT an empty stub: `@hono/node-server`
-// types its request/response surface as `IncomingMessage | Http2ServerRequest`
+// Http2Server to. The honest model is NOT an empty stub: an HTTP framework's
+// Node server adapter types its request/response surface as `IncomingMessage | Http2ServerRequest`
 // and `ServerResponse | Http2ServerResponse`, so every member access on those
 // unions needs to resolve. Making `Http2ServerRequest extends IncomingMessage`
 // and `Http2ServerResponse extends ServerResponse` gives the union every
@@ -14,7 +14,7 @@
 // target can ever actually obtain one, and `incoming instanceof
 // Http2ServerRequest` correctly evaluates false for every request this
 // reactor produces (they are always plain `IncomingMessage`). That is exactly
-// the branch behaviour Hono's dual HTTP/1 + HTTP/2 listener wants.
+// the branch behaviour a dual HTTP/1 + HTTP/2 listener wants.
 import { nodeNotImplemented } from './not-implemented'
 import { Buffer } from './buffer-types'
 import { IncomingMessage, ServerResponse, Server } from './http'
@@ -54,8 +54,8 @@ export interface Settings {
   enableConnectProtocol?: boolean
 }
 
-// Real option names carried through unused: `serverOptions` in Hono's
-// `createHttp2Options` is a pass-through to Node's own `createServer`, which
+// Real option names carried through unused: `serverOptions` in such an
+// adapter's HTTP/2 options is a pass-through to Node's own `createServer`, which
 // this target never calls (createServer below throws before touching it).
 export interface ServerOptions {
   maxDeflateDynamicTableSize?: number
@@ -104,12 +104,12 @@ export function getUnpackedSettings(...args: unknown[]): never {
 }
 
 // `authority`/`scheme`/`stream` are the genuinely HTTP/2-only members
-// (Hono's newRequest() reads them only after narrowing with `instanceof
-// Http2ServerRequest`); every other member Hono touches — `.destroy`,
+// (an adapter's request conversion reads them only after narrowing with
+// `instanceof Http2ServerRequest`); every other member it touches — `.destroy`,
 // `.readableEnded`, `.method`, `.url`, `.headers`, `.rawHeaders`, `.complete`,
 // `.socket` — comes from extending IncomingMessage. The constructor always
 // throws, so the fields below are never read with real values; they exist
-// only so the type carries the shape Hono's source declares.
+// only so the type carries the shape the adapter's source declares.
 export class Http2ServerRequest extends IncomingMessage {
   authority: string
   scheme: string
@@ -122,7 +122,7 @@ export class Http2ServerRequest extends IncomingMessage {
   }
 }
 
-// Same reasoning as Http2ServerRequest: every member Hono's listener.ts
+// Same reasoning as Http2ServerRequest: every member an adapter's listener
 // touches (`.writableFinished`, `.headersSent`, `.writeHead`, `.end`,
 // `.destroy`, `.on`, `.once`, `.writable`) comes from extending ServerResponse.
 export class Http2ServerResponse extends ServerResponse {
@@ -133,8 +133,8 @@ export class Http2ServerResponse extends ServerResponse {
   }
 }
 
-// Pure type-level surfaces: neither is ever imported as a value by Hono (only
-// `import type`), and since createServer/createSecureServer above always
+// Pure type-level surfaces: neither is ever imported as a value by such an
+// adapter (only `import type`), and since createServer/createSecureServer above always
 // throw, nothing on this target can ever hold an instance. An interface that
 // extends Server's instance shape is the honest representation — it types the
 // union in `ServerType = Server | Http2Server | Http2SecureServer` without

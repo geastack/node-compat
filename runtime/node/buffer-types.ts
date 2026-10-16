@@ -6,7 +6,7 @@
 // `reachability.ts` promotes any file a live reference resolves into -- so
 // while these declarations sat in the same module as the real `Blob` class,
 // every program in the target acquired `Blob`'s body and its obligations,
-// Buffer-free programs included: `hono-hello` went from 2 unmet obligations to
+// Buffer-free programs included: the HTTP framework test app went from 2 unmet obligations to
 // 7 for naming a type it never uses. A module with no implementation in it has
 // nothing to acquire.
 //
@@ -104,8 +104,8 @@ export interface BufferConstructor {
   // has been deprecated since Node 6 and nothing this target builds calls
   // it (see `plugin/index.mjs`'s `hostNamespaces` comment for why the VALUE is
   // claimed as a namespace path rather than a callable cell), but `x
-  // instanceof Buffer` is real, live code (`@hono/node-server`'s
-  // `request.ts`). TypeScript only accepts the right-hand side of
+  // instanceof Buffer` is real, live code (an HTTP framework's Node
+  // server adapter's request conversion). TypeScript only accepts the right-hand side of
   // `instanceof` when its type is `any`, has a call/construct signature, or
   // is a subtype of `Function` -- a plain bag of static methods satisfies
   // none of those. Giving the constructor type real construct signatures,

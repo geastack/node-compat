@@ -1,8 +1,8 @@
 // Typed `node:dns/promises` surface over the generated facade.
 //
 // The generated facade types every resolver `(...args: unknown[]) => never`,
-// so a library that awaits one -- the MongoDB driver resolves `mongodb+srv://`
-// seeds with `resolveSrv`/`resolveTxt` and canonicalizes Kerberos hosts with
+// so a library that awaits one -- a database driver resolves SRV connection
+// string seeds with `resolveSrv`/`resolveTxt` and canonicalizes Kerberos hosts with
 // `lookup`/`resolvePtr`/`resolveCname` -- cannot type-check its results. These
 // are node's declared shapes. Name resolution itself is not implemented yet:
 // each call rejects with the facade's not-implemented error, the same failure

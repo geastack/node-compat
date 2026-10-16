@@ -154,8 +154,8 @@ const builtinModuleRegistry = (sources = builtinModuleSources()) =>
     ])
   )
 
-// These rows are deliberately only the process surface Fastify's reachable
-// production modules exercise. A missing row is a compiler refusal, not a
+// These rows are deliberately only the process surface an HTTP framework's
+// reachable production modules exercise. A missing row is a compiler refusal, not a
 // dynamic property fallback or a promise the runtime cannot keep.
 const processHostMembers = new Map([
   [`${processCarrier}.env`, { kind: 'property', emit: 'gea::node::process::env()', store: null }],
@@ -303,7 +303,8 @@ const nodeOnlyHostFunctions = new Map([
  * `BufferConstructor`'s eight declared signatures collapse to one callable
  * carrier: reading `.from` off THAT is
  * `property-access:function-value-dispatch:get:false`, which is exactly what
- * every one of these calls refused as (66 rows on the mongodb CMAP probe, and
+ * every one of these calls refused as (66 rows on a database driver's
+ * connection-pool probe, and
  * the probe's largest single family).
  *
  * The TYPE `Buffer` is unaffected and stays where it belongs: an interface
@@ -343,8 +344,8 @@ const namespaceMethods = {
  * the root falls through to its structural answer -- for `Buffer` that is
  * `BufferConstructor`, whose eight declared signatures collapse to one callable
  * carrier, and reading a member off THAT is
- * `property-access:function-value-dispatch:get:false`. Measured on the mongodb
- * CMAP probe: the namespace claim without this table moved 66 rows to 53; with
+ * `property-access:function-value-dispatch:get:false`. Measured on a database
+ * driver's connection-pool probe: the namespace claim without this table moved 66 rows to 53; with
  * it, the receiver is a `native-record-ref` and the access certifies.
  *
  * The facades are empty structs. Nothing is ever read out of the object a
@@ -361,7 +362,7 @@ const namespaceRootTypes = new Map([
  *
  * `Buffer` is a path here, not a materialized constructor object, so 13.10.2
  * has no prototype chain to walk and `x instanceof Buffer` refused by name --
- * in `@hono/node-server`'s `request.ts`, twice, over real live code. Node
+ * in an HTTP framework's Node server adapter, twice, over real live code. Node
  * documents `Buffer.isBuffer` as exactly that test, and the native
  * implementation is a brand read rather than a structural guess: a byte view
  * only answers `true` when a Buffer factory attached the opaque host brand, so
@@ -404,7 +405,7 @@ const hostNamespaces = () => ({
  * `__gea_node_set_timeout`/`__gea_node_clear_timer`, an older protocol in which
  * the global WAS the host call. It is not this one. `runtime/node/timers.ts` is
  * the implementation now -- it returns a real `Timeout` object (Node's
- * `.unref()`/`.hasRef()`, which `@hono/node-server`'s `listener.ts` calls as
+ * `.unref()`/`.hasRef()`, which an HTTP framework's Node server adapter calls as
  * `timer.unref?.()`), defaults the delay, and wraps the callback so the host
  * symbol keeps its narrow `() => void` arity -- and it reaches the reactor
  * through the `__gea_node_timer_*` names, which stay claimed below.
@@ -414,7 +415,8 @@ const hostNamespaces = () => ({
  * `timers.ts`'s `Timeout`: `v13 = __gea_node_set_timeout((b5))` assigned into
  * a `Ref<gea_class_decl_f127_37>`, and `__gea_node_clear_timer` handed a
  * `Timeout | number` union to a `double` parameter -- nine clang errors in
- * hono-hello from one disagreement between the table and the source.
+ * the HTTP framework test app from one disagreement between the table and the
+ * source.
  */
 const v1OnlyIntrinsicNames = new Set(['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval'])
 
@@ -462,7 +464,8 @@ const hostPreambles = () =>
  * Node loads such a file with `process.dlopen`; this target has no Node ABI to
  * load it into, so the load fails exactly where node's would when an addon
  * cannot be opened, and the libraries that wrap an optional addon (`kerberos`,
- * `mongodb-client-encryption`) already catch that failure. Rewriting the text
+ * a database driver's client-side encryption library) already catch that
+ * failure. Rewriting the text
  * is what lets the checker see it: an addon's binary has no declarations, so
  * the original call is a "cannot find module" error plus a require that
  * resolves no compiled source. Only a static string specifier ending in
