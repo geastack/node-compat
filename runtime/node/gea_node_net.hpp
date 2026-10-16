@@ -2,7 +2,7 @@
 
 // Typed bridge for node:net. Socket notifications carry no payload across the
 // host boundary; TypeScript drains a native event queue and fetches byte chunks
-// as gea_node_buffer, so MongoDB wire bytes never pass through gea_cpp_value.
+// as gea_node_buffer, so database wire bytes never pass through gea_cpp_value.
 
 #include "gea_node_buffer.hpp"
 
@@ -52,9 +52,9 @@ double net_next_event(double id);
 std::vector<std::uint8_t> net_read(double id);
 std::string net_error(double id);
 bool net_write(double id, const gea::TypedArray<std::uint8_t> &buffer);
-double mongodb_pool_open(std::string host, double port, double max_size);
-std::vector<std::uint8_t> mongodb_pool_exchange(double pool_id, const gea::TypedArray<std::uint8_t> &request);
-void mongodb_pool_close(double pool_id);
+double framed_socket_pool_open(std::string host, double port, double max_size);
+std::vector<std::uint8_t> framed_socket_pool_exchange(double pool_id, const gea::TypedArray<std::uint8_t> &request);
+void framed_socket_pool_close(double pool_id);
 double net_buffer_size(double id);
 void net_end(double id);
 void net_destroy(double id);

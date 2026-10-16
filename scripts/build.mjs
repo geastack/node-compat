@@ -58,7 +58,7 @@ const compilerRoot = resolveCompilerRoot()
 const { compile } = await import(compilerModuleUrl('.', compilerRoot))
 const { preparePackageSources } = await import(compilerModuleUrl('./preparation', compilerRoot))
 
-// The compile runs in this process and allocates hard: on the mongodb driver
+// The compile runs in this process and allocates hard: on a database driver
 // the default young generation made V8 GC 28% of the emission (24.8k
 // scavenges). A 128 MB semi-space took emit-only from 4:22 to 3:12 on the
 // 8-thread box (peak RSS 5.0 -> 7.6 GB), and it needs a larger old space or
@@ -272,7 +272,7 @@ const withGlobals = process.argv.includes('--globals')
 // Compile-from-source.
 //
 // A published library ships compiled `.js` with every type parameter ERASED,
-// so a generic value -- hono's `Context<E>`, its router's `T` -- arrives with
+// so a generic value -- an HTTP framework's `Context<E>`, its router's `T` -- arrives with
 // nothing to monomorphize against and lowers to a box. Compiling the library's
 // own typed `.ts` instead is what makes the hot path native, which is the
 // whole reason to compile a framework at all.
@@ -305,19 +305,20 @@ function builtinModules() {
 // `whatwg-url` is the one npm package this target answers. Its published
 // JavaScript has no type declarations, so a library importing it gets an error
 // type for `URL`, and the driver's ConnectionString loses inherited members.
-// `@hono/node-server` is answered by this target's own adapter rather than
-// compiled from the package: the package builds a node:http IncomingMessage /
+// An HTTP framework's Node server adapter package is answered by this target's
+// own adapter rather than compiled from the package: the package builds a node:http IncomingMessage /
 // ServerResponse pair per request only to wrap them back into a Request and
 // unwrap the Response, and on this target that pair is itself compiled
-// TypeScript. `hono-node-server.ts` goes from the reactor's dispatch to a
+// TypeScript. `node-server-adapter.ts` goes from the reactor's dispatch to a
 // `Request` and from the `Response` to the wire directly -- twice the
-// throughput of the compiled package on the same compiler, runtime and Hono.
+// throughput of the compiled package on the same compiler, runtime and
+// framework. The package specifier below is the one mapping that names it.
 // `GEA_NODE_COMPAT_PACKAGE_ADAPTER=1` compiles the package instead, so the
 // two adapters can be measured against each other on one compiler.
 const answeredPackages = () =>
   new Map([
     ['whatwg-url', path.join(builtinsDir, 'whatwg-url.ts')],
-    ...(process.env.GEA_NODE_COMPAT_PACKAGE_ADAPTER === '1' ? [] : [['@hono/node-server', path.join(builtinsDir, 'hono-node-server.ts')]])
+    ...(process.env.GEA_NODE_COMPAT_PACKAGE_ADAPTER === '1' ? [] : [['@hono/node-server', path.join(builtinsDir, 'node-server-adapter.ts')]])
   ])
 const whatwgGlobalNames = new Set(['Response', 'Request', 'Headers', 'URL', 'URLSearchParams', 'FormData'])
 const targetModulePathKeys = new Set([
@@ -417,7 +418,7 @@ function writeProject() {
     // in scope whether or not this program asked for the WHATWG classes.
     `./${path.relative(outDir, path.join(builtinsDir, 'node-globals.ts')).replace(/\\/g, '/')}`,
     // Unconditional too, and for a third variation of the same reason: the
-    // WHATWG stream classes are globals in Node, `@hono/node-server` writes
+    // WHATWG stream classes are globals in Node, an HTTP framework's Node server adapter writes
     // `new ReadableStream(...)` with no import, and -- unlike `globals.ts`'s
     // fetch classes -- this target's OWN `node:stream` builtin needs them
     // (`readableToWeb`) whether or not the application ever names one.
@@ -431,8 +432,8 @@ function writeProject() {
     // one. See that file's header.
     `./${path.relative(outDir, path.join(builtinsDir, 'abort-events.ts')).replace(/\\/g, '/')}`,
     // Unconditional for the same reason once more: `setTimeout`/`clearTimeout`
-    // are Node globals that `@hono/node-server`'s `listener.ts` and hono's own
-    // `timeout` middleware name with no import, and this target's own `net.ts`
+    // are Node globals that an HTTP framework's Node server adapter and the
+    // framework's own timeout middleware name with no import, and this target's own `net.ts`
     // schedules socket timeouts through them. See that file's header for why
     // the implementations are a script rather than the ambient `const` over
     // `timers.ts` they used to be.
@@ -535,15 +536,15 @@ const sourceName = (source) => {
 // A package this target answers (`answeredPackages`) is not compiled from its
 // own source as well: its specifier already resolves to the target's file, so
 // the acquired copy would enter the program as a second, unreferenced module
-// -- one that, for `@hono/node-server`, redefines the WHATWG globals.
+// -- one that, for the Node server adapter, redefines the WHATWG globals.
 const answered = answeredPackages()
 const preparedSources = acquiredSources.filter((source) => !answered.has(sourceName(source)))
 if (preparedSources.length > 0) console.error(`[build] compile-from-source: ${[...new Set(preparedSources.map(sourceName))].join(', ')}`)
 const packageSources = [...preparedSources, ...(packageRoot ? [{ root: path.resolve(packageRoot) }] : [])]
 
 // The application's devDependencies are installed for the build -- for their
-// TYPES, as the MongoDB driver's optional peers (`kerberos`, `gcp-metadata`,
-// `mongodb-client-encryption`) are -- and are absent from the production
+// TYPES, as a database driver's optional peers (`kerberos`, `gcp-metadata`,
+// its client-side encryption library) are -- and are absent from the production
 // install a deployed server runs from (`npm install --omit=dev`). The binary
 // answers a runtime `require` of one the way that install does: MODULE_NOT_FOUND.
 const typesOnlyPackages = (() => {
@@ -620,7 +621,7 @@ const compileSources = (sources, javaScriptSources) =>
     // importers against and refuses every exported callable's parameter
     // (`function-escapes:exported`) regardless of whether this program's own
     // import graph actually closes -- the single largest reason group
-    // blocking `hono-bridge` (26 of 149 refusals, `node:stream`'s own
+    // blocking the adapter bridge test app (26 of 149 refusals, `node:stream`'s own
     // re-export facade among them) traced to exactly this missing flag, not
     // to a compiler proof gap.
     statedModuleSet: true,
@@ -793,7 +794,7 @@ if (result.units.length === 0) {
       .join(' ')
     console.error(`  print    ${files}`)
   }
-  // Raised from 25: a program the size of hono-bridge spreads its census
+  // Raised from 25: a program the size of the adapter bridge test app spreads its census
   // refusals over 20+ owners, and the family rollup above already ranks the
   // reasons -- what a truncated row list was hiding was WHICH declarations
   // carry each reason, needed to group refusals by (file, function, reason).
@@ -903,9 +904,9 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
   // The optimization level depends on the compiler, because the answer does
   // (bench host, 2026-09-22, four pinned workers, same emitted source). clang 18:
   // `-Os -flto` is the fastest AND the smallest -- level with `-O2 -flto` on the
-  // raw server (316k vs 313k req/s) and +5% on the compiled Hono app (150k vs
+  // raw server (316k vs 313k req/s) and +5% on the compiled HTTP framework app (150k vs
   // 144k; +10% at one worker), at 30% smaller binaries (1.82 MB / 5.47 MB) and
-  // less memory. Hono executes more instructions at -Os but fewer cycles: the
+  // less memory. The framework executes more instructions at -Os but fewer cycles: the
   // hot path is instruction-cache bound, and smaller code wins. `-O3` bought
   // nothing on either compiler. g++ 13 is the opposite: `-Os` costs 25%, so it
   // keeps `-O2`. LTO helps both (clang: +3% and -4% size over plain `-O2`).
@@ -931,7 +932,7 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
     // The instrumented PGO phase only has to run the training workload, and the
     // counters are inserted by the front end before any optimization, so the
     // profile does not depend on the level (GEA_PGO_GENERATE_OPT overrides).
-    // mongodb driver on the 8-thread box: the heaviest unit (records.part-3)
+    // a database driver on the 8-thread box: the heaviest unit (records.part-3)
     // compiles in 50 s at -O0 against 110 s at -O1, the whole -O1 phase took
     // 15.5 min, and training at -O1 took 80 s -- the slower -O0 binary costs
     // far less than the compile it saves.
@@ -1002,7 +1003,7 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
     // address-taken functions too, which the runtime is indifferent to (it
     // keeps no fact behind an entry's address); `safe` left them apart. The
     // LTO links are gold or lld, which both implement it. raw-http-hello
-    // 1,282,256 -> 1,192,144 bytes, hono-hello 6,624,648 -> 6,063,496 with
+    // 1,282,256 -> 1,192,144 bytes, the HTTP framework test app 6,624,648 -> 6,063,496 with
     // `safe` (clang 18, -Os -flto); the same app 5,287,592 -> 4,841,128 from
     // `safe` to `all` (clang 22).
     ...(linking && optimize && lto !== null && process.platform === 'linux' && cxxIsClang ? ['-Wl,--icf=all'] : []),
@@ -1023,7 +1024,7 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
     // with `LLVM_PROFILE_FILE=<dir>/%p.profraw`, then `xcrun llvm-profdata
     // merge -output=<dir>/merged.profdata <dir>/*.profraw`); GEA_PGO_USE=
     // <merged.profdata> optimizes with the result. `--link-only` makes the
-    // second build skip the emission. Measured on the mongodb driver
+    // second build skip the emission. Measured on a database driver
     // benchmark (2026-09-26, clang 21, -O2 -flto, same emission): 22% less
     // client CPU, min-of-3 11.74 s against 15.13 s -- the emitted code is
     // branchy and instruction-cache bound, which is exactly what layout and
@@ -1044,7 +1045,7 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
     // instruction-cache locality weighted by the profile's edge counts)
     // rather than the default chain placement. The driver is front-end bound
     // (~60% of its cycles are instruction delivery), and under full LTO block
-    // placement runs at the link. Mongodb driver benchmark, same emission and
+    // placement runs at the link. Database driver benchmark, same emission and
     // profile, 3 interleaved pairs on a loaded box: fewer cycles in every
     // pair, instructions unchanged.
     ...(process.env.GEA_PGO_USE && linking && lto !== null && cxxIsClang && process.platform === 'darwin'
@@ -1097,7 +1098,7 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
 //
 // It is NOT the default, from measurements (Apple clang 21, ld-1267, 16 cores,
 // 2026-09-24; the box was shared, load 16-110, so walls are noisy):
-// - mongodb driver probe, 273 units, PCH, cold: final link full 470/737/752 s
+// - database driver probe, 273 units, PCH, cold: final link full 470/737/752 s
 //   vs thin 316/632/786 s -- no clear win. Thin's critical path is ONE module,
 //   the program unit server.cpp (40 MB of bitcode, 15 MB of native code), whose
 //   backend is serial like the full-LTO link. Thin costs more total CPU (build
@@ -1253,7 +1254,7 @@ function ccacheCommand() {
 // unit starts with the same line, `#include "server.hpp"`, and that header is
 // the whole common prefix: the runtime headers (gea_node.hpp and the compiler's
 // gea_runtime.h, which the program pulls in through server.runtime.hpp) plus
-// the program's own declarations -- 8 MB on the mongodb driver. Parsing it was
+// the program's own declarations -- 8 MB on a database driver. Parsing it was
 // 2-3 s and most of the ~800 MB of every unit, however small the unit.
 //
 // So the header named by that shared first line is compiled once into
@@ -1432,7 +1433,7 @@ async function buildPrecompiledPrefix(prefix, cxx, common) {
 // most GEA_JOBS at once (default: every core, memory permitting) -- and then linked once.
 // Links `units` into `--exe`, profile-guided when `--pgo`/`--pgo-train` asks.
 //
-// PGO is the largest single lever the emitted code has: on the mongodb driver
+// PGO is the largest single lever the emitted code has: on a database driver
 // benchmark it removed 22% of the client CPU on macOS and ~26% of the cycles on
 // the Haswell bench host, and it does it through block layout rather than
 // inlining (an -inline-threshold=1000 build without a profile recovered none of
@@ -1529,7 +1530,7 @@ async function buildExecutable(units, displayPath) {
 // reordered by call-graph locality, hot and cold blocks split apart. PGO chose
 // block order per function at compile time; BOLT sees the final machine code
 // of the whole 28 MB image, which is what an instruction-delivery-bound
-// program (the mongodb driver loses most of its cycles waiting on the front
+// program (a database driver loses most of its cycles waiting on the front
 // end) is limited by. Linux x86-64 only: it needs `perf` with LBR and
 // llvm-bolt/perf2bolt (GEA_LLVM_BOLT names the llvm-bolt to use; perf2bolt is
 // looked up beside it).
@@ -1635,8 +1636,8 @@ function llvmProfdataCommand(cxx) {
   throw new Error(`--pgo: no llvm-profdata for ${cxx} (tried ${candidates.join(', ')}); set GEA_LLVM_PROFDATA`)
 }
 
-// Per-file emission gives a program one unit per source module -- 218 for the
-// mongodb driver -- and each unit instantiates and optimizes its own copy of
+// Per-file emission gives a program one unit per source module -- 218 for a
+// database driver -- and each unit instantiates and optimizes its own copy of
 // every runtime template and inline function it touches: on the box ~65% of a
 // unit's time was the optimizer on that linkonce code, over a ~1.3 s floor an
 // empty unit pays. Compiling the units in a few larger groups (a generated

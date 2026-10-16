@@ -14,7 +14,7 @@ test('checked-in builtin sources deterministically override generated facades', 
   assert.equal(modules.get('zlib'), path.join(builtins, 'zlib.ts'))
   assert.equal(modules.get('assert'), path.join(facades, 'assert.ts'))
   assert.equal([...modules.keys()].some((name) => name.startsWith('generated/')), false)
-  for (const internal of ['globals', 'standard-library', 'not-implemented', 'node-globals', 'buffer-types', 'hono-node-server', 'whatwg-url']) {
+  for (const internal of ['globals', 'standard-library', 'not-implemented', 'node-globals', 'buffer-types', 'node-server-adapter', 'whatwg-url']) {
     assert.equal(modules.has(internal), false)
   }
 })

@@ -1,7 +1,8 @@
 // WHATWG Fetch/URL globals for node-compat, compiled by geatsc. These back the
 // ambient globals (`Response`, `Request`, `Headers`, `URL`, `URLSearchParams`,
-// `FormData`) that real libraries (hono, fastify adapters) construct — e.g.
-// hono's `c.text()`/`c.json()` do `new Response(body, { status, headers })`.
+// `FormData`) that real libraries (HTTP frameworks and their adapters) construct
+// — e.g. a framework's text and JSON responders do
+// `new Response(body, { status, headers })`.
 //
 // This file has NO top-level `import`/`export`, which is deliberate and
 // load-bearing: a file with neither is a TypeScript SCRIPT rather than a
@@ -22,7 +23,7 @@
 //
 // Rooted by `build.mjs` when the reachable runtime/declaration graph has an
 // unbound name this file implements. `--globals` remains an explicit override,
-// but ordinary Fastify and `whatwg-url` package resolution needs no flag.
+// but ordinary HTTP framework and `whatwg-url` package resolution needs no flag.
 //
 // The ambient, no-implementation names this file's TAIL still needs
 // (`BufferSource`, `queueMicrotask`'s siblings) that node-compat's own
@@ -33,7 +34,7 @@
 // WHATWG Fetch's `Headers` constructor argument union. A named alias, not
 // only the inline unions `ResponseInit.headers`/`RequestInit.headers` already
 // state (see those fields' own comments for why THEY stay inline): outside
-// callers -- `@hono/node-server`'s own `response.ts`/`utils.ts` -- spell this
+// callers -- an HTTP framework's Node server adapter -- spell this
 // type BY NAME, with no import, exactly like `Response`/`Headers` themselves.
 type HeadersInit = Headers | Record<string, string> | [string, string][];
 
@@ -50,8 +51,8 @@ type HeadersIterator<T> = Generator<T>;
 
 // The implementation is named `HeadersImpl`, not `Headers` -- the bare name
 // `Headers` is declared further down as a TYPE ALIAS plus a separate `var`,
-// and load-bearing, not decoration. `@hono/node-server`'s own
-// `headers.ts`/`websocket.ts` read `globalThis.Headers` (feature-detecting a
+// and load-bearing, not decoration. An HTTP framework's Node server adapter
+// reads `globalThis.Headers` (feature-detecting a
 // real WHATWG implementation before falling back to their own), which needs
 // `Headers` reflected onto `typeof globalThis` -- and real JavaScript only
 // ever adds a top-level `var`/`function` declaration to the global OBJECT;
@@ -69,15 +70,15 @@ type HeadersIterator<T> = Generator<T>;
 // _Headers {}` beside `var Headers: ...`) -- not invented here, matched.
 // `Response`/`Request`/`CloseEvent`/`ErrorEvent` below get the identical
 // treatment for the identical reason: each is read off `global`/`globalThis`
-// by name somewhere in `@hono/node-server`.
+// by name somewhere in such an adapter.
 class HeadersImpl {
   // Allocated on the first insertion. A request builds two or three Headers
-  // (its own, the Response's, hono's copy in newResponse) and most stay empty
+  // (its own, the Response's, the framework's copy for a new response) and most stay empty
   // or see one entry; two eager arrays per instance were four to six pooled
   // allocations and as many cycle-collector candidates per request.
   //
   // Every method that reads these two fields through `this` is one that
-  // `@hono/node-server`'s lightweight `RequestHeaders` overrides. That class
+  // the Node server adapter's lightweight request headers class overrides. That class
   // is re-parented onto this one (`Object.setPrototypeOf`), which the
   // compiler admits only while each inherited member reaches `this` solely
   // to look up a method (see semantics/prototype-reparenting.ts). Helpers
@@ -88,8 +89,8 @@ class HeadersImpl {
 
   // NOT a genuine dynamic boundary, despite reaching here across every
   // library call site: this shim's own `Response.headers` field (below) is
-  // typed `Headers`, never `any`, so the two real callers -- hono's
-  // `context.ts#newResponse`, `new Headers(this.#res.headers)` and
+  // typed `Headers`, never `any`, so the two real callers -- an HTTP
+  // framework's new-response helper, `new Headers(this.#res.headers)` and
   // `new Headers(arg.headers)` (the latter's `instanceof Headers` already
   // excluded by the caller before it ever reaches here) -- hand this exactly
   // WHATWG's own `HeadersInit` union (`Headers | string[][] |
@@ -160,7 +161,7 @@ class HeadersImpl {
   // HeadersInit's instanceof branch supplies this native handle directly.
   // No boxed mirror or dynamic property recovery is involved in copying it.
   // Read through `forEach`, the public iteration a subclass overrides, never
-  // this class's own storage: `@hono/node-server`'s lazy `RequestHeaders`
+  // this class's own storage: the Node server adapter's lazy request headers
   // extends `Headers` with an empty base and answers every accessor from the
   // incoming message, so a storage walk copied zero headers and a multipart
   // request lost its `content-type`.
@@ -289,14 +290,14 @@ class HeadersImpl {
     for (let i = 0; i < names.length; i++) callback(values[i], names[i]);
   }
 
-  // WHATWG iteration surface (hono's `set res` merges headers via
+  // WHATWG iteration surface (an HTTP framework's response setter merges headers via
   // `.entries()` and preserves cookies via `.getSetCookie()`).
   //
   // The overload-plus-generator shape mirrors `URLSearchParams`'s own
   // `keys`/`values`/`entries`, further down this file (see that class for
   // the full rationale): the PUBLIC signature states the wider
-  // `HeadersIterator<T>` callers expect -- `@hono/node-server`'s own
-  // `headers.ts` declares its own `keys()`/`values()`/`entries()` against
+  // `HeadersIterator<T>` callers expect -- the Node server adapter
+  // declares its own `keys()`/`values()`/`entries()` against
   // exactly that name, delegating straight to these methods -- while the
   // IMPLEMENTATION signature stays the literal `Generator<T>` geatsc
   // maps to its native `iterator` cursor kind (see `[Symbol.iterator]`'s own
@@ -326,8 +327,8 @@ class HeadersImpl {
     for (let i = 0; i < values.length; i++) yield values[i];
   }
 
-  // hono's `set res` and `#newResponse` both do `for (const [k, v] of headers)`
-  // directly on a Headers instance (context.ts), which needs Headers itself to
+  // an HTTP framework's response setter and new-response helper both do
+  // `for (const [k, v] of headers)` directly on a Headers instance, which needs Headers itself to
   // be iterable — not just `.entries()`.
   //
   // A GENERATOR method, not `entries()[Symbol.iterator]()` returning a plain
@@ -379,11 +380,11 @@ class HeadersImpl {
 type Headers = HeadersImpl;
 var Headers: typeof HeadersImpl = HeadersImpl;
 
-// Same split as `Headers` above, for the same reason: `@hono/node-server`'s
-// `response.ts` reads `global.Response` at module load.
+// Same split as `Headers` above, for the same reason: an HTTP framework's Node server adapter
+// reads `global.Response` at module load.
 class ResponseImpl {
   // Every WHATWG `Response` attribute is a prototype ACCESSOR over private
-  // state, as on the platform. `@hono/node-server` re-parents its lightweight
+  // state, as on the platform. The Node server adapter re-parents its lightweight
   // `Response` onto this class (`Object.setPrototypeOf(Response.prototype,
   // GlobalResponse.prototype)`) and answers every one of these itself; its
   // instances never run this constructor, so a public data field here would
@@ -413,7 +414,7 @@ class ResponseImpl {
   get body(): ReadableStream<Uint8Array> | null {
     return null;
   }
-  // The rest of the WHATWG surface hono's `ClientResponse<T>` requires.
+  // The rest of the WHATWG surface an HTTP framework's typed client response requires.
   get bodyUsed(): boolean {
     return false;
   }
@@ -426,7 +427,7 @@ class ResponseImpl {
   get url(): string {
     return "";
   }
-  // Node's `Response` has no trailers; `@hono/node-server` still forwards
+  // Node's `Response` has no trailers; the Node server adapter still forwards
   // the name, and a read answers what the platform's does.
   get trailers(): undefined {
     return undefined;
@@ -435,19 +436,19 @@ class ResponseImpl {
   // writes it to the wire without the `await response.text()` round trip (a
   // Promise, a job, and a continuation per response, for a string that is
   // sitting right here).
-  // Static, not an accessor: `@hono/node-server`'s lightweight Response is
+  // Static, not an accessor: the Node server adapter's lightweight Response is
   // re-parented onto this class, and the compiler admits that only while every
   // inherited instance member reaches `this` solely to look up a method (see
   // semantics/prototype-reparenting.ts). An instance getter reading a field
   // that the lightweight class does not override would refuse the whole
   // re-parenting; a static reader is outside that rule. The native adapter
-  // (hono-node-server.ts) is the only caller, and never sees a re-parented
+  // (node-server-adapter.ts) is the only caller, and never sees a re-parented
   // instance.
   static bodyTextOf(response: Response): string {
     return response.bodyText_;
   }
 
-  // Keep Hono's concrete response-data union. An `any` parameter forced the
+  // Keep the framework's concrete response-data union. An `any` parameter forced the
   // parameter census to reconstruct it from indirect constructor calls. That
   // lost the string/ArrayBuffer arms and made a string response read the
   // ReadableStream arm in generated C++. Stating the actual reachable
@@ -521,12 +522,12 @@ class ResponseImpl {
       }
     }
     // String body extraction supplies a media type only when the caller did
-    // not set one. Hono's text fast path relies on new Response(text) doing
+    // not set one. An HTTP framework's text fast path relies on new Response(text) doing
     // this; otherwise the HTTP adapter silently substitutes its own header.
-    // Spelled the way `@hono/node-server`'s own Response spells it
+    // Spelled the way the Node server adapter's own Response spells it
     // (`defaultContentType = "text/plain; charset=UTF-8"`, with the space),
     // not WHATWG's `text/plain;charset=UTF-8`: this shim stands where that
-    // package's Response replacement stood on Node, and the wire a Hono app
+    // package's Response replacement stood on Node, and the wire a framework app
     // produced there is the reference its compiled build is checked against.
     if (typeof body === "string" && !this.headers_.has("content-type")) {
       this.headers_.set("content-type", "text/plain; charset=UTF-8");
@@ -543,26 +544,27 @@ class ResponseImpl {
   // — a TYPE-LEVEL widening only, with no runtime effect on this class's own
   // callers: this method still just returns the plain string it always did
   // (`await` unwraps a non-Promise value exactly like a resolved one, so
-  // `apps/hono-hello/server.ts`'s `await response.text()` is unaffected
-  // either way). It exists because hono's own `client/utils.ts`
+  // the HTTP framework test app's `await response.text()` is unaffected
+  // either way). It exists because an HTTP framework's own client helper
   // (`parseResponse<T extends ClientResponse<any>>`) requires a `T` — whose
   // `text()` returns a REAL `Promise<string>`, per `ClientResponse`'s own
   // interface — to be assignable to this class; `Promise<string>` is
   // assignable to `string | Promise<string>` but not to bare `string`. This
   // makes the check pass without making `text()` genuinely asynchronous,
-  // which would put real Promise machinery on the hot path (every hono-hello
-  // request calls this) for a code path (`hono/client`) nothing here calls.
+  // which would put real Promise machinery on the hot path (every request of
+  // the HTTP framework test app calls this) for a code path (the framework's
+  // client) nothing here calls.
   text(): string | Promise<string> {
     return this.bodyText_;
   }
   // `json`/`arrayBuffer`/`blob`/`formData` complete the WHATWG `Body`
-  // mixin's member set (hono's own `request.ts` indexes `Body` generically
+  // mixin's member set (an HTTP framework's request wrapper indexes `Body` generically
   // by key — `raw[key]()` — so all five names must exist), but nothing this
-  // target builds calls a Response's through any of these four: hono-hello
-  // only ever reads `.text()` on a Response, and a grep of every real app
-  // entry plus hono's own non-test source found zero callers of
+  // target builds calls a Response's through any of these four: the HTTP
+  // framework test app only ever reads `.text()` on a Response, and a grep of
+  // every real app entry plus the framework's own non-test source found zero callers of
   // `Response#json()` anywhere reachable (contrast `Request#json()` below,
-  // which `apps/hono-mongodb-todo/server.ts:89,108` genuinely awaits — that
+  // which the database test app's server genuinely awaits — that
   // one stays a real `JSON.parse`). Honest stubs (all four throw — matching
   // `Blob`'s own unimplemented methods above, rather than fabricated
   // behavior), with the same `T | Promise<T>` return-type widening `text()`
@@ -581,8 +583,8 @@ class ResponseImpl {
   // widened to `T | Promise<T>`: WHATWG's `Body#formData()` is declared
   // `Promise<FormData>` with no synchronous variant anywhere in the spec (and
   // so is Node's own `.d.ts`), so a bare `FormData` return here is not a
-  // narrower honest answer, it is the wrong type. `@hono/node-server`'s
-  // `utils/buffer.ts` awaits `response.formData()` expecting exactly
+  // narrower honest answer, it is the wrong type. an HTTP framework's Node server adapter
+  // awaits `response.formData()` expecting exactly
   // `Promise<FormData>` and fails to typecheck against the widened union.
   // The stub still throws synchronously -- `throw` is assignable to any
   // return type -- so this is a declaration fix, not a behavior change.
@@ -596,12 +598,12 @@ class ResponseImpl {
   // `interface ResponseConstructor`, not `interface Response`, in
   // `lib.dom.d.ts`), not an instance method — deliberately NOT added as one
   // here, and not needed by anything this target builds (`c.redirect()`,
-  // hono's own OWN, unrelated, `Context` method, builds a `Response` via the
+  // an HTTP framework's OWN, unrelated, context method, builds a `Response` via the
   // constructor instead). An instance method of this name would additionally
   // collide with `RequestInit.redirect: string`, a genuinely different
-  // field, wherever hono's own source structurally compares the two (e.g.
-  // `context.ts`'s `body: BodyRespond = (data, arg: StatusCode | RequestInit,
-  // ...)`, itself typed against the wrong interface — hono's own upstream
+  // field, wherever the framework's own source structurally compares the two (e.g.
+  // its `body: BodyRespond = (data, arg: StatusCode | RequestInit,
+  // ...)`, itself typed against the wrong interface — the framework's own upstream
   // code names `RequestInit` where `ResponseOrInit` was clearly meant, and
   // only compiles today because DOM's real `Response` has no instance
   // `redirect` to collide with either).
@@ -622,20 +624,20 @@ interface ResponseInit {
   status?: number;
   statusText?: string;
   // WHATWG `HeadersInit` (`Headers | string[][] | Record<string, string>`): a
-  // Headers INSTANCE is a legal value (hono passes the merged
+  // Headers INSTANCE is a legal value (an HTTP framework passes the merged
   // `responseHeaders` object straight through). A bare `Record<string,
   // string>` annotation lowered this field to a typed str_map slot, and
   // coercing a Headers instance into it produced an EMPTY map — the response
   // silently lost every header. The union keeps the slot dynamic so all
   // three shapes cross intact; the Response constructor duck-types which one
   // arrived. The array-of-pairs arm also matters for a reason that has
-  // nothing to do with node-compat's own construction: hono's own
+  // nothing to do with node-compat's own construction: an HTTP framework's own
   // `body: BodyRespond = (data, arg: StatusCode | RequestInit, ...)`
-  // (`context.ts`) is typed against the WRONG interface (`RequestInit`
+  // is typed against the WRONG interface (`RequestInit`
   // instead of `ResponseOrInit`) and only compiles because `RequestInit`'s
   // `headers` is structurally wide enough to accept `ResponseHeadersInit`,
   // which includes `[string, string][]` — dropping that arm here breaks
-  // hono's own (upstream, source-level) code, not anything of ours.
+  // the framework's own (upstream, source-level) code, not anything of ours.
   headers?: Record<string, string> | Headers | [string, string][];
 }
 
@@ -658,7 +660,7 @@ async function drainRequestBody(stream: ReadableStream<Uint8Array>): Promise<Buf
 // reads `global.Request` at module load.
 class RequestImpl {
   // Every WHATWG member is an accessor over private storage, as on a real
-  // `Request`: `@hono/node-server` re-parents its lightweight request onto
+  // `Request`: the Node server adapter re-parents its lightweight request onto
   // this class without running this constructor, which the compiler models
   // only when nothing the subclass inherits reads instance state (see
   // `prototype-reparenting.ts`). A public field is state; a getter the
@@ -672,7 +674,7 @@ class RequestImpl {
     return this.method_;
   }
   // `headers`, `bodyUsed`, `body` and `signal` are ACCESSORS rather than data
-  // fields, unlike every other member here, because `@hono/node-server`'s
+  // fields, unlike every other member here, because the Node server adapter's
   // lightweight request overrides all four — and a data property cannot be
   // overridden by a getter (TS2610). The platform agrees: on a real WHATWG
   // `Request` every one of these is a prototype accessor, so this is the more
@@ -703,7 +705,7 @@ class RequestImpl {
   }
 
   // Not WHATWG: a request straight from the reactor's dispatch, for the
-  // native `@hono/node-server` answer (`hono-node-server.ts`). Nothing is
+  // native Node server adapter (`node-server-adapter.ts`). Nothing is
   // parsed or copied here beyond what is handed in: the URL is already
   // complete, the method is the wire token, the header block waits for a
   // read, and the body is the reactor's own bytes.
@@ -719,7 +721,7 @@ class RequestImpl {
   // share one source without copying through a boxed value.
   private bodyBytes_: Buffer | undefined;
 
-  // Full DOM RequestInit surface as typed fields. hono's typed code reads
+  // Full DOM RequestInit surface as typed fields. A framework's typed code reads
   // these off the request; folding the ambient DOM `Request` type to this
   // shim turns a harmless boxed `undefined` read into a compile error on a
   // missing member. Defaults are the WHATWG spec initial values; none are
@@ -841,7 +843,7 @@ class RequestImpl {
           init.body.byteLength,
         );
       } else if (init.body instanceof ReadableStream) {
-        // @hono/node-server hands the socket to `Readable.toWeb` whenever the
+        // The Node server adapter hands the socket to `Readable.toWeb` whenever the
         // body is not read on its fast path (multipart forms among them); the
         // readers below drain it on first use.
         this.body_ = init.body;
@@ -924,14 +926,14 @@ interface RequestInit {
   // Same duck-typed `HeadersInit` union as `ResponseInit.headers`, and the
   // same two reasons — see that field's comment.
   headers?: Record<string, string> | Headers | [string, string][];
-  // WHATWG `BodyInit` (declared above `URL`), not `string`: hono's own
-  // `cloneRawRequest` assigns `await req[cacheKey]()` here, which is
+  // WHATWG `BodyInit` (declared above `URL`), not `string`: an HTTP framework's
+  // raw-request clone assigns `await req[cacheKey]()` here, which is
   // `string | ArrayBuffer | Blob | FormData` depending which body accessor
   // was cached first.
   body?: BodyInit | null;
   // `window` (deprecated in the Fetch spec, always `null`) and `priority`
-  // exist ONLY so hono's own `RequiredRequestInit = Required<Omit<RequestInit,
-  // 'window' | 'priority'>> & {...}` (`request.ts`) can index `RequestInit['window'
+  // exist ONLY so an HTTP framework's `RequiredRequestInit = Required<Omit<RequestInit,
+  // 'window' | 'priority'>> & {...}` can index `RequestInit['window'
   // | 'priority']` — a mapped type's indexed access fails to resolve if the
   // key is absent from the type entirely, even optionally. Never read by
   // node-compat itself.
@@ -939,8 +941,8 @@ interface RequestInit {
   priority?: "auto" | "low" | "high";
   signal?: AbortSignal | null;
   // The rest of the WHATWG `RequestInit` surface, matching `Request`'s own
-  // fields of the same names 1:1 (see that class) — needed because hono's
-  // `request.ts`'s `cloneRawRequest` builds a `RequiredRequestInit` object
+  // fields of the same names 1:1 (see that class) — needed because the
+  // framework's raw-request clone builds a `RequiredRequestInit` object
   // literal that assigns all of `Request`'s fields straight back through
   // this interface. Never read by node-compat's own construction (the
   // `Request` constructor only consults `method`/`headers`/`body`, above).
@@ -1409,7 +1411,7 @@ function isSpecialUrlScheme(protocol: string): boolean {
 // WHATWG URL's path state for a special scheme: a `.` segment (or `%2e`) is
 // dropped and a `..` one removes the segment before it, never above the root;
 // either one LAST leaves an empty segment behind, so `/x/..` is `/` and `/x/.`
-// is `/x/`. `@hono/node-server` routes `new URL(url).href` for any request
+// is `/x/`. An HTTP framework's Node server adapter routes `new URL(url).href` for any request
 // path with a dot segment, so without this `/x/../json` reached the router
 // as written and answered 404 where Node serves `/json`.
 function withoutDotSegments(path: string): string {
@@ -1448,8 +1450,8 @@ interface EncodedMultipart {
 let geaFormDataBoundarySerial = 0;
 
 // WHATWG XMLHttpRequest §5.6's `FormDataEntryValue` -- what `FormData.get`/
-// `.getAll`/an iteration entry answers with. Referenced by hono's own
-// `utils/body.ts` (`BodyDataValue`) and used by Request's native multipart
+// `.getAll`/an iteration entry answers with. Referenced by an HTTP framework's
+// body parser and used by Request's native multipart
 // parser above.
 type FormDataEntryValue = string | File;
 
@@ -1458,18 +1460,18 @@ class FormData {
   private entryValues: FormDataEntryValue[] = [];
 
   // WHATWG declares `append`/`set`'s `value` as `string | Blob`, and that
-  // width is load-bearing, not decoration: hono's own `client/client.ts`
+  // width is load-bearing, not decoration: an HTTP framework's own client
   // (`form.append(k, v)`, inside its `fetch` request-building loop) types
-  // its own value as `FormValue = string | Blob` (`hono/src/types.ts`), and
-  // `hono/src/index.ts` re-exports client types from `./client`, so this
+  // its own value as `FormValue = string | Blob`, and the framework's
+  // package root re-exports client types from its client module, so this
   // parameter is checked against a real `Blob`-typed value on every program
-  // that imports anything from the `hono` package root -- which is every
+  // that imports anything from the framework's package root -- which is every
   // app here, including ones with no multipart form of their own. A prior
   // version of this method narrowed `value` to plain `string` on the belief
   // that every call site passes a string; that belief was wrong (it came
   // from grepping observed runtime values, not the declared static type
   // `client.ts` checks against) and the narrowing broke that file's
-  // typecheck for every hono app compiled `--from-source=hono` the moment
+  // typecheck for every framework app compiled from source the moment
   // the file was actually exercised end-to-end, rather than in the isolated
   // globals-only probe that validated it.
   //
@@ -1771,14 +1773,14 @@ function multipartParameter(header: string, wantedName: string): string | null {
 // WHATWG Fetch §6's `BodyInit` -- the union `new Response(body, init)`/
 // `new Request(url, { body })` accept. node-compat's `Response`/`Request`
 // Request bodies use this concrete union so every arm crosses the generated
-// ABI without a dynamic carrier. Hono's response seam uses its smaller
+// ABI without a dynamic carrier. An HTTP framework's response seam uses its smaller
 // `Data | null` union directly in `Response` above. `ReadableStream` here is
 // the real, working `runtime/node/stream/web.ts` class -- `node-globals.ts`
 // reflects it (and its readers/controllers) onto this same bare global
 // scope, unconditionally; see that file for why. It used to be a second,
 // deliberately empty ambient declaration IN THIS FILE (nothing built here
 // constructed one through the bare name, so an unimplemented stub was
-// honest) -- but `@hono/node-server`'s `utils/stream.ts` genuinely does
+// honest) -- but an HTTP framework's Node server adapter genuinely does
 // (`new ReadableStream<Uint8Array>({ start, pull, cancel })`, to stream a
 // static file's bytes), which needs the real `getReader`/`locked`/pipe
 // surface, not a stub. Two declarations of one global is exactly the defect
@@ -1792,7 +1794,7 @@ type BodyInit =
   | FormData
   | URLSearchParams
   // WHATWG Fetch's body stream is a stream of BYTES, and so is every consumer
-  // of `Response.body` here -- `@hono/node-server`'s `writeFromReadableStream`
+  // of `Response.body` here -- the Node server adapter's readable-stream writer
   // takes `ReadableStream<Uint8Array>` and reads `value.byteLength` off each
   // chunk. Left at the `unknown` default, that call is a checker error at the
   // one place this target's HTTP listener streams a response.
@@ -1801,9 +1803,9 @@ type BodyInit =
 
 // Web Crypto, the part node's global `crypto` object carries that libraries
 // this target compiles actually call: `subtle.digest`, raw HMAC keys through
-// `importKey`/`sign`/`verify`, and `getRandomValues`. The MongoDB driver's
-// AWS SigV4 authentication (`cmap/auth/aws4.ts`) is digest + HMAC-SHA256;
-// hono signs cookies with the same pair. Every operation runs on the
+// `importKey`/`sign`/`verify`, and `getRandomValues`. A database driver's
+// AWS SigV4 authentication is digest + HMAC-SHA256; an HTTP framework signs
+// cookies with the same pair. Every operation runs on the
 // node-compat crypto runtime `node:crypto` already uses (OpenSSL), through
 // the same host functions, so there is one digest and one HMAC in the
 // program. An algorithm outside that set rejects with node's own
@@ -1845,7 +1847,7 @@ function webCryptoDigestName(hash: WebCryptoHashIdentifier): string {
 // these methods and the compiler cannot narrow lib's `ArrayBufferView` arm to
 // the view actually passed -- and that interface's generated record is a
 // value no typed array becomes without losing its identity. Each view type
-// here is the value itself: mongodb's aws4 `digest('SHA-256', uint8Array)`
+// here is the value itself: a database driver's SigV4 `digest('SHA-256', uint8Array)`
 // hands its array straight through.
 type WebCryptoBufferSource =
   | ArrayBuffer
@@ -1974,7 +1976,7 @@ interface CloseEventInit {
 }
 
 // Same type/value split as `Headers`/`Response`/`Request` above, and the
-// same reason: `@hono/node-server`'s own `websocket.ts` feature-detects a
+// same reason: an HTTP framework's Node server adapter feature-detects a
 // platform `CloseEvent` first -- `globalThis.CloseEvent ?? class extends
 // Event {...}` -- which needs `CloseEvent` reflected onto `typeof
 // globalThis` (a plain `class CloseEvent` does not get there; see
@@ -2022,7 +2024,7 @@ declare class WebSocket {
   close(code?: number, reason?: string): void;
   send(data: string): void;
 }
-// `hono/client`'s `Fetch` type alias (`client/types.ts`) is `typeof fetch`;
+// An HTTP framework client's `Fetch` type alias is `typeof fetch`;
 // the client itself is never constructed by anything this target builds.
 declare function fetch(
   input: string | Request,

@@ -138,7 +138,7 @@ http-specific):
 - Deduced-receiver method calls (`auto&&` params) route through an SFINAE
   `->`/`.`/boxed dispatcher instead of a hardcoded member access.
 - Tuple monomorphization: heterogeneous fixed tuples (`[RegExp, string, T]`,
-  hono's router storage) lower to `std::tuple<...>` — typed slots, literal
+  an HTTP framework's router storage) lower to `std::tuple<...>` — typed slots, literal
   index reads via `std::get`, typed destructuring, canonical spelling
   program-wide, with element-wise binding casts across every boxed boundary.
 - Dynamic-boundary integrity: values crossing into `gea_cpp_value` keep their
@@ -175,7 +175,7 @@ Run it: see README quick start. Expected output: `36/36 parity, 0 diffs`.
 
 npm libraries ship compiled `.js` with all TypeScript generics erased —
 geatsc then has no type parameters to monomorphize, and generic values
-(hono's `Context<E>`, router handlers) must box. Compiling the library from
+(an HTTP framework's `Context<E>`, router handlers) must box. Compiling the library from
 its typed `.ts` source restores the generics and the whole chain emits as
 typed C++ templates.
 
@@ -186,38 +186,41 @@ typed C++ templates.
   identity and the checkout's package identity must match; there is no
   latest-branch or tag-guess fallback, and a failed checkout retains the
   installed implementation rather than compiling something else.
-- The app's `import from 'hono/tiny'` is untouched: only the output-to-source
+- The app's package import (a preset subpath, say) is untouched: only the output-to-source
   mapping changes.
 - A `vendored-sources/<pkg>` submodule used to serve this purpose and is gone.
   A checkout pinned to one version answered for whatever version the
   application had actually installed, and kept answering after the dependency
   moved.
-- Cross-module name collisions (hono declares `class Hono` in two modules)
+- Cross-module name collisions (a framework declaring one class name in two
+  modules)
   are handled by the compiler: colliding class declarations get mangled
   emitted keys and references resolve through their checker symbols;
   colliding module-level GLOBALS are rejected with a compile-time diagnostic
   (loud failure instead of a silently shared cell) until they get the same
   symbol-based treatment.
 
-### MongoDB source boundary
+### Database driver source boundary
 
-Native builds that select `mongodb` resolve the package root to the fork's
-`src/gea.ts` entry. This entry keeps the application's normal `mongodb` import
-and typed collection API while limiting the compiled graph to the direct
-OP_MSG client the target currently supports. BSON is compiled from the typed
-source acquired for its installed version. The ordinary Node build resolves the
+Native builds of a database driver whose fork carries a typed Gea entry
+(`src/gea.ts`) resolve the package root to that entry. It keeps the
+application's normal package import and typed collection API while limiting
+the compiled graph to the direct wire-protocol client the target currently
+supports. The driver's serializer is compiled from the typed source acquired
+for its installed version. The ordinary Node build resolves the
 official npm entry.
 
-The TypeScript entry serializes a command into BSON and crosses three typed
-intrinsics: pool open, request/response exchange, and pool close. The C++
+The TypeScript entry serializes a command and crosses three typed
+intrinsics, the framed socket pool's open, request/response exchange and
+close. The C++
 runtime owns the corresponding sockets. Each client eagerly opens one socket,
-leases an idle socket for one synchronous OP_MSG exchange, and returns it to
+leases an idle socket for one synchronous length-prefixed exchange, and returns it to
 the pool. `SO_KEEPALIVE` and `TCP_NODELAY` are enabled; pool size is bounded to
 1–64. This removes DNS, TCP setup, and teardown from steady-state CRUD.
 
 The exact supported API, wire frame, failure behavior, pool lifecycle, and
 missing topology/authentication features are documented in
-the `hono-mongodb-todo` app.
+the database test app (`apps/hono-mongodb-todo`).
 The app's own README lists the independent ping, CRUD, full-stack, browser and
 connection-reuse checks.
 
@@ -233,7 +236,8 @@ Measured on the idle benchmark box; the full history with numbers is in
    answer depends on the compiler, so it was measured on both (four pinned
    workers, 2026-09-22, compiler 1.0.17). clang 18, raw server: `-O2`
    304-313k req/s at 1.72 MB, `-O2 -flto` 304-308k at 1.64 MB, `-Os -flto`
-   307-320k at 1.05 MB, `-O3` level with `-O2` at +5% size. clang 18, Hono:
+   307-320k at 1.05 MB, `-O3` level with `-O2` at +5% size. clang 18, HTTP
+   framework app:
    `-O2 -flto` 141-144k at 7.27 MB, `-Os -flto` 150-152k at 5.04 MB — more
    instructions per request (35,966 vs 33,540) but fewer cycles (31,662 vs
    37,454): the hot path is instruction-cache bound and smaller code wins.

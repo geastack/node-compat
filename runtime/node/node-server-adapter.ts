@@ -1,6 +1,7 @@
-// `@hono/node-server`, answered by this target (see `scripts/build.mjs`'s
-// `answeredPackages`): the same `serve({ fetch, port }, listening)` surface an
-// app imports from the package, over the reactor directly.
+// An HTTP framework's Node server adapter package, answered by this target
+// (see `scripts/build.mjs`'s `answeredPackages`, which names the package): the
+// same `serve({ fetch, port }, listening)` surface an app imports from the
+// package, over the reactor directly.
 //
 // The package's own listener exists to run a WHATWG fetch handler on Node's
 // `http` module: it takes the IncomingMessage/ServerResponse pair Node built,
@@ -13,11 +14,12 @@
 // dispatch anyway (`__gea_http_serve`), with the method, the URL, the raw
 // header block and the body bytes already separated. So this goes from that
 // dispatch to a `Request` (`Request.fromWire`: nothing copied, headers parsed
-// only if read) and from the `Response` to one wire write. What Hono itself
-// does per request is unchanged; what this removes is the adapter around it.
+// only if read) and from the `Response` to one wire write. What the framework
+// itself does per request is unchanged; what this removes is the adapter around it.
 //
 // Same-tree measurement, one worker, `/json`: 13.3k rps through the compiled
-// package against 26.0k through this shape (hono-bridge, 2026-09-18).
+// package against 26.0k through this shape (the adapter bridge test app,
+// 2026-09-18).
 import { statusText } from './http'
 import { Buffer } from './buffer-types'
 
@@ -26,7 +28,7 @@ import { Buffer } from './buffer-types'
 // run the program's handler for the next pipelined request, so neither is
 // inert, but none of the five writes a property on any JavaScript object.
 // Without the tag the census stamps `every` key onto each intrinsic the
-// dispatch closure reaches, `Object` included, and refuses Hono's own
+// dispatch closure reaches, `Object` included, and refuses the framework's own
 // `Object.keys`.
 /** @gea-host-no-property-writes */
 declare function __gea_http_serve(
@@ -62,8 +64,8 @@ const FLAG_KEEP_ALIVE = 1
 // literal on purpose, and not only for the type: a literal captured by the
 // dispatch closure below reaches `Object.prototype` in the host-mutation
 // census's alias graph, and handing that closure to the untagged reactor
-// intrinsic then stamps `every` key onto `Object` -- which refuses Hono's own
-// `Object.keys` in the router.)
+// intrinsic then stamps `every` key onto `Object` -- which refuses the
+// framework's own `Object.keys` in the router.)
 export type FetchCallback = (request: Request, env?: undefined) => Response | Promise<Response>
 export interface Options {
   fetch: FetchCallback
@@ -151,7 +153,7 @@ function respond(connId: number, keepAliveRequested: boolean, isHead: boolean, r
 }
 
 function respondFailure(connId: number, error: unknown): void {
-  console.error('hono-node-server: handler failed', error)
+  console.error('node-server-adapter: handler failed', error)
   __gea_http_write(connId, 'HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n')
   __gea_http_done(connId, false)
 }
@@ -162,8 +164,8 @@ function respondFailure(connId: number, error: unknown): void {
 // host-mutation census stamps `every` key onto each intrinsic object such an
 // argument can reach; a closure that itself read `Request` or `Promise` (both
 // properties of the global object) reached the global object, and with it
-// `Object` -- which then failed Hono's own `Object.keys` obligation in the
-// router. Here the closure captures exactly one value, the app's handler,
+// `Object` -- which then failed the framework's own `Object.keys` obligation
+// in the router. Here the closure captures exactly one value, the app's handler,
 // the same shape `http.ts`'s `Server#listen` closure has always had.
 function dispatch(fetch: FetchCallback, connId: number, flags: number, method: string, url: string, rawHead: string, body: string): void {
   const keepAlive = (flags & FLAG_KEEP_ALIVE) !== 0

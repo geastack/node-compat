@@ -676,16 +676,16 @@ export const intrinsics = {
     emit: 'gea::node::net_write',
     returnType: 'bool'
   },
-  __gea_node_mongodb_pool_open: {
-    emit: 'gea::node::mongodb_pool_open',
+  __gea_node_framed_socket_pool_open: {
+    emit: 'gea::node::framed_socket_pool_open',
     returnType: 'double'
   },
-  __gea_node_mongodb_pool_exchange: {
-    emit: 'gea::node::mongodb_pool_exchange',
+  __gea_node_framed_socket_pool_exchange: {
+    emit: 'gea::node::framed_socket_pool_exchange',
     returnType: BUFFER_NATIVE_TYPE
   },
-  __gea_node_mongodb_pool_close: {
-    emit: 'gea::node::mongodb_pool_close',
+  __gea_node_framed_socket_pool_close: {
+    emit: 'gea::node::framed_socket_pool_close',
     returnType: 'void'
   },
   __gea_node_net_buffer_size: {

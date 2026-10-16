@@ -134,21 +134,25 @@ inline void drain_next_ticks() {
 
 namespace gea::node {
 
+// A pooled request/response exchange over TCP for wire protocols whose
+// messages start with their own total length as a 4-byte little-endian
+// integer: a request is written whole, and the reply is read as that header
+// and then the rest of the frame it announces.
 namespace {
 
-[[noreturn]] inline void mongodb_exchange_fail(const char *operation) {
-  std::fprintf(stderr, "gea: MongoDB wire %s failed: %s\n", operation, platform::errorText(errno));
+[[noreturn]] inline void framed_socket_exchange_fail(const char *operation) {
+  std::fprintf(stderr, "gea: framed socket exchange %s failed: %s\n", operation, platform::errorText(errno));
   std::abort();
 }
 
-inline platform::Fd mongodb_connect_socket(const std::string &host, unsigned int port) {
+inline platform::Fd framed_socket_connect(const std::string &host, unsigned int port) {
   platform::ensureSockets();
   const std::string service = std::to_string(port);
   addrinfo query{};
   query.ai_family = AF_UNSPEC;
   query.ai_socktype = SOCK_STREAM;
   addrinfo *resolved = nullptr;
-  if (::getaddrinfo(host.c_str(), service.c_str(), &query, &resolved) != 0) mongodb_exchange_fail("resolve");
+  if (::getaddrinfo(host.c_str(), service.c_str(), &query, &resolved) != 0) framed_socket_exchange_fail("resolve");
 
   platform::Fd fd = platform::kInvalidFd;
   for (addrinfo *candidate = resolved; candidate != nullptr; candidate = candidate->ai_next) {
@@ -161,18 +165,18 @@ inline platform::Fd mongodb_connect_socket(const std::string &host, unsigned int
     fd = platform::kInvalidFd;
   }
   ::freeaddrinfo(resolved);
-  if (!platform::valid(fd)) mongodb_exchange_fail("connect");
+  if (!platform::valid(fd)) framed_socket_exchange_fail("connect");
   return fd;
 }
 
-class MongoConnectionPool {
+class FramedSocketPool {
  public:
-  MongoConnectionPool(std::string host, unsigned int port, std::size_t max_size)
+  FramedSocketPool(std::string host, unsigned int port, std::size_t max_size)
       : host_(std::move(host)), port_(port), max_size_(max_size) {
-    idle_.push_back(mongodb_connect_socket(host_, port_));
+    idle_.push_back(framed_socket_connect(host_, port_));
   }
 
-  ~MongoConnectionPool() {
+  ~FramedSocketPool() {
     for (const platform::Fd fd : idle_) platform::closeSocket(fd);
   }
 
@@ -185,16 +189,16 @@ class MongoConnectionPool {
     }
     if (leased_ >= max_size_) {
       errno = EBUSY;
-      mongodb_exchange_fail("pool lease");
+      framed_socket_exchange_fail("pool lease");
     }
     ++leased_;
-    return mongodb_connect_socket(host_, port_);
+    return framed_socket_connect(host_, port_);
   }
 
   void release(platform::Fd fd) {
     if (leased_ == 0) {
       errno = EINVAL;
-      mongodb_exchange_fail("pool release");
+      framed_socket_exchange_fail("pool release");
     }
     --leased_;
     idle_.push_back(fd);
@@ -208,79 +212,79 @@ class MongoConnectionPool {
   std::vector<platform::Fd> idle_;
 };
 
-inline std::unordered_map<std::uint64_t, std::unique_ptr<MongoConnectionPool>> &mongodb_pools() {
-  static std::unordered_map<std::uint64_t, std::unique_ptr<MongoConnectionPool>> pools;
+inline std::unordered_map<std::uint64_t, std::unique_ptr<FramedSocketPool>> &framed_socket_pools() {
+  static std::unordered_map<std::uint64_t, std::unique_ptr<FramedSocketPool>> pools;
   return pools;
 }
 
-inline std::uint64_t &mongodb_next_pool_id() {
+inline std::uint64_t &framed_socket_next_pool_id() {
   static std::uint64_t id = 1;
   return id;
 }
 
-inline MongoConnectionPool &mongodb_pool_for(double pool_id) {
-  const auto found = mongodb_pools().find(static_cast<std::uint64_t>(pool_id));
-  if (found == mongodb_pools().end()) {
+inline FramedSocketPool &framed_socket_pool_for(double pool_id) {
+  const auto found = framed_socket_pools().find(static_cast<std::uint64_t>(pool_id));
+  if (found == framed_socket_pools().end()) {
     errno = EINVAL;
-    mongodb_exchange_fail("pool lookup");
+    framed_socket_exchange_fail("pool lookup");
   }
   return *found->second;
 }
 
-inline void mongodb_send_all(platform::Fd fd, const std::uint8_t *bytes, std::size_t length) {
+inline void framed_socket_send_all(platform::Fd fd, const std::uint8_t *bytes, std::size_t length) {
   std::size_t sent = 0;
   while (sent < length) {
     const platform::ssize count = platform::sendBytes(fd, bytes + sent, length - sent);
     if (count < 0 && errno == EINTR) continue;
-    if (count <= 0) mongodb_exchange_fail("write");
+    if (count <= 0) framed_socket_exchange_fail("write");
     sent += static_cast<std::size_t>(count);
   }
 }
 
-inline void mongodb_read_all(platform::Fd fd, std::uint8_t *bytes, std::size_t length) {
+inline void framed_socket_read_all(platform::Fd fd, std::uint8_t *bytes, std::size_t length) {
   std::size_t received = 0;
   while (received < length) {
     const platform::ssize count = platform::recvBytes(fd, bytes + received, length - received);
     if (count < 0 && errno == EINTR) continue;
-    if (count <= 0) mongodb_exchange_fail("read");
+    if (count <= 0) framed_socket_exchange_fail("read");
     received += static_cast<std::size_t>(count);
   }
 }
 
 }  // namespace
 
-inline double mongodb_pool_open(std::string host, double port, double max_size) {
-  const std::uint64_t id = mongodb_next_pool_id()++;
+inline double framed_socket_pool_open(std::string host, double port, double max_size) {
+  const std::uint64_t id = framed_socket_next_pool_id()++;
   const std::size_t bounded_size =
       std::max<std::size_t>(1, std::min<std::size_t>(64, static_cast<std::size_t>(max_size)));
-  mongodb_pools().emplace(
-      id, std::make_unique<MongoConnectionPool>(std::move(host), static_cast<unsigned int>(port), bounded_size));
+  framed_socket_pools().emplace(
+      id, std::make_unique<FramedSocketPool>(std::move(host), static_cast<unsigned int>(port), bounded_size));
   return static_cast<double>(id);
 }
 
-inline std::vector<std::uint8_t> mongodb_pool_exchange(double pool_id, const gea::TypedArray<std::uint8_t> &request) {
-  MongoConnectionPool &pool = mongodb_pool_for(pool_id);
+inline std::vector<std::uint8_t> framed_socket_pool_exchange(double pool_id, const gea::TypedArray<std::uint8_t> &request) {
+  FramedSocketPool &pool = framed_socket_pool_for(pool_id);
   const platform::Fd fd = pool.lease();
-  mongodb_send_all(fd, request.data(), request.size());
+  framed_socket_send_all(fd, request.data(), request.size());
   std::uint8_t header[4]{};
-  mongodb_read_all(fd, header, sizeof(header));
+  framed_socket_read_all(fd, header, sizeof(header));
   const std::uint32_t length = static_cast<std::uint32_t>(header[0]) |
                                (static_cast<std::uint32_t>(header[1]) << 8) |
                                (static_cast<std::uint32_t>(header[2]) << 16) |
                                (static_cast<std::uint32_t>(header[3]) << 24);
   if (length < 21 || length > 64u * 1024u * 1024u) {
-    std::fprintf(stderr, "gea: MongoDB returned invalid wire message length %u\n", length);
+    std::fprintf(stderr, "gea: framed socket exchange returned invalid message length %u\n", length);
     std::abort();
   }
   std::vector<std::uint8_t> response(length);
   std::copy(std::begin(header), std::end(header), response.begin());
-  mongodb_read_all(fd, response.data() + sizeof(header), response.size() - sizeof(header));
+  framed_socket_read_all(fd, response.data() + sizeof(header), response.size() - sizeof(header));
   pool.release(fd);
   return response;
 }
 
-inline void mongodb_pool_close(double pool_id) {
-  mongodb_pools().erase(static_cast<std::uint64_t>(pool_id));
+inline void framed_socket_pool_close(double pool_id) {
+  framed_socket_pools().erase(static_cast<std::uint64_t>(pool_id));
 }
 
 }  // namespace gea::node
@@ -630,7 +634,7 @@ inline void reportRuntimeAllocationProfile() {
   }
   // What is still alive at exit, by bytes held: a steady-state program's live
   // set is its working set, so anything here that scales with the operation
-  // count is a leak (the mongodb driver kept ~2 objects per operation).
+  // count is a leak (a database driver kept ~2 objects per operation).
   std::sort(types.begin(), types.end(), [](const auto *left, const auto *right) {
     return (left->created - left->destroyed) * left->blockBytes > (right->created - right->destroyed) * right->blockBytes;
   });
@@ -1200,7 +1204,7 @@ private:
   // kqueue backend, the macOS counterpart of `runEpoll`. `poll()` on XNU is
   // itself built on kqueue: every call registers a knote per descriptor,
   // waits, and tears them all down again, so a client blocking once per
-  // round trip paid that kernel setup per operation -- the mongodb driver's
+  // round trip paid that kernel setup per operation -- a database driver's
   // system time was a quarter above Node's, whose libuv keeps its kqueue
   // registrations. Here each watcher's read and write filters stay
   // registered (level-triggered, as poll is) and only interest CHANGES reach
@@ -1414,7 +1418,7 @@ private:
 // Outbound TCP connections for node:net.
 //
 // The callback is deliberately zero-argument. TS drains event codes and pulls
-// bytes through net_read() as gea_node_buffer, keeping MongoDB wire payloads on
+// bytes through net_read() as gea_node_buffer, keeping database wire payloads on
 // the native byte carrier instead of boxing them as gea_cpp_value.
 // ---------------------------------------------------------------------------
 class ClientConnection;
@@ -1544,7 +1548,7 @@ public:
         notifySoon();
       }
     }
-    // MongoDB's command writes are much smaller than Node's default writable
+    // A database driver's command writes are much smaller than Node's default writable
     // high-water mark. We accept them into outBuffer_ and report writable.
     return !closing_;
   }
@@ -2743,8 +2747,8 @@ public:
 // handler -- and the stack makes the waits LIFO: the outer handler cannot
 // resume, even once its promise has settled, until the inner one returns. The
 // moment the inner handler waits on something only the outer can release, the
-// process spins forever. The mongodb driver hits this on the second concurrent
-// request: `ConnectionPool.checkOut` queues behind `maxConnecting`, while the
+// process spins forever. A database driver hits this on the second concurrent
+// request: its connection pool's check-out queues behind `maxConnecting`, while the
 // handshake that would free a slot is an `await` in the frame underneath.
 //
 // So a request that completes while any handler is on the stack is parked
@@ -3976,7 +3980,8 @@ inline void __gea_http_final_chunk(double connId, const std::string &data) {
 // runtime, and its parameter is a TypeScript `string`: an application handing
 // `res.end(uint8Array)` a PNG, a protobuf frame or any other non-UTF-8 payload
 // had no path that preserved its bytes, so `ServerResponse.end` could only
-// declare `string` and hono's `outgoing.end(body)` (body: `Uint8Array`) was a
+// declare `string` and an HTTP framework adapter's `outgoing.end(body)`
+// (body: `Uint8Array`) was a
 // checker error rather than a wrong answer. This is the missing half: the
 // carrier is `gea::TypedArray<std::uint8_t>`, the same one `net_write` already
 // takes for `node:net`, so a `Uint8Array`/`Buffer` arrives as its own storage
@@ -3995,7 +4000,7 @@ inline void __gea_http_write_bytes(double connId, const gea::TypedArray<std::uin
   // and a full copy of every byte response, on top of the copy into the
   // connection buffer that follows. `enqueueResponseBytes` takes a
   // `string_view` now, so the bytes go straight from the TypedArray's own
-  // storage into the buffer. This is hono's response path.
+  // storage into the buffer. This is a fetch-style framework's response path.
   conn->enqueueResponseBytes(std::string_view(reinterpret_cast<const char *>(bytes), data.size()));
 }
 

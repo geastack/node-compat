@@ -47,7 +47,7 @@ Two applications, each compiled by geatsc and each also run under Node:
 - **Hono** (`apps/hono-hello/server.ts`): the real `hono` package with the
   default `SmartRouter` stack, served through `@hono/node-server`. Under
   geatsc the `serve` import resolves to node-compat's native answer for that
-  package (`runtime/node/hono-node-server.ts`), so a request goes reactor →
+  package (`runtime/node/node-server-adapter.ts`), so a request goes reactor →
   `Request` → `app.fetch` → wire with no intermediate Node objects. The app
   file is unchanged between the two runtimes.
 - **Raw `node:http`** (`apps/raw-http-hello/server.ts`): `createServer((req,

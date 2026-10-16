@@ -11,7 +11,7 @@ const internalSourceNames = new Set([
   'node-globals',
   'native-addons',
   'buffer-types',
-  'hono-node-server',
+  'node-server-adapter',
   'whatwg-url',
   // A script, not a module: the WHATWG stream classes in global scope. The
   // `node:stream/web` builtin is `stream/web.ts`, which re-exports them.
@@ -105,7 +105,8 @@ const resolvedRuntimeModule = (specifier, importer, overrides) => {
  *
  * Resolution intentionally follows Node's package entry points, including
  * CommonJS `require()` edges, instead of TypeScript's declaration preference:
- * Fastify's types resolve `light-my-request` to `types/index.d.ts`, while the
+ * an HTTP framework's types resolve its request-injection helper to
+ * `types/index.d.ts`, while the
  * code that actually runs resolves to `lib/parse-url.js` and constructs both
  * URL classes. `moduleOverrides` models package implementations supplied by
  * this target (currently `whatwg-url`) before consulting installed packages.
@@ -129,7 +130,7 @@ export function reachableRuntimeGlobalNeeds({ entryFiles, moduleOverrides = new 
   }
   // Bind the reachable files together without resolving a second module
   // graph. An imported/local `URL` has a Symbol and needs no global provider;
-  // Fastify's `new URL(...)` and the whatwg facade's global alias do not.
+  // A framework's bare `new URL(...)` and the whatwg facade's global alias do not.
   const program = ts.createProgram({
     rootNames: [...files],
     options: { allowJs: true, checkJs: false, noEmit: true, noLib: true, noResolve: true, target: ts.ScriptTarget.Latest }
