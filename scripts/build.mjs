@@ -988,24 +988,24 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
       : [
           ...(compiling ? ['-ffunction-sections', '-fdata-sections'] : []),
           // lld-link and link.exe spell section garbage collection /opt:ref.
-          // Both then also fold identical functions (/opt:icf) unless told
-          // not to, and that folding ignores whether a function's address is
-          // taken. The runtime keys callables by their thunk's address: once
-          // two classes' unbound-method thunks -- one body, two receiver
-          // checks -- shared an address, `pipeline` into a PassThrough
-          // checked it as a Writable and threw "a native method receiver is
-          // outside its authenticated class family". link.exe has no
-          // safe-ICF spelling, so folding stays off.
-          ...(linking ? (process.platform === 'win32' ? ['-Wl,/opt:ref', '-Wl,/opt:noicf'] : ['-Wl,--gc-sections']) : [])
+          // Both then also fold identical functions (/opt:icf), address-taken
+          // ones included, which the runtime is indifferent to: it keeps a
+          // callable's receiver check, frame and facts in the entry's own
+          // record, never behind the entry's address (the compiler's
+          // test/identical-code-folding.mjs).
+          ...(linking ? [process.platform === 'win32' ? '-Wl,/opt:ref' : '-Wl,--gc-sections'] : [])
         ]),
-    // Fold byte-identical functions, as ld64 already does on macOS. Templates
-    // instantiate the same machine code under many names -- every
-    // `ArrayObject<CallableObject<void(Ref<X>)>>` member, one per event
-    // listener type, is one body -- and `safe` folds only functions whose
-    // address is never taken, so no pointer comparison can tell. The LTO links
-    // are gold or lld, which both implement it. raw-http-hello 1,282,256 ->
-    // 1,192,144 bytes, hono-hello 6,624,648 -> 6,063,496 (clang 18, -Os -flto).
-    ...(linking && optimize && lto !== null && process.platform === 'linux' && cxxIsClang ? ['-Wl,--icf=safe'] : []),
+    // Fold byte-identical functions, as ld64 already does on macOS and
+    // lld-link does on Windows. Templates instantiate the same machine code
+    // under many names -- every `ArrayObject<CallableObject<void(Ref<X>)>>`
+    // member, one per event listener type, is one body. `all` folds
+    // address-taken functions too, which the runtime is indifferent to (it
+    // keeps no fact behind an entry's address); `safe` left them apart. The
+    // LTO links are gold or lld, which both implement it. raw-http-hello
+    // 1,282,256 -> 1,192,144 bytes, hono-hello 6,624,648 -> 6,063,496 with
+    // `safe` (clang 18, -Os -flto); the same app 5,287,592 -> 4,841,128 from
+    // `safe` to `all` (clang 22).
+    ...(linking && optimize && lto !== null && process.platform === 'linux' && cxxIsClang ? ['-Wl,--icf=all'] : []),
     // Runtime headers are authoritative source inputs. Build directories can
     // contain headers copied by an older toolchain run, so searching `outDir`
     // first can silently compile current C++ against a stale host ABI. Keep the

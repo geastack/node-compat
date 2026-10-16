@@ -337,7 +337,10 @@ inline View& writable(const View& view) { return const_cast<View&>(view); }
 
 // One process-wide identity for the JavaScript Buffer brand. The generic
 // typed-array carrier stores only this opaque address; Node owns its meaning.
-inline constexpr char bufferBrand = 0;
+// Mutable, never written: a linker may merge identical read-only bytes
+// (link.exe's /OPT:ICF does, address-taken or not), and every brand is the
+// same zero byte. No linker merges writable data.
+inline char bufferBrand = 0;
 
 #ifdef GEA_HOST_VIEW_TO_STRING
 // ToString of a Buffer the program only holds boxed is stated to the runtime
