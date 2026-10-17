@@ -1,6 +1,6 @@
 {
   "name": "@geastack/node-compat",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "description": "The native Node.js runtime and compiler target for geatsc.",
   "type": "module",
   "license": "Apache-2.0",
