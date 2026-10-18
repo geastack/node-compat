@@ -47,7 +47,7 @@ const internalOverlayExports = new Map(
     'node:process': ['WriteStream'],
     'node:stream': ['duplexToWeb', 'finishedPromise', 'pipelinePromise'],
     'node:stream/promises': ['nodeStreamPromiseFinished', 'nodeStreamPromisePipeline'],
-    'node:timers': ['Timeout']
+    'node:timers': ['Timeout', 'Immediate']
   }).map(([moduleName, names]) => [moduleName, new Set(names)])
 )
 const overlayPublicExportTargets = new Map([

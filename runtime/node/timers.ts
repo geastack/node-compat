@@ -18,15 +18,23 @@
 const TimeoutAlias = Timeout
 type TimeoutAlias = Timeout
 
+const ImmediateAlias = Immediate
+type ImmediateAlias = Immediate
+
 const setTimeoutAlias = setTimeout
 const setIntervalAlias = setInterval
 const clearTimeoutAlias = clearTimeout
 const clearIntervalAlias = clearInterval
+const setImmediateAlias = setImmediate
+const clearImmediateAlias = clearImmediate
 
 export {
   TimeoutAlias as Timeout,
+  ImmediateAlias as Immediate,
   setTimeoutAlias as setTimeout,
   setIntervalAlias as setInterval,
   clearTimeoutAlias as clearTimeout,
-  clearIntervalAlias as clearInterval
+  clearIntervalAlias as clearInterval,
+  setImmediateAlias as setImmediate,
+  clearImmediateAlias as clearImmediate
 }
