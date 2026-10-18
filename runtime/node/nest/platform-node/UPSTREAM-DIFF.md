@@ -7,3 +7,4 @@ each edit is listed here with the upstream line. Behaviour is unchanged.
 
 | File | Upstream line | Edit | Why |
 |---|---|---|---|
+| `body-parser/body-parser.ts` | 657 `throw toParseError(error, text);` | `error instanceof Error ? error : new SyntaxError(String(error))` | catch variable is `unknown` under `strict`; `toParseError` takes `Error`. `JSON.parse` and `secure-json-parse` only ever throw `SyntaxError`, so the fallback branch is unreachable in practice. |
