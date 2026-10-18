@@ -1,0 +1,34 @@
+{
+  "name": "@geastack/nest-tools",
+  "private": true,
+  "type": "module",
+  "description": "Generators and parity tests for runtime/node/nest: the typed shims that replace the JavaScript dependencies of @nestjs/platform-node's vendored sources.",
+  "scripts": {
+    "generate": "node generate-mime-db.mjs",
+    "check": "node generate-mime-db.mjs --check && tsc -p tsconfig.shims.json && node test-shims.mjs",
+    "test:shims": "node test-shims.mjs",
+    "test:probe": "node test-probe.mjs",
+    "typecheck": "tsc -p tsconfig.shims.json"
+  },
+  "dependencies": {
+    "content-type": "2.1.0",
+    "cookie": "0.7.2",
+    "cookie-signature": "1.2.2",
+    "fast-decode-uri-component": "1.0.1",
+    "fast-querystring": "1.1.2",
+    "find-my-way": "9.9.0",
+    "media-typer": "1.1.1",
+    "mime-db": "1.54.0",
+    "mime-types": "3.0.2",
+    "on-finished": "2.4.1",
+    "path-to-regexp": "8.4.2",
+    "qs": "6.15.3",
+    "secure-json-parse": "4.1.0",
+    "send": "1.2.1",
+    "type-is": "2.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3"
+  }
+}
