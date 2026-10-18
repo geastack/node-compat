@@ -654,7 +654,7 @@ export function json(options?: NodeJsonParserOptions): Middleware {
         // only when the text contains one (the parser Fastify uses)
         return secureJson.parse(text, reviver, poisoningActions);
       } catch (error) {
-        throw toParseError(error, text);
+        throw toParseError(error instanceof Error ? error : new SyntaxError(String(error)), text);
       }
     },
     'jsonParser',
