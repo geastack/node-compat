@@ -12,6 +12,7 @@
     "allowImportingTsExtensions": true
   },
   "include": [
-    "../../runtime/node/nest/shims/**/*.ts"
+    "../../runtime/node/nest/shims/**/*.ts",
+    "typecheck/**/*.ts"
   ]
 }
