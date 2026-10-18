@@ -58,6 +58,7 @@ import { brotliPrefix, windowsLibraries } from './native-libraries.mjs'
 const compilerRoot = resolveCompilerRoot()
 const { compile } = await import(compilerModuleUrl('.', compilerRoot))
 const { preparePackageSources } = await import(compilerModuleUrl('./preparation', compilerRoot))
+const { noPluginCapabilities } = await import(compilerModuleUrl('./plugin', compilerRoot))
 
 // The compile runs in this process and allocates hard: on a database driver
 // the default young generation made V8 GC 28% of the emission (24.8k
@@ -598,6 +599,36 @@ const typesOnlyPackages = (() => {
 })()
 
 const { projectFile, unconditionalAmbientRoots } = writeProject()
+const nestAotPlugin = await (async () => {
+  const imported = ts.preProcessFile(fs.readFileSync(entry, 'utf8'), true, true).importedFiles.map((file) => file.fileName)
+  if (!imported.includes('@nestjs/core')) return null
+  const { generateNestApplication } = await import('../tools/nest/aot/generate.mjs')
+  const { NestAnalysisError } = await import('../tools/nest/aot/analyze.mjs')
+  let rewrites
+  try {
+    ;({ rewrites } = generateNestApplication({ ts, entry }))
+  } catch (error) {
+    if (!(error instanceof NestAnalysisError)) throw error
+    console.error(`[build] nest-aot: ${error.diagnostics.length} construct(s) the AOT resolver does not read:`)
+    for (const diagnostic of error.diagnostics) console.error(`  ${displayPath(diagnostic.file)}:${diagnostic.line}:${diagnostic.column}: ${diagnostic.message}`)
+    writeReport({ threw: `nest-aot: ${error.message}` })
+    process.exit(1)
+  }
+  if (process.env.GEA_NEST_AOT_DIR) {
+    fs.mkdirSync(process.env.GEA_NEST_AOT_DIR, { recursive: true })
+    for (const [fileName, text] of rewrites) fs.writeFileSync(path.join(process.env.GEA_NEST_AOT_DIR, path.basename(fileName)), text)
+  }
+  console.error(`[build] nest-aot: ${rewrites.size} file(s) rewritten (${[...rewrites.keys()].map(displayPath).join(', ')})`)
+  return {
+    name: 'nest-aot',
+    instantiate: () => ({
+      producers: () => [],
+      lower: () => false,
+      transformSource: (input) => rewrites.get(input.fileName) ?? null,
+      capabilities: { ...noPluginCapabilities }
+    })
+  }
+})()
 writeReport({ packageSources })
 console.error(`[build] compiling ${displayPath(entry)} -> ${displayPath(outDir)}`)
 
@@ -647,7 +678,7 @@ const compileSources = (sources, javaScriptSources) =>
     dynamicFallback,
     javaScriptSources,
     projectFileName: projectFile,
-    plugins: [geatscNodePlugin()],
+    plugins: nestAotPlugin ? [geatscNodePlugin(), nestAotPlugin] : [geatscNodePlugin()],
     // `entry` plus its resolved dependency graph (npm packages included via
     // `packageSources`) IS the whole application -- the same
     // `compile-module-graph` shape `cli-emit.ts`'s `runModuleGraph` states for
