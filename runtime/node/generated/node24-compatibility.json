@@ -8265,6 +8265,9 @@
           "status": "partial",
           "composition": "generated-export-equals",
           "overlay": "events.ts",
+          "supportedConstructSignatures": [
+            "(options?: EventEmitterOptions): EventEmitter"
+          ],
           "members": [
             {
               "name": "addAbortListener",
@@ -9301,7 +9304,11 @@
         {
           "name": "stat",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "fs.ts",
+          "supportedCallSignatures": [
+            "(path: string | URL, optionsOrCallback: StatOptions | StatCallback, callback?: StatCallback): void"
+          ]
         },
         {
           "name": "statfs",
@@ -9316,13 +9323,18 @@
         {
           "name": "Stats",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "fs.ts",
+          "supportedConstructSignatures": [
+            "(dev: number, ino: number, mode: number, nlink: number, uid: number, gid: number, rdev: number, size: number, blksize: number, blocks: number, atimeMs: number, mtimeMs: number, ctimeMs: number, birthtimeMs: number): Stats"
+          ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "Constructor"
             }
           ]
         },
@@ -9337,7 +9349,8 @@
           "status": "partial",
           "overlay": "fs.ts",
           "supportedCallSignatures": [
-            "(path: string | URL, options?: unknown): Stats"
+            "(path: string | URL, options?: StatSyncOptions & { throwIfNoEntry?: true; }): Stats",
+            "(path: string | URL, options: StatSyncOptions & { throwIfNoEntry: false; }): Stats | undefined"
           ]
         },
         {
@@ -17321,9 +17334,7 @@
           "status": "partial",
           "overlay": "stream/web.ts",
           "supportedConstructSignatures": [
-            "(underlyingSource: UnderlyingByteSource, strategy?: { highWaterMark?: number; }): ReadableStream<Uint8Array<ArrayBuffer>>",
-            "<R = any>(underlyingSource: UnderlyingDefaultSource<R>, strategy?: QueuingStrategy<R>): ReadableStream<R>",
-            "<R = any>(underlyingSource?: UnderlyingSource<R>, strategy?: QueuingStrategy<R>): ReadableStream<R>"
+            "<R = unknown>(underlyingSource?: UnderlyingReadableStreamSource<R>, strategy?: QueuingStrategyInit): ReadableStream<R>"
           ],
           "members": [
             {

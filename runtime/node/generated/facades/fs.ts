@@ -1,7 +1,7 @@
 // Generated from the pinned Node 24 declaration inventory. Do not edit.
 // Canonical builtin: node:fs
 import { nodeNotImplemented } from "../../not-implemented"
-export { constants, createReadStream, existsSync, promises, ReadStream, statSync } from "../../fs"
+export { constants, createReadStream, existsSync, promises, ReadStream, stat, Stats, statSync } from "../../fs"
 
 export function access(...args: unknown[]): never {
   void args
@@ -367,11 +367,6 @@ export function rmSync(...args: unknown[]): never {
   return nodeNotImplemented("node:fs", "rmSync")
 }
 
-export function stat(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:fs", "stat")
-}
-
 export function statfs(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:fs", "statfs")
@@ -380,13 +375,6 @@ export function statfs(...args: unknown[]): never {
 export function statfsSync(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:fs", "statfsSync")
-}
-
-export class Stats {
-  constructor(...args: unknown[]) {
-    void args
-    nodeNotImplemented("node:fs", "Stats")
-  }
 }
 
 export class StatsFs {
