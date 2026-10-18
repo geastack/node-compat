@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { parse as parseContentType } from 'content-type';
-import qs from 'qs';
-import secureJson from 'secure-json-parse';
+import qs, { type Charset, type Decoder, type DefaultDecoder } from 'qs';
+import secureJson, { scanQuery } from 'secure-json-parse';
 import type { Readable, Transform } from 'stream';
 import typeIs from 'type-is';
 import { createBrotliDecompress, createGunzip, createInflate } from 'zlib';
@@ -168,21 +168,63 @@ function parseLimit(limit: number | string | null | undefined): number {
   );
 }
 
+interface BodyParserErrorProperties {
+  encoding?: string;
+  charset?: string;
+  expected?: number;
+  length?: number;
+  limit?: number;
+  received?: number;
+  code?: string;
+  body?: string | Buffer;
+}
+
+export class BodyParserError extends Error {
+  status: number;
+  statusCode: number;
+  expose: boolean;
+  type: string;
+  encoding: string | undefined;
+  charset: string | undefined;
+  expected: number | undefined;
+  length: number | undefined;
+  limit: number | undefined;
+  received: number | undefined;
+  code: string | undefined;
+  body: string | Buffer | undefined;
+
+  constructor(
+    statusCode: number,
+    message: string,
+    type: string,
+    properties: BodyParserErrorProperties = {},
+    name = 'Error',
+  ) {
+    super(message);
+    this.name = name;
+    this.status = statusCode;
+    this.statusCode = statusCode;
+    this.expose = statusCode < 500;
+    this.type = type;
+    this.encoding = properties.encoding;
+    this.charset = properties.charset;
+    this.expected = properties.expected;
+    this.length = properties.length;
+    this.limit = properties.limit;
+    this.received = properties.received;
+    this.code = properties.code;
+    this.body = properties.body;
+  }
+}
+
 function createHttpError(
   statusCode: number,
   message: string,
   type: string,
-  properties: object = {},
-  ErrorClass: typeof Error = Error,
+  properties: BodyParserErrorProperties = {},
+  name = 'Error',
 ) {
-  const error = new ErrorClass(message);
-  return Object.assign(error, {
-    status: statusCode,
-    statusCode,
-    expose: statusCode < 500,
-    type,
-    ...properties,
-  });
+  return new BodyParserError(statusCode, message, type, properties, name);
 }
 
 /**
@@ -426,7 +468,7 @@ function createReader(
         // client goes away mid-body
         req.destroyed && !req.complete
           ? aborted()
-          : createHttpError(400, error.message, 'stream.error', {}, Error),
+          : createHttpError(400, error.message, 'stream.error'),
       );
     const onClose = () => {
       if (!req.complete) {
@@ -453,16 +495,32 @@ function toVerifyError(error: unknown, buffer: Buffer) {
     error instanceof Error
       ? error
       : new Error(String(error ?? 'verify failed'));
-  const errorStatus =
-    (failure as any).status || (failure as any).statusCode || 403;
+  const errorStatus = verifyErrorStatus(failure) || 403;
   const status = errorStatus >= 400 && errorStatus < 600 ? errorStatus : 403;
-  return Object.assign(failure, {
+  return new BodyParserError(
     status,
-    statusCode: status,
-    expose: status < 500,
-    type: (failure as any).type || 'entity.verify.failed',
-    body: buffer,
-  });
+    failure.message,
+    verifyErrorType(failure) || 'entity.verify.failed',
+    { body: buffer },
+    failure.name,
+  );
+}
+
+function verifyErrorStatus(error: Error): number {
+  if (error instanceof BodyParserError) return error.status || error.statusCode;
+  if ('status' in error && typeof error.status === 'number' && error.status) {
+    return error.status;
+  }
+  if ('statusCode' in error && typeof error.statusCode === 'number') {
+    return error.statusCode;
+  }
+  return 0;
+}
+
+function verifyErrorType(error: Error): string {
+  if (error instanceof BodyParserError) return error.type;
+  if ('type' in error && typeof error.type === 'string') return error.type;
+  return '';
 }
 
 /**
@@ -495,13 +553,7 @@ function getPoisoningActions(options?: NodePrototypePoisoningOptions) {
 }
 
 function toParseError(error: Error, text: string) {
-  return Object.assign(error, {
-    status: 400,
-    statusCode: 400,
-    expose: true,
-    type: 'entity.parse.failed',
-    body: text,
-  });
+  return new BodyParserError(400, error.message, 'entity.parse.failed', { body: text }, error.name);
 }
 
 function decode(buffer: Buffer, charset: string): string {
@@ -645,7 +697,7 @@ export function json(options?: NodeJsonParserOptions): Middleware {
             : `Unexpected token '${first}', "${text.slice(0, 20)}" is not valid JSON`,
           'entity.parse.failed',
           { body: text },
-          SyntaxError,
+          'SyntaxError',
         );
       }
       try {
@@ -699,15 +751,15 @@ export function urlencoded(options?: NodeUrlencodedParserOptions): Middleware {
   }
   // "qs" silently drops "__proto__" keys; with 'error', reject them as the
   // JSON parser does
-  const decoder =
+  const decoder: Decoder | undefined =
     poisoningActions.protoAction === 'error'
       ? (
           value: string,
-          defaultDecoder: (value: string, ...args: any[]) => string,
-          charset: string,
+          defaultDecoder: DefaultDecoder,
+          charset: Charset,
           type: 'key' | 'value',
-        ) => {
-          const decoded = defaultDecoder(value, defaultDecoder, charset);
+        ): string | null => {
+          const decoded = defaultDecoder(value, undefined, charset);
           if (
             type === 'key' &&
             (extended ? PROTO_KEY.test(decoded) : decoded === '__proto__')
@@ -755,7 +807,7 @@ export function urlencoded(options?: NodeUrlencodedParserOptions): Middleware {
         // "qs" drops "__proto__" keys, but nests "constructor[prototype][x]"
         // like the JSON payload the JSON parser rejects
         return scanForPoisoning
-          ? secureJson.scan(body, poisoningActions)
+          ? scanQuery(body, poisoningActions)
           : body;
       } catch (error) {
         if (error instanceof SyntaxError) {
