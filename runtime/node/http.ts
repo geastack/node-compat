@@ -247,9 +247,14 @@ export function statusText(code: number): string {
 
 // Node joins duplicate request headers per header semantics: singleton headers
 // keep the FIRST value, `cookie` joins with "; ", everything else with ", ".
-function addIncomingHeader(headers: { [name: string]: string }, lower: string, value: string): void {
-  if (!headers.hasOwnProperty(lower)) headers[lower] = value
-  else if (!isSingletonHeader(lower)) headers[lower] = headers[lower] + (lower === 'cookie' ? '; ' : ', ') + value
+function addIncomingHeader(headers: IncomingHttpHeaders, lower: string, value: string): void {
+  const existing = headers[lower]
+  if (existing === undefined) headers[lower] = value
+  else if (!isSingletonHeader(lower)) headers[lower] = existing + (lower === 'cookie' ? '; ' : ', ') + value
+}
+
+export interface IncomingHttpHeaders {
+  [name: string]: string | undefined
 }
 
 function isSingletonHeader(lower: string): boolean {
@@ -426,7 +431,7 @@ export class IncomingMessage extends Readable {
 
   private connId_: number
   private socket_: Socket | undefined
-  private headersMap_: { [name: string]: string } | undefined
+  private headersMap_: IncomingHttpHeaders | undefined
   private rawHead_: string
   private rawHeaders_: string[] | undefined
   // Dedupes the deferred-resume microtask newListenerAdded schedules below -- 'data' and 'end'
@@ -508,7 +513,7 @@ export class IncomingMessage extends Readable {
 
   // Lazy joined headers — built on first access so requests that never read
   // `headers` (the common hot path) pay nothing.
-  get headers(): { [name: string]: string } {
+  get headers(): IncomingHttpHeaders {
     let headers = this.headersMap_
     if (headers === undefined) {
       headers = {}
