@@ -269,8 +269,8 @@ function toFindMyWayPath(tokens: Token[]): FindMyWayVariant | undefined {
  */
 export class RouteTable {
   private readonly maxParamLength: number;
-  private readonly router: FindMyWay.Instance<FindMyWay.HTTPVersion.V1>;
-  private readonly allRouter: FindMyWay.Instance<FindMyWay.HTTPVersion.V1>;
+  private readonly router: FindMyWay.Instance<RouteRecord>;
+  private readonly allRouter: FindMyWay.Instance<RouteRecord>;
   private readonly records = new Map<string, RouteRecord>();
   private readonly fallbackRoutes: FallbackRoute[] = [];
   private readonly routes: RegisteredRoute[] = [];
@@ -286,8 +286,8 @@ export class RouteTable {
       // because of a parameter's length (see TOO_LONG)
       onMaxParamLength: noop,
     };
-    this.router = FindMyWay(routerOptions);
-    this.allRouter = FindMyWay(routerOptions);
+    this.router = FindMyWay<RouteRecord>(routerOptions);
+    this.allRouter = FindMyWay<RouteRecord>(routerOptions);
   }
 
   /**
@@ -344,7 +344,7 @@ export class RouteTable {
         wildcardSlashes,
       };
       try {
-        router.on(routerMethod as any, routePath, () => {}, newRecord);
+        router.on(routerMethod as FindMyWay.HTTPMethod, routePath, () => {}, newRecord);
       } catch {
         // Same shape as an existing route under different parameter names
         this.fallbackRoutes.push({
@@ -396,19 +396,19 @@ export class RouteTable {
   }
 
   private find(
-    router: FindMyWay.Instance<FindMyWay.HTTPVersion.V1>,
+    router: FindMyWay.Instance<RouteRecord>,
     method: string,
     path: string,
   ): FoundRoute | null {
-    const result = router.find(method as any, path);
+    const result = router.find(method, path);
     if (result === null) {
       return null;
     }
     if (result.store === null) {
       return TOO_LONG;
     }
-    const record = result.store as RouteRecord;
-    const values = result.params as Record<string, string>;
+    const record = result.store;
+    const values = result.params;
     for (const key in values) {
       // path-to-regexp (the middleware matcher, and Express) requires at
       // least one character per parameter; find-my-way also accepts an empty
