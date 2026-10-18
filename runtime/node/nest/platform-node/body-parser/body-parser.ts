@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import contentType from 'content-type';
+import { parse as parseContentType } from 'content-type';
 import qs from 'qs';
 import secureJson from 'secure-json-parse';
 import type { Readable, Transform } from 'stream';
@@ -215,8 +215,7 @@ function getCharset(req: IncomingMessage): string | undefined {
       // RFC 9110 parameter parsing (quoted strings included), as body-parser
       // does, so that a "charset=" inside another parameter's quoted value is
       // not mistaken for the charset
-      cachedCharset = contentType
-        .parse(header)
+      cachedCharset = parseContentType(header)
         .parameters.charset?.toLowerCase();
     } catch {
       cachedCharset = undefined;

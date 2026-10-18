@@ -8,6 +8,7 @@ each edit is listed here with the upstream line. Behaviour is unchanged.
 | File | Upstream line | Edit | Why |
 |---|---|---|---|
 | `body-parser/body-parser.ts` | 657 `throw toParseError(error, text);` | `error instanceof Error ? error : new SyntaxError(String(error))` | catch variable is `unknown` under `strict`; `toParseError` takes `Error`. `JSON.parse` and `secure-json-parse` only ever throw `SyntaxError`, so the fallback branch is unreachable in practice. |
+| `body-parser/body-parser.ts` | 2 `import contentType from 'content-type';` and 218-219 `contentType.parse(header)` | `import { parse as parseContentType } from 'content-type';` / `parseContentType(header)` | the package compiles from its TypeScript source here, which has named exports only; the default import exists upstream through `esModuleInterop` over the published CommonJS build. |
 
 ## No-boxing typing
 
