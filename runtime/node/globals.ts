@@ -1126,6 +1126,29 @@ class URL {
     this.parse(full);
   }
 
+  static canParse(url: string | URL, base?: string | URL): boolean {
+    const text = trimUrlInput(typeof url === "string" ? url : url.href);
+    const scheme = urlSchemeOf(text);
+    if (scheme.length === 0) {
+      if (base === undefined) return false;
+      const baseText = trimUrlInput(typeof base === "string" ? base : base.href);
+      const baseScheme = urlSchemeOf(baseText);
+      if (!URL.canParse(baseText)) return false;
+      const baseIsSpecial = isSpecialUrlScheme(baseScheme);
+      if (!baseIsSpecial && baseText.charAt(baseScheme.length) !== "/") return text.charAt(0) === "#";
+      if (startsWithUrlAuthority(text, baseIsSpecial))
+        return !baseIsSpecial || canParseSpecialUrlAuthority(urlAuthorityOf(text.slice(2)), baseScheme === "file:");
+      return true;
+    }
+    if (base !== undefined && !URL.canParse(base)) return false;
+    if (!isSpecialUrlScheme(scheme)) return true;
+    let rest = text.slice(scheme.length);
+    let slashes = 0;
+    while (slashes < rest.length && (rest.charAt(slashes) === "/" || rest.charAt(slashes) === "\\")) slashes++;
+    rest = rest.slice(slashes);
+    return canParseSpecialUrlAuthority(urlAuthorityOf(rest), scheme === "file:");
+  }
+
   private parse(full: string): void {
     // Minimal parse: scheme://host[:port]/path?search#hash
     this.protocol = "";
@@ -1406,6 +1429,171 @@ function isSpecialUrlScheme(protocol: string): boolean {
     protocol === "ftp:" ||
     protocol === "file:"
   );
+}
+
+function trimUrlInput(input: string): string {
+  let start = 0;
+  let end = input.length;
+  while (start < end && input.charCodeAt(start) <= 0x20) start++;
+  while (end > start && input.charCodeAt(end - 1) <= 0x20) end--;
+  let text = input.slice(start, end);
+  if (text.indexOf("\t") >= 0 || text.indexOf("\n") >= 0 || text.indexOf("\r") >= 0)
+    text = text.split("\t").join("").split("\n").join("").split("\r").join("");
+  return text;
+}
+
+function urlSchemeOf(text: string): string {
+  const first = text.charCodeAt(0);
+  const isLetter = (code: number): boolean => (code >= 0x41 && code <= 0x5a) || (code >= 0x61 && code <= 0x7a);
+  if (text.length === 0 || !isLetter(first)) return "";
+  for (let i = 1; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code === 0x3a) return text.slice(0, i + 1).toLowerCase();
+    const isDigit = code >= 0x30 && code <= 0x39;
+    if (!isLetter(code) && !isDigit && code !== 0x2b && code !== 0x2d && code !== 0x2e) return "";
+  }
+  return "";
+}
+
+function startsWithUrlAuthority(text: string, special: boolean): boolean {
+  if (text.length < 2) return false;
+  const isSlash = (ch: string): boolean => ch === "/" || (special && ch === "\\");
+  return isSlash(text.charAt(0)) && isSlash(text.charAt(1));
+}
+
+function urlAuthorityOf(rest: string): string {
+  for (let i = 0; i < rest.length; i++) {
+    const ch = rest.charAt(i);
+    if (ch === "/" || ch === "\\" || ch === "?" || ch === "#") return rest.slice(0, i);
+  }
+  return rest;
+}
+
+function canParseSpecialUrlAuthority(authority: string, isFile: boolean): boolean {
+  const at = authority.lastIndexOf("@");
+  if (isFile && at >= 0) return false;
+  const hostPort = at >= 0 ? authority.slice(at + 1) : authority;
+  if (hostPort.length === 0) return isFile;
+  let host = hostPort;
+  let port = "";
+  if (hostPort.charAt(0) === "[") {
+    const close = hostPort.indexOf("]");
+    if (close < 0) return false;
+    host = hostPort.slice(1, close);
+    const after = hostPort.slice(close + 1);
+    if (after.length > 0) {
+      if (after.charAt(0) !== ":") return false;
+      port = after.slice(1);
+    }
+    if (!isValidIPv6UrlHost(host)) return false;
+  } else {
+    const colon = hostPort.lastIndexOf(":");
+    if (colon >= 0) {
+      host = hostPort.slice(0, colon);
+      port = hostPort.slice(colon + 1);
+    }
+    if (host.length === 0 || !isValidUrlDomain(host)) return false;
+  }
+  if (isFile) return port.length === 0;
+  return isValidUrlPort(port);
+}
+
+function isValidIPv6UrlHost(inner: string): boolean {
+  if (inner.indexOf(":") < 0) return false;
+  for (let i = 0; i < inner.length; i++) {
+    const code = inner.charCodeAt(i);
+    const isHex = (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x46) || (code >= 0x61 && code <= 0x66);
+    if (!isHex && code !== 0x3a && code !== 0x2e) return false;
+  }
+  return true;
+}
+
+function isValidUrlPort(port: string): boolean {
+  if (port.length === 0) return true;
+  for (let i = 0; i < port.length; i++) {
+    const code = port.charCodeAt(i);
+    if (code < 0x30 || code > 0x39) return false;
+  }
+  return Number(port) <= 65535;
+}
+
+function isValidUrlDomain(host: string): boolean {
+  let decoded = "";
+  for (let i = 0; i < host.length; i++) {
+    const ch = host.charAt(i);
+    if (ch === "%" && isHexPair(host, i + 1)) {
+      decoded += String.fromCharCode(parseInt(host.slice(i + 1, i + 3), 16));
+      i += 2;
+    } else {
+      decoded += ch;
+    }
+  }
+  for (let i = 0; i < decoded.length; i++) {
+    const code = decoded.charCodeAt(i);
+    if (code <= 0x20 || code === 0x7f) return false;
+    const ch = decoded.charAt(i);
+    if (
+      ch === "#" || ch === "%" || ch === "/" || ch === ":" || ch === "<" || ch === ">" || ch === "?" ||
+      ch === "@" || ch === "[" || ch === "\\" || ch === "]" || ch === "^" || ch === "|"
+    )
+      return false;
+  }
+  const labels = decoded.split(".");
+  if (labels.length > 1 && labels[labels.length - 1] === "") labels.pop();
+  const last = labels[labels.length - 1];
+  if (!isUrlIPv4NumberText(last)) return true;
+  if (labels.length > 4) return false;
+  let limit = 256;
+  for (let i = labels.length; i < 4; i++) limit *= 256;
+  for (let i = 0; i < labels.length; i++) {
+    const value = urlIPv4NumberOf(labels[i]);
+    if (value < 0) return false;
+    if (i < labels.length - 1 ? value > 255 : value >= limit) return false;
+  }
+  return true;
+}
+
+function isHexPair(text: string, at: number): boolean {
+  if (at + 1 >= text.length) return false;
+  for (let i = at; i < at + 2; i++) {
+    const code = text.charCodeAt(i);
+    const isHex = (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x46) || (code >= 0x61 && code <= 0x66);
+    if (!isHex) return false;
+  }
+  return true;
+}
+
+function isUrlIPv4NumberText(label: string): boolean {
+  if (label.length === 0) return false;
+  const hex = label.length >= 2 && label.charAt(0) === "0" && (label.charAt(1) === "x" || label.charAt(1) === "X");
+  for (let i = hex ? 2 : 0; i < label.length; i++) {
+    const code = label.charCodeAt(i);
+    const isDigit = code >= 0x30 && code <= 0x39;
+    const isHexLetter = (code >= 0x41 && code <= 0x46) || (code >= 0x61 && code <= 0x66);
+    if (!isDigit && !(hex && isHexLetter)) return false;
+  }
+  return true;
+}
+
+function urlIPv4NumberOf(label: string): number {
+  if (label.length === 0) return -1;
+  let digits = label;
+  let radix = 10;
+  if (digits.length >= 2 && digits.charAt(0) === "0" && (digits.charAt(1) === "x" || digits.charAt(1) === "X")) {
+    digits = digits.slice(2);
+    radix = 16;
+  } else if (digits.length >= 2 && digits.charAt(0) === "0") {
+    digits = digits.slice(1);
+    radix = 8;
+  }
+  if (digits.length === 0) return 0;
+  let value = 0;
+  for (let i = 0; i < digits.length; i++) {
+    const digit = parseInt(digits.charAt(i), radix);
+    if (Number.isNaN(digit)) return -1;
+    value = value * radix + digit;
+  }
+  return value;
 }
 
 // WHATWG URL's path state for a special scheme: a `.` segment (or `%2e`) is
