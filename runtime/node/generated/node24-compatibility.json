@@ -10568,7 +10568,7 @@
           "status": "partial",
           "overlay": "http.ts",
           "supportedConstructSignatures": [
-            "(connId: number, isHead: boolean, keepAliveRequested: boolean, http10: boolean, request: IncomingMessage): ServerResponse"
+            "<Request extends IncomingMessage = IncomingMessage>(connId: number, isHead: boolean, keepAliveRequested: boolean, http10: boolean, request: Request): ServerResponse<Request>"
           ],
           "members": [
             {

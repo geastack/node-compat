@@ -363,12 +363,6 @@ function connectionSocket(connId: number): Socket {
   return socket
 }
 
-// Shared placeholder: ServerResponse's socket slot is overwritten with the
-// request's socket right after construction (Node shares ONE socket object
-// between req and res), so constructing a fresh Socket per response would be
-// a wasted allocation.
-const placeholderSocket = new Socket(0)
-
 // Body/lifecycle listeners are stored as TYPED native closures — a
 // `(chunk: string) => void` slot covers 'data' (one string arg) and the
 // no-arg 'end'/'close' listeners (an arrow with fewer params adapts, exactly
@@ -645,14 +639,14 @@ export type ResponseListener = () => void
 // rewrite of code with a byte-for-byte parity requirement, for no behavioural gain -- Writable's
 // own `_write`/`_writev`/`_final`/`_destroy` defaults are simply never called here. `destroyed`,
 // `closed` and `errored` are Writable's real fields now (no more private `destroyed_` shadow).
-export class ServerResponse extends Writable {
+export class ServerResponse<Request extends IncomingMessage = IncomingMessage> extends Writable {
   statusCode: number
   statusMessage: string
   sendDate: boolean
   finished: boolean
 
   private connId_: number
-  private request_: IncomingMessage | undefined
+  private request_: Request
   private isHead_: boolean
   private http10_: boolean
   private keepAliveRequested_: boolean
@@ -676,7 +670,7 @@ export class ServerResponse extends Writable {
   private extraHeaderValues_: string[] | undefined
   private extraHeaderRawNames_: string[] | undefined
 
-  constructor(connId: number, isHead: boolean, keepAliveRequested: boolean, http10: boolean, request: IncomingMessage) {
+  constructor(connId: number, isHead: boolean, keepAliveRequested: boolean, http10: boolean, request: Request) {
     super()
     this.connId_ = connId
     this.request_ = request
@@ -701,8 +695,12 @@ export class ServerResponse extends Writable {
     this.extraHeaderRawNames_ = undefined
   }
 
+  get req(): Request {
+    return this.request_
+  }
+
   get socket(): NetSocket {
-    return this.request_ === undefined ? placeholderSocket : this.request_.socket
+    return this.request_.socket
   }
 
   get headersSent(): boolean {
