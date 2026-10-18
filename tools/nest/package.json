@@ -4,8 +4,8 @@
   "type": "module",
   "description": "Generators and parity tests for runtime/node/nest: the typed shims that replace the JavaScript dependencies of @nestjs/platform-node's vendored sources.",
   "scripts": {
-    "generate": "node generate-mime-db.mjs",
-    "check": "node generate-mime-db.mjs --check && tsc -p tsconfig.shims.json && node test-shims.mjs",
+    "generate": "node generate-mime-db.mjs && node generate-identifier-ranges.mjs",
+    "check": "node generate-mime-db.mjs --check && node generate-identifier-ranges.mjs --check && tsc -p tsconfig.shims.json && node test-shims.mjs",
     "test:shims": "node test-shims.mjs",
     "test:probe": "node test-probe.mjs",
     "typecheck": "tsc -p tsconfig.shims.json"
