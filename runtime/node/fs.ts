@@ -12,12 +12,26 @@ import { nodeNotImplemented } from './not-implemented'
 declare function __gea_node_fs_access(path: string, mode: number): boolean
 /** @gea-host-inert */
 declare function __gea_node_fs_read_file(path: string): Buffer
+/** @gea-host-inert */
+declare function __gea_node_fs_stat(path: string, followSymlinks: boolean): number
+/** @gea-host-inert */
+declare function __gea_node_fs_stat_field(field: number): number
+/** @gea-host-inert */
+declare function __gea_node_net_errno_name(error: number): string
 
 const nodeFsConstants = {
   F_OK: 0,
   R_OK: 4,
   W_OK: 2,
-  X_OK: 1
+  X_OK: 1,
+  S_IFMT: 0o170000,
+  S_IFREG: 0o100000,
+  S_IFDIR: 0o040000,
+  S_IFCHR: 0o020000,
+  S_IFBLK: 0o060000,
+  S_IFIFO: 0o010000,
+  S_IFLNK: 0o120000,
+  S_IFSOCK: 0o140000
 }
 
 /** @gea-host-inert */
@@ -44,47 +58,50 @@ function windowsFilePath(path: URL): string {
   return pathname.slice(1)
 }
 
-export class FsPromises {
-  async access(path: string | URL, mode: number = 0): Promise<void> {
-    const filename = filePath(path)
-    if (!__gea_node_fs_access(filename, mode)) throw new Error(`ENOENT: cannot access '${filename}'`)
-  }
+export interface FsSystemError extends Error {
+  errno: number
+  code: string
+  syscall: string
+  path: string
+}
 
-  readFile(path: string | URL, encoding: BufferEncoding): Promise<string>
-  readFile(path: string | URL, encoding?: null): Promise<Buffer>
-  async readFile(path: string | URL, encoding: BufferEncoding | null = null): Promise<Buffer | string> {
-    const filename = filePath(path)
-    if (!__gea_node_fs_access(filename, nodeFsConstants.R_OK)) {
-      throw new Error(`ENOENT: cannot read '${filename}'`)
-    }
-    const bytes = __gea_node_fs_read_file(filename)
-    return encoding === null ? bytes : bytes.toString(encoding)
+function fsErrnoDescription(code: string, errnoValue: number): string {
+  switch (code) {
+    case 'EACCES':
+      return 'permission denied'
+    case 'EIO':
+      return 'i/o error'
+    case 'ELOOP':
+      return 'too many symbolic links encountered'
+    case 'ENAMETOOLONG':
+      return 'name too long'
+    case 'ENOENT':
+      return 'no such file or directory'
+    case 'ENOMEM':
+      return 'not enough memory'
+    case 'ENOTDIR':
+      return 'not a directory'
+    case 'EOVERFLOW':
+      return 'value too large for defined data type'
+    case 'EPERM':
+      return 'operation not permitted'
+    default:
+      return `Unknown system error ${errnoValue}`
   }
 }
 
-const nodeFsPromises = new FsPromises()
-
-export { nodeFsConstants as constants, nodeFsPromises as promises }
-
-// `existsSync` is exactly what it is on real Node: an access(2)-style
-// presence check with the error swallowed. `__gea_node_fs_access` already IS
-// that check, so this is a real implementation, not a stand-in for one.
-export function existsSync(path: string | URL): boolean {
-  return __gea_node_fs_access(filePath(path), nodeFsConstants.F_OK)
+function fsSystemError(errnoValue: number, syscall: string, path: string): FsSystemError {
+  const named = __gea_node_net_errno_name(errnoValue)
+  const code = named === 'UNKNOWN' ? `Unknown system error ${errnoValue}` : named
+  const error = new Error(`${code}: ${fsErrnoDescription(code, errnoValue)}, ${syscall} '${path}'`) as FsSystemError
+  error.errno = -errnoValue
+  error.code = code
+  error.syscall = syscall
+  error.path = path
+  return error
 }
 
-// The real Node.js `fs.Stats` shape. Declared in full because callers
-// (an HTTP framework's static-file middleware) narrow on it structurally, but see
-// `statSync` below: nothing on this target can actually produce one of these,
-// so the type exists without a value ever legitimately carrying it.
-export interface Stats {
-  isFile(): boolean
-  isDirectory(): boolean
-  isBlockDevice(): boolean
-  isCharacterDevice(): boolean
-  isSymbolicLink(): boolean
-  isFIFO(): boolean
-  isSocket(): boolean
+export class Stats {
   dev: number
   ino: number
   mode: number
@@ -103,21 +120,161 @@ export interface Stats {
   mtime: Date
   ctime: Date
   birthtime: Date
+
+  constructor(
+    dev: number,
+    ino: number,
+    mode: number,
+    nlink: number,
+    uid: number,
+    gid: number,
+    rdev: number,
+    size: number,
+    blksize: number,
+    blocks: number,
+    atimeMs: number,
+    mtimeMs: number,
+    ctimeMs: number,
+    birthtimeMs: number
+  ) {
+    this.dev = dev
+    this.ino = ino
+    this.mode = mode
+    this.nlink = nlink
+    this.uid = uid
+    this.gid = gid
+    this.rdev = rdev
+    this.size = size
+    this.blksize = blksize
+    this.blocks = blocks
+    this.atimeMs = atimeMs
+    this.mtimeMs = mtimeMs
+    this.ctimeMs = ctimeMs
+    this.birthtimeMs = birthtimeMs
+    this.atime = new Date(Math.round(atimeMs))
+    this.mtime = new Date(Math.round(mtimeMs))
+    this.ctime = new Date(Math.round(ctimeMs))
+    this.birthtime = new Date(Math.round(birthtimeMs))
+  }
+
+  private isType(type: number): boolean {
+    return (this.mode & nodeFsConstants.S_IFMT) === type
+  }
+  isFile(): boolean {
+    return this.isType(nodeFsConstants.S_IFREG)
+  }
+  isDirectory(): boolean {
+    return this.isType(nodeFsConstants.S_IFDIR)
+  }
+  isBlockDevice(): boolean {
+    return this.isType(nodeFsConstants.S_IFBLK)
+  }
+  isCharacterDevice(): boolean {
+    return this.isType(nodeFsConstants.S_IFCHR)
+  }
+  isSymbolicLink(): boolean {
+    return this.isType(nodeFsConstants.S_IFLNK)
+  }
+  isFIFO(): boolean {
+    return this.isType(nodeFsConstants.S_IFIFO)
+  }
+  isSocket(): boolean {
+    return this.isType(nodeFsConstants.S_IFSOCK)
+  }
 }
 
-// There is no `stat`/`fstat` primitive bound on this target (`gea_node.cpp`
-// exposes exactly two fs syscalls: `access` and a whole-file `read`) -- no
-// mtime, no mode, no size independent of reading the whole file, and no way
-// to tell a directory from a regular file. Inventing any of those (today's
-// Date as a fake mtime, `false` as a guessed `isDirectory()`) would be a
-// fabricated value wearing a real type, which is worse than refusing. This
-// refuses by name instead: a program that reaches it fails loudly rather than
-// silently mis-serving, e.g. treating every path as "not found" or every file
-// as unmodified.
-export function statSync(path: string | URL, options?: unknown): Stats {
-  void path
-  void options
-  return nodeNotImplemented('fs', 'statSync')
+export interface StatOptions {
+  bigint?: boolean
+}
+
+function statPath(path: string | URL, options: StatOptions | undefined, syscall: string, member: string): Stats {
+  if (options !== undefined && options.bigint === true) return nodeNotImplemented('fs', `${member} with bigint`)
+  const filename = filePath(path)
+  const errnoValue = __gea_node_fs_stat(filename, syscall === 'stat')
+  if (errnoValue !== 0) throw fsSystemError(errnoValue, syscall, filename)
+  return new Stats(
+    __gea_node_fs_stat_field(0),
+    __gea_node_fs_stat_field(1),
+    __gea_node_fs_stat_field(2),
+    __gea_node_fs_stat_field(3),
+    __gea_node_fs_stat_field(4),
+    __gea_node_fs_stat_field(5),
+    __gea_node_fs_stat_field(6),
+    __gea_node_fs_stat_field(7),
+    __gea_node_fs_stat_field(8),
+    __gea_node_fs_stat_field(9),
+    __gea_node_fs_stat_field(10),
+    __gea_node_fs_stat_field(11),
+    __gea_node_fs_stat_field(12),
+    __gea_node_fs_stat_field(13)
+  )
+}
+
+export interface StatSyncOptions extends StatOptions {
+  throwIfNoEntry?: boolean
+}
+
+export function statSync(path: string | URL, options?: StatSyncOptions & { throwIfNoEntry?: true }): Stats
+export function statSync(path: string | URL, options: StatSyncOptions & { throwIfNoEntry: false }): Stats | undefined
+export function statSync(path: string | URL, options?: StatSyncOptions): Stats | undefined {
+  try {
+    return statPath(path, options, 'stat', 'statSync')
+  } catch (error) {
+    if (options !== undefined && options.throwIfNoEntry === false && error instanceof Error && 'syscall' in error) {
+      const failure = error as FsSystemError
+      if (failure.code === 'ENOENT' || failure.code === 'ENOTDIR') return undefined
+    }
+    throw error
+  }
+}
+
+export type StatCallback = (err: FsSystemError | null, stats: Stats | undefined) => void
+
+export function stat(path: string | URL, optionsOrCallback: StatOptions | StatCallback, callback?: StatCallback): void {
+  const options: StatOptions | undefined = typeof optionsOrCallback === 'function' ? undefined : optionsOrCallback
+  const done: StatCallback | undefined = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback
+  if (done === undefined) throw new TypeError('The "cb" argument must be of type function. Received undefined')
+  let stats: Stats | undefined
+  let failure: FsSystemError | null = null
+  try {
+    stats = statPath(path, options, 'stat', 'stat')
+  } catch (error) {
+    if (error instanceof Error && 'syscall' in error) failure = error as FsSystemError
+    else throw error
+  }
+  Promise.resolve().then(() => {
+    done(failure, stats)
+  })
+}
+
+export class FsPromises {
+  async access(path: string | URL, mode: number = 0): Promise<void> {
+    const filename = filePath(path)
+    if (!__gea_node_fs_access(filename, mode)) throw new Error(`ENOENT: cannot access '${filename}'`)
+  }
+
+  readFile(path: string | URL, encoding: BufferEncoding): Promise<string>
+  readFile(path: string | URL, encoding?: null): Promise<Buffer>
+  async readFile(path: string | URL, encoding: BufferEncoding | null = null): Promise<Buffer | string> {
+    const filename = filePath(path)
+    if (!__gea_node_fs_access(filename, nodeFsConstants.R_OK)) {
+      throw new Error(`ENOENT: cannot read '${filename}'`)
+    }
+    const bytes = __gea_node_fs_read_file(filename)
+    return encoding === null ? bytes : bytes.toString(encoding)
+  }
+
+  async stat(path: string | URL, options?: StatOptions): Promise<Stats> {
+    return statPath(path, options, 'stat', 'promises.stat')
+  }
+}
+
+const nodeFsPromises = new FsPromises()
+
+export { nodeFsConstants as constants, nodeFsPromises as promises }
+
+export function existsSync(path: string | URL): boolean {
+  return __gea_node_fs_access(filePath(path), nodeFsConstants.F_OK)
 }
 
 export interface ReadStreamOptions {
