@@ -2,12 +2,13 @@ import { serialize as serializeCookie } from 'cookie';
 import { sign as signCookie } from 'cookie-signature';
 import encodeUrl from 'encodeurl';
 import { IncomingMessage, ServerResponse, STATUS_CODES } from 'http';
-import { parse as parseQueryString } from 'fast-querystring';
+import { parse as parseQueryString, type ParsedQuery } from 'fast-querystring';
 import { contentType as lookupContentType } from 'mime-types';
 import onFinished from 'on-finished';
 import { isAbsolute } from 'path';
 import send from 'send';
 import typeIs from 'type-is';
+import type { RouteParams } from '../router/route-table.js';
 import { getRoutingPath } from '../router/utils.js';
 
 const QUERY = Symbol('query');
@@ -30,15 +31,17 @@ export const ROUTE_ERROR_HANDLER = Symbol('nestjs.node.routeErrorHandler');
  * it (`express-rate-limit` checks `req.app.get('trust proxy')`). There are no
  * Express settings here; `get()` reports the adapter's fixed behavior.
  */
-const NODE_APP = Object.freeze({
+class NodeApp {
   /**
    * `'trust proxy'` is `false` (`req.ip` is the socket address); every other
    * setting is `undefined`.
    */
   get(setting: string): unknown {
     return setting === 'trust proxy' ? false : undefined;
-  },
-});
+  }
+}
+
+const NODE_APP = Object.freeze(new NodeApp());
 
 /**
  * Options of {@link NodeResponse.sendFile}, those of the `send` package, as
@@ -101,11 +104,13 @@ export class NodeRequest extends IncomingMessage {
   /**
    * Route parameters of the matched route (or middleware path).
    */
-  declare params: Record<string, any>;
+  declare params: RouteParams;
   /**
-   * Parsed request body, set by the body parsers.
+   * Parsed request body, set by the body parsers. Every request has a "body"
+   * (Express libraries check "'body' in req"); it is a field here, where the
+   * package defines it on the prototype to avoid a per-request write.
    */
-  declare body: any;
+  body: any = undefined;
   /**
    * Unparsed request body, set by the body parsers when the `rawBody`
    * application option is enabled.
@@ -116,12 +121,12 @@ export class NodeRequest extends IncomingMessage {
    */
   declare baseUrl: string;
 
-  declare [QUERY]: Record<string, any> | undefined;
+  declare [QUERY]: ParsedQuery | undefined;
 
   /**
    * Query string parameters, parsed on first access.
    */
-  get query(): Record<string, any> {
+  get query(): ParsedQuery {
     let query = this[QUERY];
     if (query === undefined) {
       const url = this.url!;
@@ -132,7 +137,7 @@ export class NodeRequest extends IncomingMessage {
     return query!;
   }
 
-  set query(value: Record<string, any>) {
+  set query(value: ParsedQuery) {
     this[QUERY] = value;
   }
 
@@ -208,7 +213,7 @@ export class NodeRequest extends IncomingMessage {
    * settings: `req.app.get('trust proxy')` is `false`, every other setting
    * `undefined`.
    */
-  get app(): { get(setting: string): unknown } {
+  get app(): NodeApp {
     return NODE_APP;
   }
 
@@ -223,14 +228,6 @@ export class NodeRequest extends IncomingMessage {
     return typeIs(this, types.flat());
   }
 }
-
-// Every request has a "body" (Express libraries check "'body' in req"), with
-// no per-request property write until a parser sets one
-Object.defineProperty(NodeRequest.prototype, 'body', {
-  value: undefined,
-  writable: true,
-  configurable: true,
-});
 
 /**
  * Response object handed to middleware and route handlers by the
@@ -382,8 +379,7 @@ export class NodeResponse<
     if (endWithoutBody(this)) {
       return this;
     }
-    // Before any header, in case it throws (a BigInt, a circular reference)
-    const text = JSON.stringify(body);
+    const text: string | undefined = JSON.stringify(body);
     if (!this.hasHeader('Content-Type')) {
       this.setHeader('Content-Type', 'application/json; charset=utf-8');
     }
@@ -688,9 +684,7 @@ function escapeHtml(text: string) {
  * binary (as Fastify does) rather than serialized to JSON.
  */
 export function toBytes(view: ArrayBufferView): Uint8Array {
-  return view instanceof Uint8Array
-    ? view
-    : new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+  return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
 }
 
 // With an explicit "Content-Length", which Node.js leaves out in answer to

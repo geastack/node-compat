@@ -8,16 +8,20 @@ export type RouteHandler = (
   next: (err?: any) => void,
 ) => any;
 
+export interface RouteParams {
+  [name: string]: string | string[];
+}
+
 export interface RouteMatch {
   handlers: RouteHandler[];
-  params: Record<string, any>;
+  params: RouteParams;
   /** Registration order of each handler, see {@link RouteTable.lookupRest}. */
   seqs: number[];
 }
 
 export interface RouteEntry {
   handler: RouteHandler;
-  params: Record<string, any>;
+  params: RouteParams;
 }
 
 interface RouteRecord {
@@ -39,7 +43,7 @@ interface RouteRecord {
 interface FoundRoute {
   handlers: RouteHandler[];
   seqs: number[];
-  params: Record<string, any>;
+  params: RouteParams;
 }
 
 interface FindMyWayVariant {
@@ -49,19 +53,17 @@ interface FindMyWayVariant {
   wildcardSlashes: number;
 }
 
-// Route parameters live in an object without a prototype, as with
-// find-my-way, which is cheaper to create than `Object.create(null)`
-const ParamsObject = function () {} as unknown as new () => Record<string, any>;
-ParamsObject.prototype = Object.create(null);
-
 // Positional parameter names, see `RouteRecord`
-const POSITIONAL_NAMES = Array.from({ length: 32 }, (_, i) => `p${i}`);
+const POSITIONAL_NAMES: string[] = [];
+for (let i = 0; i < 32; i++) {
+  POSITIONAL_NAMES.push(`p${i}`);
+}
 
 function positionalName(index: number) {
   return POSITIONAL_NAMES[index] ?? `p${index}`;
 }
 
-type Matcher = (path: string) => false | { params: Record<string, any> };
+type Matcher = (path: string) => false | { params: RouteParams };
 
 interface FallbackRoute {
   method: string | null;
@@ -89,7 +91,7 @@ function compileMatcher(path: string): Matcher {
     end: true,
     sensitive: true,
   });
-  return (pathname: string) => matcher(pathname) as any;
+  return matcher;
 }
 
 function acceptsMethod(routeMethod: string | null, method: string) {
@@ -150,7 +152,7 @@ function decodeSegment(value: string) {
 
 // The limit find-my-way applies to the routes it matches, for the routes
 // matched with path-to-regexp (wildcards are arrays there)
-function exceedsMaxParamLength(params: Record<string, any>, limit: number) {
+function exceedsMaxParamLength(params: RouteParams, limit: number) {
   for (const key in params) {
     const value = params[key];
     if (typeof value === 'string' && value.length > limit) {
@@ -441,14 +443,17 @@ export class RouteTable {
       wildcard = path.slice(start, end).split('/').map(decodeSegment);
     }
     // Every handler sees the parameters under the names its route uses
-    const params = new ParamsObject();
+    const params: RouteParams = {};
     for (const names of record.paramNames) {
       const last = names.length - 1;
       for (let i = 0; i <= last; i++) {
-        params[names[i]] =
+        const value =
           wildcard !== undefined && i === last
             ? wildcard
             : values[positionalName(i)];
+        if (value !== undefined) {
+          params[names[i]] = value;
+        }
       }
     }
     return { handlers: record.handlers, seqs: record.seqs, params };
