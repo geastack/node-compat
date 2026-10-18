@@ -35,7 +35,7 @@
 //                                      signal handler) writes to wake the loop
 //   startThread(entry, argument)       a detached thread; false when none starts
 //   utcTime(seconds, tm)               gmtime
-//   canAccess / readWholeFile / fillRandom
+//   canAccess / readWholeFile / statFile / fillRandom
 //   arguments / environmentEntries / executablePath / canonicalPath /
 //   currentDirectory / processId / parentProcessId / exitImmediately /
 //   onlineProcessors / machineArch / kernelRelease
@@ -51,6 +51,25 @@
 //
 // Everything here is inline: the reactor is compiled into the program's own
 // translation unit (see `gea_node.hpp`), and so is this.
+
+namespace gea::node::platform {
+struct FileStatus {
+  double dev = 0;
+  double ino = 0;
+  double mode = 0;
+  double nlink = 0;
+  double uid = 0;
+  double gid = 0;
+  double rdev = 0;
+  double size = 0;
+  double blksize = 0;
+  double blocks = 0;
+  double atimeMs = 0;
+  double mtimeMs = 0;
+  double ctimeMs = 0;
+  double birthtimeMs = 0;
+};
+}  // namespace gea::node::platform
 
 #if defined(_WIN32)
 #include "gea_node_platform_win32.hpp"

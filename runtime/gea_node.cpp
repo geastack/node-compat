@@ -1955,15 +1955,20 @@ inline std::string net_errno_name(double requested) {
   GEA_NODE_ERRNO_NAME(EINVAL)
   GEA_NODE_ERRNO_NAME(EIO)
   GEA_NODE_ERRNO_NAME(EISCONN)
+  GEA_NODE_ERRNO_NAME(ELOOP)
   GEA_NODE_ERRNO_NAME(EMFILE)
   GEA_NODE_ERRNO_NAME(EMSGSIZE)
+  GEA_NODE_ERRNO_NAME(ENAMETOOLONG)
   GEA_NODE_ERRNO_NAME(ENETDOWN)
   GEA_NODE_ERRNO_NAME(ENETUNREACH)
   GEA_NODE_ERRNO_NAME(ENFILE)
   GEA_NODE_ERRNO_NAME(ENOBUFS)
+  GEA_NODE_ERRNO_NAME(ENOENT)
   GEA_NODE_ERRNO_NAME(ENOMEM)
   GEA_NODE_ERRNO_NAME(ENOTCONN)
+  GEA_NODE_ERRNO_NAME(ENOTDIR)
   GEA_NODE_ERRNO_NAME(ENOTSOCK)
+  GEA_NODE_ERRNO_NAME(EOVERFLOW)
   GEA_NODE_ERRNO_NAME(EPERM)
   GEA_NODE_ERRNO_NAME(EPIPE)
   GEA_NODE_ERRNO_NAME(EPROTO)
@@ -4184,6 +4189,33 @@ inline void __gea_node_stdio_write(double fd, std::string data) {
 
 inline bool __gea_node_fs_access(std::string path, double mode) {
   return gea::node::platform::canAccess(path, static_cast<int>(mode));
+}
+
+static gea::node::platform::FileStatus gea_node_fs_last_stat;
+
+inline double __gea_node_fs_stat(std::string path, bool followSymlinks) {
+  return static_cast<double>(gea::node::platform::statFile(path, followSymlinks, gea_node_fs_last_stat));
+}
+
+inline double __gea_node_fs_stat_field(double field) {
+  const gea::node::platform::FileStatus &st = gea_node_fs_last_stat;
+  switch (static_cast<int>(field)) {
+    case 0: return st.dev;
+    case 1: return st.ino;
+    case 2: return st.mode;
+    case 3: return st.nlink;
+    case 4: return st.uid;
+    case 5: return st.gid;
+    case 6: return st.rdev;
+    case 7: return st.size;
+    case 8: return st.blksize;
+    case 9: return st.blocks;
+    case 10: return st.atimeMs;
+    case 11: return st.mtimeMs;
+    case 12: return st.ctimeMs;
+    case 13: return st.birthtimeMs;
+    default: return 0.0;
+  }
 }
 
 // The same refusal under both runtimes, raised the way each one raises: v1

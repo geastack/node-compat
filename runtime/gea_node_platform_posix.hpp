@@ -206,6 +206,46 @@ inline void utcTime(std::time_t seconds, std::tm &out) { ::gmtime_r(&seconds, &o
 
 inline bool canAccess(const std::string &path, int mode) { return ::access(path.c_str(), mode) == 0; }
 
+inline double fileTimeMs(const struct timespec &time) {
+  return static_cast<double>(time.tv_sec) * 1000.0 + static_cast<double>(time.tv_nsec) / 1000000.0;
+}
+
+inline int statFile(const std::string &path, bool followSymlinks, FileStatus &out) {
+  struct stat st;
+  const int rc = followSymlinks ? ::stat(path.c_str(), &st) : ::lstat(path.c_str(), &st);
+  if (rc != 0) return uvErrorNumber(errno);
+  const auto widen = [](auto value) { return static_cast<double>(static_cast<std::uint64_t>(value)); };
+  out.dev = widen(st.st_dev);
+  out.ino = widen(st.st_ino);
+  out.mode = widen(st.st_mode);
+  out.nlink = widen(st.st_nlink);
+  out.uid = widen(st.st_uid);
+  out.gid = widen(st.st_gid);
+  out.rdev = widen(st.st_rdev);
+  out.size = widen(st.st_size);
+  out.blksize = widen(st.st_blksize);
+  out.blocks = widen(st.st_blocks);
+#if defined(__APPLE__)
+  out.atimeMs = fileTimeMs(st.st_atimespec);
+  out.mtimeMs = fileTimeMs(st.st_mtimespec);
+  out.ctimeMs = fileTimeMs(st.st_ctimespec);
+  out.birthtimeMs = fileTimeMs(st.st_birthtimespec);
+#else
+  out.atimeMs = fileTimeMs(st.st_atim);
+  out.mtimeMs = fileTimeMs(st.st_mtim);
+  out.ctimeMs = fileTimeMs(st.st_ctim);
+  out.birthtimeMs = out.ctimeMs;
+#if defined(__linux__) && defined(STATX_BTIME)
+  struct statx stx;
+  const int flags = followSymlinks ? 0 : AT_SYMLINK_NOFOLLOW;
+  if (::statx(AT_FDCWD, path.c_str(), flags, STATX_BTIME, &stx) == 0 && (stx.stx_mask & STATX_BTIME) != 0) {
+    out.birthtimeMs = static_cast<double>(stx.stx_btime.tv_sec) * 1000.0 + static_cast<double>(stx.stx_btime.tv_nsec) / 1000000.0;
+  }
+#endif
+#endif
+  return 0;
+}
+
 inline bool readWholeFile(const std::string &path, std::vector<std::uint8_t> &out, std::string &failure) {
   const int fd = ::open(path.c_str(), O_RDONLY);
   if (fd < 0) {
