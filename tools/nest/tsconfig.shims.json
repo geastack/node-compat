@@ -13,5 +13,8 @@
   },
   "include": [
     "../../runtime/node/nest/shims/**/*.ts"
+  ],
+  "exclude": [
+    "../../runtime/node/nest/shims/@nestjs/**"
   ]
 }
