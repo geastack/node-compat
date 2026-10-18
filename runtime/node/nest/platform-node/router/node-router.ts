@@ -6,13 +6,14 @@ import {
   type RouteEntry,
   type RouteHandler,
   type RouteMatch,
+  type RouteParams,
   type RouteTableOptions,
   RouteTable,
 } from './route-table.js';
 import { getRawPrefixEnd, getRoutingPath, loosen } from './utils.js';
 
 type NextFunction = (err?: any) => void;
-type PathMatcher = (path: string) => false | { path: string; params: any };
+type PathMatcher = (path: string) => false | { path: string; params: RouteParams };
 
 interface MiddlewareLayer {
   table?: undefined;
