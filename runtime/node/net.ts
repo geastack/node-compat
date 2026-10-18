@@ -516,6 +516,8 @@ export class Socket extends EventEmitter {
   bytesWritten: number
   timeout: number
   readyState: string
+  readable: boolean
+  writable: boolean
   remoteAddress: string
   remotePort: number
   remoteFamily: string
@@ -562,6 +564,8 @@ export class Socket extends EventEmitter {
     this.bytesWritten = 0
     this.timeout = 0
     this.readyState = 'opening'
+    this.readable = false
+    this.writable = false
     this.remoteAddress = ''
     this.remotePort = 0
     this.remoteFamily = ''
@@ -779,6 +783,7 @@ export class Socket extends EventEmitter {
       return this
     }
     this.readyState = 'readOnly'
+    this.writable = false
     __gea_node_net_end(this.nativeId_)
     return this
   }
@@ -845,6 +850,8 @@ export class Socket extends EventEmitter {
     this.destroyed = false
     this.pending = false
     this.readyState = 'open'
+    this.readable = true
+    this.writable = true
     this.remoteAddress = __gea_node_net_remote_address(nativeId)
     this.remotePort = __gea_node_net_remote_port(nativeId)
     this.remoteFamily = __gea_node_net_remote_family(nativeId)
@@ -911,6 +918,8 @@ export class Socket extends EventEmitter {
     this.connecting = false
     this.pending = false
     this.readyState = 'closed'
+    this.readable = false
+    this.writable = false
     this.clearSocketTimeout()
     this.bufferSize = 0
     this.abandonAttempts()
@@ -1011,6 +1020,8 @@ export class Socket extends EventEmitter {
         this.pending = false
         this.destroyed = true
         this.readyState = 'closed'
+        this.readable = false
+        this.writable = false
         this.emitClose()
       } else if (event === EVENT_DRAIN) {
         this.bufferSize = __gea_node_net_buffer_size(this.nativeId_)
@@ -1023,6 +1034,7 @@ export class Socket extends EventEmitter {
         if (this.destroyAfterFinish_) this.destroy()
       } else if (event === EVENT_END) {
         if (this.readyState !== 'readOnly') this.readyState = 'writeOnly'
+        this.readable = false
         this.emit('end')
         if (!this.destroyed && this.readyState === 'writeOnly') this.end()
       }
@@ -1033,6 +1045,8 @@ export class Socket extends EventEmitter {
     this.connecting = false
     this.pending = false
     this.readyState = 'open'
+    this.readable = true
+    this.writable = !this.connectingEnd_
     this.remoteAddress = __gea_node_net_remote_address(this.nativeId_)
     this.remotePort = __gea_node_net_remote_port(this.nativeId_)
     this.remoteFamily = __gea_node_net_remote_family(this.nativeId_)
@@ -1368,6 +1382,7 @@ export class Socket extends EventEmitter {
     if (this.connectingEnd_ && !this.destroyed) {
       this.connectingEnd_ = false
       this.readyState = 'readOnly'
+      this.writable = false
       __gea_node_net_end(this.nativeId_)
     }
     if (!this.destroyed) this.dispatchNativeEvents()
