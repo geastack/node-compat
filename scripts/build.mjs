@@ -58,6 +58,7 @@ import { brotliPrefix, windowsLibraries } from './native-libraries.mjs'
 const compilerRoot = resolveCompilerRoot()
 const { compile } = await import(compilerModuleUrl('.', compilerRoot))
 const { preparePackageSources } = await import(compilerModuleUrl('./preparation', compilerRoot))
+const { noPluginCapabilities } = await import(compilerModuleUrl('./plugin', compilerRoot))
 
 // The compile runs in this process and allocates hard: on a database driver
 // the default young generation made V8 GC 28% of the emission (24.8k
@@ -128,6 +129,10 @@ if (translationUnits !== 'single' && translationUnits !== 'per-file') {
 const sourceProject = arg('--source-project', null)
 const reportPath = arg('--report', null)
 const extraPathsFile = arg('--paths', null)
+const extraPaths =
+  extraPathsFile === null
+    ? {}
+    : Object.fromEntries(Object.entries(JSON.parse(fs.readFileSync(extraPathsFile, 'utf8'))).map(([specifier, files]) => [specifier, (Array.isArray(files) ? files : [files]).map((file) => path.resolve(file))]))
 const packageRoot = arg('--package-root', null)
 const executableName = path.basename(exePath)
 const unitBaseName = process.platform === 'win32' && executableName.endsWith('.exe') ? executableName.slice(0, -4) : executableName
@@ -252,6 +257,7 @@ function sourceLanguageOptions() {
   // A source checkout's tsconfig describes how that library publishes its own
   // JavaScript; importing CommonJS here would redefine an ESNext application
   // entry and reject valid top-level await before geatsc sees the program.
+  options.declarationFiles = parsed.fileNames.filter((fileName) => ts.isDeclarationFileName(fileName))
   if (parsed.options.paths) {
     const base = parsed.options.baseUrl ?? parsed.options.pathsBasePath ?? path.dirname(file)
     options.paths = Object.fromEntries(
@@ -389,14 +395,9 @@ function writeProject() {
   const modules = builtinModules()
   // The library sources first, so a `node:` builtin below always wins: a
   // package that ships its own `http` shim must not answer for this target's.
-  const languageOptions = sourceLanguageOptions()
-  const paths = { ...languageOptions.paths }
-  if (extraPathsFile !== null) {
-    const extra = JSON.parse(fs.readFileSync(extraPathsFile, 'utf8'))
-    for (const [specifier, files] of Object.entries(extra)) {
-      paths[specifier] = (Array.isArray(files) ? files : [files]).map((file) => path.resolve(file))
-    }
-  }
+  const { declarationFiles: sourceDeclarations = [], ...languageOptions } = sourceLanguageOptions()
+  const sourcePaths = { ...languageOptions.paths, ...extraPaths }
+  const paths = { ...sourcePaths }
   // Ordinary dependencies retain Node's nested package/version lookup.
   for (const [name, file] of modules) {
     const relative = path.resolve(file)
@@ -547,12 +548,13 @@ function writeProject() {
       types: [],
       paths
     },
-    files: files.map((file) => (file.startsWith('.') ? file : `./${file}`))
+    files: [...files.map((file) => (file.startsWith('.') ? file : `./${file}`)), ...sourceDeclarations]
   }
   fs.mkdirSync(outDir, { recursive: true })
   const projectFile = path.join(outDir, 'tsconfig.json')
   fs.writeFileSync(projectFile, `${JSON.stringify(project, null, 2)}\n`)
-  return { projectFile, unconditionalAmbientRoots }
+  const aotOptions = ts.convertCompilerOptionsFromJson({ ...project.compilerOptions, paths: sourcePaths }, outDir).options
+  return { projectFile, unconditionalAmbientRoots, aot: { options: aotOptions, rootNames: sourceDeclarations } }
 }
 
 // ---------------------------------------------------------------------------
@@ -605,7 +607,41 @@ const typesOnlyPackages = (() => {
   return new Set(Object.keys(manifest.devDependencies ?? {}).filter((name) => !shipped.has(name)))
 })()
 
-const { projectFile, unconditionalAmbientRoots } = writeProject()
+const { projectFile, unconditionalAmbientRoots, aot } = writeProject()
+const nestAotPlugin = await (async () => {
+  const { entryReachesNestCore } = await import('../tools/nest/aot/reach.mjs')
+  if (!entryReachesNestCore({ ts, entry, options: aot.options })) return null
+  const { generateNestApplication } = await import('../tools/nest/aot/generate.mjs')
+  const { NestAnalysisError } = await import('../tools/nest/aot/analyze.mjs')
+  let rewrites
+  try {
+    ;({ rewrites } = generateNestApplication({ ts, entry, options: aot.options, rootNames: aot.rootNames }))
+  } catch (error) {
+    if (!(error instanceof NestAnalysisError)) throw error
+    console.error(`[build] nest-aot: ${error.diagnostics.length} construct(s) the AOT resolver does not read:`)
+    for (const diagnostic of error.diagnostics) console.error(`  ${displayPath(diagnostic.file)}:${diagnostic.line}:${diagnostic.column}: ${diagnostic.message}`)
+    writeReport({ threw: `nest-aot: ${error.message}` })
+    process.exit(1)
+  }
+  if (process.env.GEA_NEST_AOT_DIR) {
+    fs.mkdirSync(process.env.GEA_NEST_AOT_DIR, { recursive: true })
+    for (const [fileName, text] of rewrites) {
+      const dumped = path.join(process.env.GEA_NEST_AOT_DIR, ...path.relative(path.dirname(entry), fileName).split(path.sep).map((segment) => (segment === '..' ? '__' : segment)))
+      fs.mkdirSync(path.dirname(dumped), { recursive: true })
+      fs.writeFileSync(dumped, text)
+    }
+  }
+  console.error(`[build] nest-aot: ${rewrites.size} file(s) rewritten (${[...rewrites.keys()].map(displayPath).join(', ')})`)
+  return {
+    name: 'nest-aot',
+    instantiate: () => ({
+      producers: () => [],
+      lower: () => false,
+      transformSource: (input) => rewrites.get(input.fileName) ?? null,
+      capabilities: { ...noPluginCapabilities }
+    })
+  }
+})()
 writeReport({ packageSources })
 console.error(`[build] compiling ${displayPath(entry)} -> ${displayPath(outDir)}`)
 
@@ -637,7 +673,7 @@ const ownerLocation = (owner) => {
 const compileStarted = process.hrtime.bigint()
 const requestedJavaScriptSources = process.argv.includes('--javascript-sources')
 const hostPlugins = process.argv.flatMap((arg, index) => arg === '--host-plugin' ? [process.argv[index + 1]] : [])
-const plugins = [geatscNodePlugin()]
+const plugins = nestAotPlugin ? [geatscNodePlugin(), nestAotPlugin] : [geatscNodePlugin()]
 if (hostPlugins.length > 0) {
   const { loadCliPlugins } = await import(pathToFileURL(path.join(compilerRoot, 'dist/plugins/load.js')).href)
   plugins.push(...await loadCliPlugins(hostPlugins))
