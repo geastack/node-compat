@@ -23,7 +23,12 @@ app.post('/body/text', async (c) => {
 
 const server = createServer(async (req, res) => {
   const method = req.method ?? 'GET'
-  const init: RequestInit = { method, headers: req.headers }
+  const headers: Record<string, string> = {}
+  for (const name in req.headers) {
+    const value = req.headers[name]
+    if (value !== undefined) headers[name] = value
+  }
+  const init: RequestInit = { method, headers }
   // `readBodyBytes` rather than `Buffer.from(...)`: a bare `Buffer` read in the
   // entry script is refused (the global is installed through the global object).
   if (method !== 'GET' && method !== 'HEAD') init.body = req.readBodyBytes()
