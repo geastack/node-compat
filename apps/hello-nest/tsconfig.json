@@ -7,7 +7,7 @@
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
     "skipLibCheck": true,
-    "outDir": "./dist"
+    "outDir": "./dist-node"
   },
   "files": ["server.ts"]
 }
