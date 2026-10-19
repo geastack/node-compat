@@ -439,3 +439,47 @@ package.json is read as a plain file, so an `exports` map that omits
 two scripts that both say "build" can name different compilers: the 09-21
 numbers were clang's while the document said g++, which was only caught by
 reading the binaries' `.comment` sections.
+
+## hello-nest: Node against the compiled binary, 2026-10-19
+
+Not the bench host. This run is `bench/http-matrix.py --servers nest-gea
+nest-node` inside an arm64 Linux container (Ubuntu 24.04, clang 18.1.3,
+Node v24.20.0, wrk 4.1.0) on a Colima VM with 8 vCPUs and 12 GiB on an Apple
+M1 (4 performance and 4 efficiency cores; the VM's vCPUs are not pinned to
+physical cores, so `--server-cpus 0-3 --load-cpus 4-7` separates server and
+load generator inside the VM only). The VM ran nothing else. Raw records:
+`bench/results/nest-colima-arm64-2026-10-19.json` and its `-startup` file.
+Numbers here are comparable with each other and with nothing in the tables
+above.
+
+`apps/hello-nest/server.ts` was built by `scripts/build.mjs` from a compiler
+checkout carrying the four hello-nest fixes (`GEA_COMPILER_DIR`, 1.0.37 plus
+`fix/error-subclass-instanceof`, `fix/array-keys-over-recursive-wrapper`,
+`fix/hoist-module-function-declarations`, `fix/uri-error-thrown-not-aborted`),
+`-Os -flto`, stripped: 7,619,264 bytes, 61,265 emitted lines. The Node row
+is `tsc` output of the same file (`dist-node/server.js`), one process or a
+`node:cluster` of four. Both answered `scripts/test-hello-nest.mjs` 10 of 11
+identical before the run (the known `JSON.parse` message wording).
+Protocol as above: 2 s warmup, 8 s samples, `-t4 -c64`, three interleaved
+rounds, startup in a separate five-launch pass.
+
+| Server | Single `/` | Single `/json` | Single RSS MiB | Single PSS MiB | Single startup ms | 4 workers `/` | 4 workers `/json` | 4 workers RSS MiB | 4 workers PSS MiB | 4 workers startup ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **nest-gea** | **121,131** | **111,276** | 10.8 | 9.4 | 13 | **281,100** | **270,107** | 31.4 | 10.9 | 13 |
+| nest-node | 53,039 | 47,787 | 123.9 | 122.8 | 527 | 142,989 | 139,628 | 536.0 | 338.1 | 1,014 |
+
+Per-round `GET /`: nest-gea 128.8k / 123.6k / 111.0k at one worker and
+291.2k / 270.9k / 281.2k at four; nest-node 53.6k / 51.6k / 53.9k and
+154.6k / 149.3k / 125.0k.
+
+| Server | Single p50 | Single p99 | 4 workers p50 | 4 workers p99 |
+| --- | ---: | ---: | ---: | ---: |
+| nest-gea | 502 µs | 2.34 ms | 169 µs | 816 µs |
+| nest-node | 1.13 ms | 2.27 ms | 388 µs | 38.3 ms |
+
+Ratios, compiled over Node, means over rounds: 1.97× (`/`) and 1.93×
+(`/json`) at four workers, 2.28× and 2.33× at one worker; PSS 1/31 at four
+workers and 1/13 at one; startup 13 ms against 527 ms and 1,014 ms. The
+compiled ratio is about half of Hono's on the bench host (3.7×), and the
+single-worker rounds spread 15% for the compiled binary against 4% for Node,
+so the one-worker cells carry the same caution as the bimodality note above.
