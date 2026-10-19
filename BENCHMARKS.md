@@ -42,7 +42,7 @@ server, 7% on Hono, 30% smaller binaries and 0.9-2 MB less PSS.
 
 ## What is measured
 
-Two applications, each compiled by geatsc and each also run under Node:
+Three applications, each compiled by geatsc and each also run under Node:
 
 - **Hono** (`apps/hono-hello/server.ts`): the real `hono` package with the
   default `SmartRouter` stack, served through `@hono/node-server`. Under
@@ -50,6 +50,14 @@ Two applications, each compiled by geatsc and each also run under Node:
   package (`runtime/node/node-server-adapter.ts`), so a request goes reactor →
   `Request` → `app.fetch` → wire with no intermediate Node objects. The app
   file is unchanged between the two runtimes.
+- **NestJS** (`apps/hello-nest/server.ts`): `@nestjs/core` 12.1.3 with a
+  decorated controller, served through `@nestjs/platform-node`'s
+  `NodeAdapter` over `node:http` (`tools/nest/build-platform-node.mjs` packs
+  the three packages from the pinned nest commit). The Node row runs the
+  `tsc` output of the same file (`dist-node/`), because Node's type stripping
+  has no decorators or decorator metadata; the gea row is `scripts/build.mjs`
+  on the file itself with the Nest AOT hook in `tools/nest/aot/`. The Nest
+  logger is off in both.
 - **Raw `node:http`** (`apps/raw-http-hello/server.ts`): `createServer((req,
   res) => ...)`, `writeHead`, `end`. Under geatsc this is node-compat's
   `IncomingMessage`/`ServerResponse` implementation over the C++ reactor.
@@ -95,8 +103,8 @@ validated by the harness before any sample is taken (72 wire-contract checks,
   capture group is `''`.
 
 Routes: `GET /` returns `text/plain`, `GET /json` returns
-`{"hello":"world"}`. Hono additionally serves `/missing` as a 404, which the
-harness checks.
+`{"hello":"world"}`. Hono and Nest additionally serve `/missing` as a 404,
+which the harness checks.
 
 ## Machine and method
 
@@ -342,7 +350,7 @@ and relocated library. `bench/pss-breakdown.py` is the instrument: it sums
 
 Run on an otherwise idle Linux host with at least eight logical CPUs. The
 harness uses `taskset`, `/proc` and `lscpu`, so it does not run on macOS.
-Ports 3000 (Node Hono), 3101 (raw servers) and 3900 (gea Hono) must be free.
+Ports 3000 (Node Hono), 3101 (raw servers) and 3900 (gea Hono, Nest) must be free.
 
 Requirements: Node.js and the repository's npm dependencies, Python 3, `wrk`,
 `util-linux`, clang (18 or newer; `-flto` needs its gold plugin,
@@ -356,6 +364,8 @@ built from:
 ```sh
 npm ci                                                  # @geastack/compiler + @geastack/node-compat from npm
 npm ci --prefix apps/hono-hello                         # hono + @hono/node-server (no workspaces: the root install does not reach it)
+node tools/nest/build-platform-node.mjs                 # @nestjs/{common,core,platform-node} 12.1.3 tarballs from the pinned nest checkout (../nest or GEA_NEST_DIR)
+npm ci --prefix apps/hello-nest                         # the vendored Nest packages, reflect-metadata, rxjs, typescript
 bash bench/goal-http-build.sh                           # gea servers + C++ and Rust controls, clang++ -Os -flto
 ```
 
@@ -382,6 +392,7 @@ script emit the servers. The gea servers are emitted by the one
 ```sh
 cd /path/to/geastack/compiler && npm run build && cd ../node-compat
 npm ci --prefix apps/hono-hello                         # needed on this path too
+node tools/nest/build-platform-node.mjs && npm ci --prefix apps/hello-nest
 bash bench/goal-http-build.sh
 ```
 
@@ -410,8 +421,8 @@ SCRIPTC_RAW=/path/to/raw-rp python3 bench/http-matrix.py --servers scriptc-raw \
 check `/sys/devices/system/cpu/cpu*/topology/thread_siblings_list` before
 choosing, because sibling numbering differs between machines and the wrong
 choice silently measures a saturated host. `--servers` narrows a run to any of
-`hono-gea`, `hono-node`, `gea-raw`, `node-raw`, `scriptc-raw`, `cpp-drogon`,
-`rust-axum`, `rust-hyper`, `cpp-epoll`. The result JSON keeps every raw `wrk`
+`hono-gea`, `hono-node`, `nest-gea`, `nest-node`, `gea-raw`, `node-raw`,
+`scriptc-raw`, `cpp-drogon`, `rust-axum`, `rust-hyper`, `cpp-epoll`. The result JSON keeps every raw `wrk`
 report, the percentile latencies, peak RSS and PSS per process, startup
 samples, machine metadata, artifact SHA-256 hashes and the wire-contract
 validation record.
