@@ -53,6 +53,13 @@ CXX="$CXX_BIN" node scripts/build.mjs \
   apps/hono-hello/server.ts \
   --out apps/hono-hello/dist
 
+echo "=== Nest Gea: NestJS on @nestjs/platform-node through the shared compiler ==="
+node tools/nest/build-platform-node.mjs --check
+npm --prefix apps/hello-nest run build
+CXX="$CXX_BIN" node scripts/build.mjs \
+  apps/hello-nest/server.ts \
+  --out apps/hello-nest/dist
+
 echo "=== Gea raw: node:http source through the shared compiler ==="
 CXX="$CXX_BIN" node scripts/build.mjs \
   apps/raw-http-hello/server.ts \
@@ -77,6 +84,7 @@ echo "=== Rust Hyper and Axum controls ==="
 
 artifacts=(
   apps/hono-hello/dist/server
+  apps/hello-nest/dist/server
   apps/raw-http-hello/dist/server
   apps/raw-http-hello/dist/cpp-epoll
   apps/raw-http-hello/dist/cpp-drogon
