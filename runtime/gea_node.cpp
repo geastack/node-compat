@@ -408,6 +408,77 @@ inline void fireDue() {
 
 }  // namespace gea::node::timers
 
+namespace gea::node::immediates {
+
+struct Immediate {
+  double id;
+  bool referenced;
+  std::function<void()> callback;
+};
+
+inline std::vector<Immediate> &queue() {
+  static std::vector<Immediate> immediates;
+  return immediates;
+}
+
+inline double nextImmediateId() {
+  static double id = 0;
+  return ++id;
+}
+
+inline bool hasPending() { return !queue().empty(); }
+inline bool hasReferenced() {
+  for (const Immediate &immediate : queue())
+    if (immediate.referenced) return true;
+  return false;
+}
+
+inline double add(std::function<void()> callback) {
+  const double id = nextImmediateId();
+  queue().push_back(Immediate{id, true, std::move(callback)});
+  return id;
+}
+
+inline std::unordered_set<double> &running() {
+  static std::unordered_set<double> ids;
+  return ids;
+}
+
+inline void remove(double id) {
+  running().erase(id);
+  auto &immediates = queue();
+  immediates.erase(
+      std::remove_if(immediates.begin(), immediates.end(), [&](const Immediate &immediate) { return immediate.id == id; }),
+      immediates.end());
+}
+
+inline void setReferenced(double id, bool referenced) {
+  for (Immediate &immediate : queue()) {
+    if (immediate.id == id) {
+      immediate.referenced = referenced;
+      return;
+    }
+  }
+}
+
+inline void runAll(bool loopAlive) {
+  if (queue().empty()) return;
+  if (!loopAlive && !hasReferenced()) return;
+  std::vector<Immediate> batch;
+  batch.swap(queue());
+  gea::detail::HostCallbackScope scope;
+  running().clear();
+  for (const Immediate &immediate : batch) running().insert(immediate.id);
+  for (Immediate &immediate : batch) {
+    if (running().erase(immediate.id) == 0) continue;
+    if (immediate.callback) immediate.callback();
+    gea::node::drain_microtasks();
+  }
+  running().clear();
+}
+
+}
+
 // ---------------------------------------------------------------------------
 // Size-class free-list allocator (global operator new/delete override).
 //
@@ -1070,7 +1141,7 @@ private:
       });
       const bool timersPending = gea::node::timers::hasPending();
       if ((pfds.empty() || (done == nullptr && !haveReferencedWatcher)) &&
-          !gea::node::timers::hasReferenced()) {
+          !gea::node::timers::hasReferenced() && !gea::node::immediates::hasReferenced()) {
         purgeClosedIfSafe();
         return stopRequested(done);  // only unref work remains
       }
@@ -1081,7 +1152,7 @@ private:
       // times per request, re-tracing the request's live objects each time.
       gea::collectCyclesAtQuiescence();
       if (!gea::node::microtasks().empty() || !gea::node::next_ticks().empty()) continue;
-      const int timeout = timersPending ? gea::node::timers::nextDelayMs() : -1;
+      const int timeout = gea::node::immediates::hasReferenced() ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
       const int events = platform::poll(pfds.data(), pfds.size(), timeout);
       if (events < 0) {
         if (errno == EINTR) continue;
@@ -1116,6 +1187,7 @@ private:
       // Handler promises progress here: continuations queued during dispatch
       // (async handlers, body-delivery microtasks) run before the next poll.
       gea::node::drain_microtasks();
+      gea::node::immediates::runAll(haveReferencedWatcher || gea::node::timers::hasReferenced());
       const bool stopped = stopRequested(done);
       --dispatchDepth_;
       purgeClosedIfSafe();
@@ -1155,14 +1227,14 @@ private:
       });
       const bool timersPending = gea::node::timers::hasPending();
       if ((!haveWatchers || (done == nullptr && !haveReferencedWatcher)) &&
-          !gea::node::timers::hasReferenced()) {
+          !gea::node::timers::hasReferenced() && !gea::node::immediates::hasReferenced()) {
         purgeClosedIfSafe();
         return stopRequested(done);
       }
 
       gea::collectCyclesAtQuiescence();  // see `runPoll`
       if (!gea::node::microtasks().empty() || !gea::node::next_ticks().empty()) continue;
-      const int timeout = timersPending ? gea::node::timers::nextDelayMs() : -1;
+      const int timeout = gea::node::immediates::hasReferenced() ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
       const int count = ::epoll_wait(epollFd_, events, 128, timeout);
       if (count < 0) {
         if (errno == EINTR) continue;
@@ -1192,6 +1264,7 @@ private:
         if (stopRequested(done)) break;
       }
       gea::node::drain_microtasks();
+      gea::node::immediates::runAll(haveReferencedWatcher || gea::node::timers::hasReferenced());
       const bool stopped = stopRequested(done);
       --dispatchDepth_;
       purgeClosedIfSafe();
@@ -1233,7 +1306,7 @@ private:
       });
       const bool timersPending = gea::node::timers::hasPending();
       if ((!haveWatchers || (done == nullptr && !haveReferencedWatcher)) &&
-          !gea::node::timers::hasReferenced()) {
+          !gea::node::timers::hasReferenced() && !gea::node::immediates::hasReferenced()) {
         applyKqueueChanges(changes);
         purgeClosedIfSafe();
         return stopRequested(done);
@@ -1245,7 +1318,7 @@ private:
         continue;
       }
       struct timespec wait{};
-      const int delay = timersPending ? gea::node::timers::nextDelayMs() : -1;
+      const int delay = gea::node::immediates::hasReferenced() ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
       if (delay >= 0) {
         wait.tv_sec = delay / 1000;
         wait.tv_nsec = static_cast<long>(delay % 1000) * 1000000L;
@@ -1300,6 +1373,7 @@ private:
         if (stopRequested(done)) break;
       }
       gea::node::drain_microtasks();
+      gea::node::immediates::runAll(haveReferencedWatcher || gea::node::timers::hasReferenced());
       const bool stopped = stopRequested(done);
       --dispatchDepth_;
       purgeClosedIfSafe();
@@ -4054,6 +4128,17 @@ inline double __gea_node_set_interval(std::function<void()> callback, double del
 inline void __gea_node_clear_timer(double id) { gea::node::timers::remove(id); }
 
 inline void __gea_node_timer_unref(double id) { gea::node::timers::unref(id); }
+
+inline double __gea_node_immediate_start(std::function<void()> callback) {
+  if (!callback) return 0;
+  return gea::node::immediates::add(std::move(callback));
+}
+
+inline void __gea_node_immediate_clear(double id) { gea::node::immediates::remove(id); }
+
+inline void __gea_node_immediate_ref(double id) { gea::node::immediates::setReferenced(id, true); }
+
+inline void __gea_node_immediate_unref(double id) { gea::node::immediates::setReferenced(id, false); }
 
 inline void __gea_node_run_pending() { gea::node::clientEventLoop().run(); }
 

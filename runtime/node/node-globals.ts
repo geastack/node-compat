@@ -180,6 +180,7 @@ declare global {
     // package's unrelated object graph.
     type BufferConstructor = globalThis.BufferConstructor
     type Timeout = import('./timers.js').Timeout
+    type Immediate = import('./timers.js').Immediate
     type WriteStream = import('./process.js').WriteStream
     type Platform = typeof import('./process.js').platform
 

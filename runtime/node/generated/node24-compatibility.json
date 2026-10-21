@@ -18096,7 +18096,11 @@
         {
           "name": "clearImmediate",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "timers.ts",
+          "supportedCallSignatures": [
+            "(immediate: NodeJS.Immediate | undefined): void"
+          ]
         },
         {
           "name": "clearInterval",
@@ -18126,7 +18130,12 @@
         {
           "name": "setImmediate",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "timers.ts",
+          "supportedCallSignatures": [
+            "<TArgs extends any[]>(callback: (...args: TArgs) => void, ...args: TArgs): NodeJS.Immediate",
+            "(callback: (_: void) => void): NodeJS.Immediate"
+          ]
         },
         {
           "name": "setInterval",
