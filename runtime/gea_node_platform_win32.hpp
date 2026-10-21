@@ -609,6 +609,51 @@ inline bool canAccess(const std::string &path, int mode) {
   return true;
 }
 
+inline double fileTimeMs(const LARGE_INTEGER &time) {
+  return (static_cast<double>(time.QuadPart) - 116444736000000000.0) / 10000.0;
+}
+
+// The mode bits libuv reports on Windows: a type from the attributes and the
+// handle, read for everyone, written unless the read-only attribute is set.
+inline int statFile(const std::string &path, bool followSymlinks, FileStatus &out) {
+  const DWORD flags = FILE_FLAG_BACKUP_SEMANTICS | (followSymlinks ? 0 : FILE_FLAG_OPEN_REPARSE_POINT);
+  const HANDLE file = ::CreateFileW(wide(path).c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                    nullptr, OPEN_EXISTING, flags, nullptr);
+  if (file == INVALID_HANDLE_VALUE) return uvErrorNumber(errnoFromWin32(::GetLastError()));
+  BY_HANDLE_FILE_INFORMATION info;
+  FILE_BASIC_INFO basic;
+  FILE_STANDARD_INFO standard;
+  if (!::GetFileInformationByHandle(file, &info) || !::GetFileInformationByHandleEx(file, FileBasicInfo, &basic, sizeof(basic)) ||
+      !::GetFileInformationByHandleEx(file, FileStandardInfo, &standard, sizeof(standard))) {
+    const DWORD error = ::GetLastError();
+    ::CloseHandle(file);
+    return uvErrorNumber(errnoFromWin32(error));
+  }
+  FILE_STORAGE_INFO storage;
+  const bool hasStorage = ::GetFileInformationByHandleEx(file, FileStorageInfo, &storage, sizeof(storage)) != 0;
+  const DWORD type = ::GetFileType(file);
+  ::CloseHandle(file);
+  const bool directory = (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+  const bool link = !followSymlinks && (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+  const unsigned typeBits = link ? 0120000u : directory ? 0040000u : type == FILE_TYPE_CHAR ? 0020000u : 0100000u;
+  const unsigned permissionBits = (info.dwFileAttributes & FILE_ATTRIBUTE_READONLY) != 0 ? 0444u : 0666u;
+  out.dev = static_cast<double>(info.dwVolumeSerialNumber);
+  out.ino = static_cast<double>((static_cast<std::uint64_t>(info.nFileIndexHigh) << 32) | info.nFileIndexLow);
+  out.mode = static_cast<double>(typeBits | permissionBits);
+  out.nlink = static_cast<double>(info.nNumberOfLinks);
+  out.uid = 0;
+  out.gid = 0;
+  out.rdev = 0;
+  out.size = directory ? 0.0 : static_cast<double>(standard.EndOfFile.QuadPart);
+  out.blksize = hasStorage ? static_cast<double>(storage.PhysicalBytesPerSectorForPerformance) : 4096.0;
+  out.blocks = static_cast<double>((standard.AllocationSize.QuadPart + 511) / 512);
+  out.atimeMs = fileTimeMs(basic.LastAccessTime);
+  out.mtimeMs = fileTimeMs(basic.LastWriteTime);
+  out.ctimeMs = fileTimeMs(basic.ChangeTime);
+  out.birthtimeMs = fileTimeMs(basic.CreationTime);
+  return 0;
+}
+
 inline bool readWholeFile(const std::string &path, std::vector<std::uint8_t> &out, std::string &failure) {
   const std::wstring name = wide(path);
   const DWORD attributes = ::GetFileAttributesW(name.c_str());

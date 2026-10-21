@@ -611,6 +611,16 @@ export const intrinsics = {
     returnType: 'bool',
     decl: 'bool __gea_node_fs_access(std::string path, double mode);'
   },
+  __gea_node_fs_stat: {
+    emit: '__gea_node_fs_stat',
+    returnType: 'double',
+    decl: 'double __gea_node_fs_stat(std::string path, bool followSymlinks);'
+  },
+  __gea_node_fs_stat_field: {
+    emit: '__gea_node_fs_stat_field',
+    returnType: 'double',
+    decl: 'double __gea_node_fs_stat_field(double field);'
+  },
   // These return the native Buffer carrier directly. Their declarations live
   // in gea_node_buffer.hpp, which generated_support.hpp includes, so no
   // gea_cpp_value bridge is introduced for random/file bytes.
