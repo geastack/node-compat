@@ -28,6 +28,55 @@ const single: string[] = [
   'javascript:alert(1)',
   'a:',
   'a:b',
+  'file://host:/x',
+  'file://[::1]:/x',
+  'file://C:/x',
+  'file://C|/x',
+  'file:///a@b/x',
+  'file:////x',
+  'foo://[x]/',
+  'foo://a[b/',
+  'foo://a b/',
+  'foo://a^b/',
+  'foo://[::1]/',
+  'foo://[::1]:9/',
+  'foo://:80/',
+  'foo://u@/',
+  'foo://u@h:1/p',
+  'foo://h:99999/',
+  'foo://h:x/',
+  'foo:///x',
+  'foo://%zz/',
+  'http://[1::2::3]/',
+  'http://[1:2:3:4:5:6:7:8:9]/',
+  'http://[1:2:3:4:5:6:7::]/',
+  'http://[::1:2:3:4:5:6:7:8]/',
+  'http://[12345::]/',
+  'http://[1:]/',
+  'http://[::1.2.3]/',
+  'http://[::1.2.3.4]/',
+  'http://[::01.2.3.4]/',
+  'http://[::256.2.3.4]/',
+  'http://[1:2:3:4:5:6:1.2.3.4]/',
+  'http://[1:2:3:4:5:6:7:1.2.3.4]/',
+  'http://[::]/',
+  'http://a/?%',
+  'http://a/?%zz&b=%C3',
+  'http://%41.com/',
+  'http://%ff.com/',
+  'http://%E2%98%83.com/',
+  'http://%C3%28.com/',
+  'http://example\u3002123/',
+  'http://example\uff0e123/',
+  'http://\uff11\uff0e\uff12\uff0e\uff13\uff0e\uff14/',
+  'http://a\uff61b/',
+  'http://a\uff0fb/',
+  'http://\u4f8b\u3048.jp/',
+  'http://example.\u2460/',
+  'http://\u2460.\u2461.\u2462.\u2463/',
+  'http://\u2460x.com/',
+  'http://\uff21\uff22.com/',
+  'http://a\u2474b/',
   '1a:b',
   '-a:b',
   '+a:b',
@@ -84,11 +133,38 @@ const pairs: [string, string][] = [
   ['//z', 'a:/x'],
   ['/p', 'file:///tmp/'],
   ['/p', 'data:text/plain,hi'],
-  ['\\\\z\\p', 'http://x']
+  ['\\\\z\\p', 'http://x'],
+  ['http:', 'http://x/'],
+  ['https:', 'http://x/'],
+  ['http:', 'a:/x'],
+  ['http:\\\\y', 'http://x/'],
+  ['//[x]', 'a:/x'],
+  ['//ok:1', 'a:/x'],
+  ['///z/p', 'http://x/'],
+  ['////z/p', 'http://x/'],
+  ['//C:/x', 'file:///dir/base'],
+  ['//C|/x', 'file:///tmp/'],
+  ['//host:/x', 'file:///tmp/'],
+  ['///x', 'file:///tmp/']
 ]
 const lines: string[] = []
 for (const url of single) lines.push(`${URL.canParse(url)} ${JSON.stringify(url)}`)
 for (const [url, base] of pairs) lines.push(`${URL.canParse(url, base)} ${JSON.stringify(url)} base=${JSON.stringify(base)}`)
 lines.push(`${URL.canParse(new URL('http://x/'))} URL object`)
 lines.push(`${URL.canParse('/p', new URL('http://x/'))} URL base`)
+const constructs = (url: string, base?: string): string => {
+  try {
+    new URL(url, base)
+    return 'parses'
+  } catch (error) {
+    const thrown = error as { name: string; code?: string; message: string; input?: string; base?: string }
+    return `throws ${thrown.name} ${thrown.code} ${thrown.message} input=${thrown.input} base=${thrown.base}`
+  }
+}
+for (const url of single) lines.push(`${constructs(url)} ${JSON.stringify(url)}`)
+for (const [url, base] of pairs) lines.push(`${constructs(url, base)} ${JSON.stringify(url)} base=${JSON.stringify(base)}`)
+const formValue = new URLSearchParams('x=a%EF%BB%BFb&y=%EF%BB%BF').get('x') ?? ''
+const formCodes: string[] = []
+for (let i = 0; i < formValue.length; i++) formCodes.push(formValue.charCodeAt(i).toString(16))
+lines.push(`form value ${formCodes.join(' ')} ${(new URLSearchParams('y=%EF%BB%BF').get('y') ?? '').length}`)
 console.log(lines.join('\n'))
