@@ -190,12 +190,12 @@ These are intentional. The header of
   identity, so `removeListener(name, fn)` on req/res cannot match a specific
   listener — use `removeAllListeners(name)`.
 - Request `set-cookie` duplicates join with `", "` instead of becoming an
-  array (`req.headers` stays a string→string map); `getHeader` returns
-  multi-value headers joined with `", "`.
+  array (a `req.headers` value is a string or `undefined`, never an array);
+  `getHeader` returns multi-value headers joined with `", "`.
 - `writeHead(status, statusMessage, headers)` 3-arg form is unsupported — set
   `res.statusMessage` instead.
 - Bodies are byte-preserving strings, not Buffers; chunk trailers are parsed
-  and discarded; `res.req` is not provided.
+  and discarded.
 - `node:cluster` ([runtime/node/cluster.ts](runtime/node/cluster.ts)) forks
   worker processes (a re-exec of the binary; `isPrimary`/`isWorker`,
   `fork(env)`, `worker.id/process.pid`, `kill`/`disconnect`, `'online'`,
