@@ -31,7 +31,8 @@ const server = createServer({ IncomingMessage: AppRequest, ServerResponse: AppRe
     `req ${res.req === req} ${res.req.params.path}`,
     `method ${req.method} url ${req.url ?? ''} path ${req.path}`,
     `headersSent ${res.headersSent}`,
-    `plain ${plainOptions.ServerResponse === PlainResponse}`
+    `plain ${plainOptions.ServerResponse === PlainResponse}`,
+    `socket ${req.socket.writable} ${req.socket.readable} ${req.socket.destroyed} ${res.socket === req.socket}`
   ]
   res.sendText(lines.join('\n') + '\n')
 })
