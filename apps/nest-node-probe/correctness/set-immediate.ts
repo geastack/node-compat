@@ -27,6 +27,13 @@ setImmediate(() => {
 })
 setImmediateFromTimers(() => log('immediate from node:timers'))
 setTimeout(() => {
+  // Only an unreferenced immediate and the 20ms timer remain: the loop must not
+  // wait for the timer before running the check phase.
+  setImmediate(() => {
+    setImmediate(() => log('unref immediate before timer 20ms')).unref()
+  })
+}, 15)
+setTimeout(() => {
   setImmediate(() => log('unref immediate ran')).unref()
   log('timer 20ms, last referenced work')
 }, 20)

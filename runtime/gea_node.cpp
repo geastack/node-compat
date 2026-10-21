@@ -439,13 +439,17 @@ inline double add(std::function<void()> callback) {
   return id;
 }
 
-inline std::unordered_set<double> &running() {
-  static std::unordered_set<double> ids;
-  return ids;
+// Each pass of runAll owns the ids of the batch it is running, and
+// clearImmediate drops an id from every pass in flight. A callback can pump the
+// loop again (an await on host work does), so a nested pass runs only what was
+// queued since and leaves its caller's batch alone.
+inline std::vector<std::unordered_set<double> *> &runningBatches() {
+  static std::vector<std::unordered_set<double> *> batches;
+  return batches;
 }
 
 inline void remove(double id) {
-  running().erase(id);
+  for (std::unordered_set<double> *batch : runningBatches()) batch->erase(id);
   auto &immediates = queue();
   immediates.erase(
       std::remove_if(immediates.begin(), immediates.end(), [&](const Immediate &immediate) { return immediate.id == id; }),
@@ -461,20 +465,26 @@ inline void setReferenced(double id, bool referenced) {
   }
 }
 
+// Whether the check phase runs this turn. An unreferenced immediate does not
+// keep the loop alive, but it still runs while other referenced work does.
+inline bool due(bool loopAlive) { return !queue().empty() && (loopAlive || hasReferenced()); }
+
 inline void runAll(bool loopAlive) {
-  if (queue().empty()) return;
-  if (!loopAlive && !hasReferenced()) return;
+  if (!due(loopAlive)) return;
   std::vector<Immediate> batch;
   batch.swap(queue());
   gea::detail::HostCallbackScope scope;
-  running().clear();
-  for (const Immediate &immediate : batch) running().insert(immediate.id);
+  std::unordered_set<double> pending;
+  for (const Immediate &immediate : batch) pending.insert(immediate.id);
+  runningBatches().push_back(&pending);
+  struct Pop {
+    ~Pop() { runningBatches().pop_back(); }
+  } pop;
   for (Immediate &immediate : batch) {
-    if (running().erase(immediate.id) == 0) continue;
+    if (pending.erase(immediate.id) == 0) continue;
     if (immediate.callback) immediate.callback();
     gea::node::drain_microtasks();
   }
-  running().clear();
 }
 
 }
@@ -1152,7 +1162,7 @@ private:
       // times per request, re-tracing the request's live objects each time.
       gea::collectCyclesAtQuiescence();
       if (!gea::node::microtasks().empty() || !gea::node::next_ticks().empty()) continue;
-      const int timeout = gea::node::immediates::hasReferenced() ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
+      const int timeout = gea::node::immediates::due(haveReferencedWatcher || gea::node::timers::hasReferenced()) ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
       const int events = platform::poll(pfds.data(), pfds.size(), timeout);
       if (events < 0) {
         if (errno == EINTR) continue;
@@ -1234,7 +1244,7 @@ private:
 
       gea::collectCyclesAtQuiescence();  // see `runPoll`
       if (!gea::node::microtasks().empty() || !gea::node::next_ticks().empty()) continue;
-      const int timeout = gea::node::immediates::hasReferenced() ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
+      const int timeout = gea::node::immediates::due(haveReferencedWatcher || gea::node::timers::hasReferenced()) ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
       const int count = ::epoll_wait(epollFd_, events, 128, timeout);
       if (count < 0) {
         if (errno == EINTR) continue;
@@ -1318,7 +1328,7 @@ private:
         continue;
       }
       struct timespec wait{};
-      const int delay = gea::node::immediates::hasReferenced() ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
+      const int delay = gea::node::immediates::due(haveReferencedWatcher || gea::node::timers::hasReferenced()) ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
       if (delay >= 0) {
         wait.tv_sec = delay / 1000;
         wait.tv_nsec = static_cast<long>(delay % 1000) * 1000000L;
