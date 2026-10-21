@@ -18,12 +18,11 @@
 // close-delimited; 1xx/204/304 and HEAD suppress the body.
 //
 // Known deviations (documented, not silent): request `set-cookie` duplicates
-// join with ", " instead of becoming an array (headers stays a string→string
-// map); `getHeader` returns multi-value headers joined with ", ";
-// `writeHead(status, message, headers)` 3-arg form is not supported — set
-// `res.statusMessage` instead; chunk trailers are parsed and discarded;
-// body chunks are byte-preserving strings, not Buffers; `res.req` is not
-// provided (the request is in scope wherever the response is); req/res
+// join with ", " instead of becoming an array (a `headers` value is a string
+// or undefined, never an array); `getHeader` returns multi-value headers
+// joined with ", "; `writeHead(status, message, headers)` 3-arg form is not
+// supported — set `res.statusMessage` instead; chunk trailers are parsed and
+// discarded; body chunks are byte-preserving strings, not Buffers; req/res
 // listeners compile to NATIVE closures with no JS function identity, so
 // `removeListener(name, fn)` on them cannot match — use
 // `removeAllListeners(name)`.
@@ -303,10 +302,20 @@ export class Socket extends NetSocket {
   // no such property, which reads the same falsy way.
   readonly encrypted: boolean = false
 
+  // `connId` 0 is "no connection": net.Socket's constructor leaves the handle `opening` and
+  // neither readable nor writable, and only its own connect path flips those. A Socket built for
+  // an accepted HTTP connection is already open, so it reports what net.Socket reports once
+  // connected; `destroy()` below reverses it the way net.Socket's does.
   constructor(connId: number = 0) {
     super()
     this.connId_ = connId
     this.remoteFamily = 'IPv4'
+    if (connId !== 0) {
+      this.pending = false
+      this.readyState = 'open'
+      this.readable = true
+      this.writable = true
+    }
     this.loadPeer()
   }
 
@@ -314,10 +323,10 @@ export class Socket extends NetSocket {
   // extended net.Socket): TypeScript will not let a subclass override a plain inherited property
   // with an accessor pair (TS2611/TS2855), so remoteAddress/remotePort now come straight from
   // net.Socket's own writable fields, populated once, eagerly, right here. Guarded on connId_ !==
-  // 0 so the module-load-time placeholder socket (connId 0, see below) never calls into the
-  // reactor for a connection that was never accepted. This is scoped by the same laziness the
-  // getter used to add on top of: `IncomingMessage.socket` only constructs a Socket at all when
-  // the app reads `.socket`, so the peer syscall still isn't paid by requests that never touch it.
+  // 0 so a Socket built without a connection never calls into the reactor for one that was never
+  // accepted. This is scoped by the same laziness the getter used to add on top of:
+  // `IncomingMessage.socket` only constructs a Socket at all when the app reads `.socket`, so the
+  // peer syscall still isn't paid by requests that never touch it.
   private loadPeer(): void {
     if (this.connId_ === 0) return
     const peer = __gea_http_peer(this.connId_)
@@ -339,6 +348,10 @@ export class Socket extends NetSocket {
   override destroy(): this {
     if (this.destroyed) return this
     this.destroyed = true
+    this.pending = false
+    this.readyState = 'closed'
+    this.readable = false
+    this.writable = false
     __gea_http_destroy(this.connId_)
     return this
   }
@@ -1339,6 +1352,10 @@ export class Server extends EventEmitter {
   private requestListener_: RequestListener | undefined
   private port_: number
   private incomingMessageClass_: typeof IncomingMessage
+  // Unlike `incomingMessageClass_`, left undefined rather than defaulted to `ServerResponse`:
+  // the compiler refuses to carry a generic class the program never instantiates as a value
+  // (`native-boundary:uncensused-class-object`), so the default is expressed where the response
+  // is constructed instead.
   private serverResponseClass_: typeof ServerResponse | undefined
 
   constructor(optionsOrListener?: ServerOptions | RequestListener, requestListener?: RequestListener) {
