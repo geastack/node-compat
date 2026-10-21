@@ -91,4 +91,15 @@ for (const url of single) lines.push(`${URL.canParse(url)} ${JSON.stringify(url)
 for (const [url, base] of pairs) lines.push(`${URL.canParse(url, base)} ${JSON.stringify(url)} base=${JSON.stringify(base)}`)
 lines.push(`${URL.canParse(new URL('http://x/'))} URL object`)
 lines.push(`${URL.canParse('/p', new URL('http://x/'))} URL base`)
+const constructs = (url: string, base?: string): string => {
+  try {
+    new URL(url, base)
+    return 'parses'
+  } catch (error) {
+    const thrown = error as { name: string; code?: string; message: string; input?: string; base?: string }
+    return `throws ${thrown.name} ${thrown.code} ${thrown.message} input=${thrown.input} base=${thrown.base}`
+  }
+}
+for (const url of single) lines.push(`${constructs(url)} ${JSON.stringify(url)}`)
+for (const [url, base] of pairs) lines.push(`${constructs(url, base)} ${JSON.stringify(url)} base=${JSON.stringify(base)}`)
 console.log(lines.join('\n'))

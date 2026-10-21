@@ -1117,36 +1117,24 @@ class URL {
   hash: string = "";
   searchParams: URLSearchParams = new URLSearchParams();
 
-  constructor(url: string | URL, base: string | URL = "") {
+  constructor(url: string | URL, base?: string | URL) {
     const urlText = typeof url === "string" ? url : url.href;
-    const baseText = typeof base === "string" ? base : base.href;
+    const baseText = base === undefined ? undefined : typeof base === "string" ? base : base.href;
+    if (!parsesAsUrl(urlText, baseText)) throw invalidUrl(urlText, baseText);
     let full = urlText;
-    if (baseText.length > 0 && urlText.indexOf("://") < 0)
+    if (baseText !== undefined && urlText.indexOf("://") < 0)
       full = baseText + urlText;
     this.parse(full);
   }
 
+  // Node's definition: the constructor does not throw for these arguments.
   static canParse(url: string | URL, base?: string | URL): boolean {
-    const text = trimUrlInput(typeof url === "string" ? url : url.href);
-    const scheme = urlSchemeOf(text);
-    if (scheme.length === 0) {
-      if (base === undefined) return false;
-      const baseText = trimUrlInput(typeof base === "string" ? base : base.href);
-      const baseScheme = urlSchemeOf(baseText);
-      if (!URL.canParse(baseText)) return false;
-      const baseIsSpecial = isSpecialUrlScheme(baseScheme);
-      if (!baseIsSpecial && baseText.charAt(baseScheme.length) !== "/") return text.charAt(0) === "#";
-      if (startsWithUrlAuthority(text, baseIsSpecial))
-        return !baseIsSpecial || canParseSpecialUrlAuthority(urlAuthorityOf(text.slice(2)), baseScheme === "file:");
+    try {
+      new URL(url, base);
       return true;
+    } catch (error) {
+      return false;
     }
-    if (base !== undefined && !URL.canParse(base)) return false;
-    if (!isSpecialUrlScheme(scheme)) return true;
-    let rest = text.slice(scheme.length);
-    let slashes = 0;
-    while (slashes < rest.length && (rest.charAt(slashes) === "/" || rest.charAt(slashes) === "\\")) slashes++;
-    rest = rest.slice(slashes);
-    return canParseSpecialUrlAuthority(urlAuthorityOf(rest), scheme === "file:");
   }
 
   private parse(full: string): void {
@@ -1418,6 +1406,47 @@ class File extends Blob {
   override formDataLastModified(): number {
     return this.lastModified;
   }
+}
+
+interface InvalidUrlError extends TypeError {
+  code: string;
+  input: string;
+  base?: string;
+}
+
+function invalidUrl(input: string, base: string | undefined): TypeError {
+  const error = new TypeError("Invalid URL") as InvalidUrlError;
+  error.code = "ERR_INVALID_URL";
+  error.input = input;
+  if (base !== undefined) error.base = base;
+  return error;
+}
+
+// The WHATWG parser's accept/reject answer for `new URL(input, base)`, before
+// the constructor parses: a relative input needs a base that itself parses, a
+// special scheme needs a well-formed authority, any other scheme takes the
+// rest of the text as is.
+function parsesAsUrl(input: string, base: string | undefined): boolean {
+  const text = trimUrlInput(input);
+  const scheme = urlSchemeOf(text);
+  if (scheme.length === 0) {
+    if (base === undefined) return false;
+    const baseText = trimUrlInput(base);
+    const baseScheme = urlSchemeOf(baseText);
+    if (!parsesAsUrl(baseText, undefined)) return false;
+    const baseIsSpecial = isSpecialUrlScheme(baseScheme);
+    if (!baseIsSpecial && baseText.charAt(baseScheme.length) !== "/") return text.charAt(0) === "#";
+    if (startsWithUrlAuthority(text, baseIsSpecial))
+      return !baseIsSpecial || canParseSpecialUrlAuthority(urlAuthorityOf(text.slice(2)), baseScheme === "file:");
+    return true;
+  }
+  if (base !== undefined && !parsesAsUrl(base, undefined)) return false;
+  if (!isSpecialUrlScheme(scheme)) return true;
+  let rest = text.slice(scheme.length);
+  let slashes = 0;
+  while (slashes < rest.length && (rest.charAt(slashes) === "/" || rest.charAt(slashes) === "\\")) slashes++;
+  rest = rest.slice(slashes);
+  return canParseSpecialUrlAuthority(urlAuthorityOf(rest), scheme === "file:");
 }
 
 function isSpecialUrlScheme(protocol: string): boolean {
