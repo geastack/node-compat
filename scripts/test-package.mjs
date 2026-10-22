@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import { join, relative, resolve, sep } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { geatscNodePlugin } from '@geastack/node-compat'
 import { displayPathFrom } from './path-display.mjs'
 import { compilerRoot, compilerModuleUrl } from './resolve-compiler.mjs'
@@ -14,10 +15,12 @@ const require = createRequire(import.meta.url)
 const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
 
 test('the compiler override selects the actual package for both frontend and plugin imports', async () => {
-  const canonical = resolve(root, '../compiler')
+  // The compiler this run resolves (GEA_COMPILER_DIR, else the installed peer), not a
+  // sibling checkout: nothing places one beside this repository.
+  const canonical = compilerRoot()
   const selected = compilerRoot({ GEA_COMPILER_DIR: canonical })
   assert.equal(selected, canonical)
-  assert.equal(compilerModuleUrl('.', selected), new URL('../compiler/dist/compiler.js', `file://${root}/`).href)
+  assert.equal(compilerModuleUrl('.', selected), pathToFileURL(join(canonical, 'dist/compiler.js')).href)
   const api = await import(compilerModuleUrl('./plugin', selected))
   assert.ok(api.noPluginCapabilities)
   assert.throws(() => compilerRoot({ GEA_COMPILER_DIR: root }), /compiler package root/)
@@ -31,7 +34,7 @@ test('compiler fingerprints cover all module names, JavaScript contents and nati
   assert.equal(compilerFilesDigest(first), compilerFilesDigest([...first].reverse()))
   assert.notEqual(compilerFilesDigest(first), compilerFilesDigest([first[0], ['dist/nested/b.js', 'changed']]))
   assert.notEqual(compilerFilesDigest(first), compilerFilesDigest([first[0], ['dist/renamed.js', 'two']]))
-  const inputs = compilerInputs(resolve(root, '../compiler'))
+  const inputs = compilerInputs(compilerRoot())
   assert.match(inputs.compilerDistHash, /^[a-f0-9]{64}$/)
   assert.match(inputs.runtimeHash, /^[a-f0-9]{64}$/)
   assertCompilerInputs(inputs)
