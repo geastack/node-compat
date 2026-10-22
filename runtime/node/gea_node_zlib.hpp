@@ -88,7 +88,7 @@ inline std::vector<std::uint8_t> inflate(const Bytes& bytes, double windowBits) 
     if (code == Z_STREAM_END) {
       // node's Gunzip reads every member of a multi-member gzip file; bytes
       // after a zlib or raw stream are ignored, as node ignores them.
-      if (remaining == 0 || (bits != 31 && bits != 47)) break;
+      if (remaining == 0 || (bits != 31 && bits != 47) || *next == 0) break;
       if (inflateReset(&stream) != Z_OK) {
         inflateEnd(&stream);
         fail(Z_STREAM_ERROR, stream);
@@ -145,6 +145,7 @@ struct Stream {
   bool deflating = false;
   bool ended = false;
   bool betweenMembers = false;
+  bool leftover = false;
 
   Stream() = default;
   Stream(const Stream&) = delete;
@@ -211,6 +212,11 @@ inline std::vector<std::uint8_t> inflateInto(Stream& stream, const Bytes& bytes)
   std::size_t remaining = bytes.size();
   Bytef* next = input(bytes);
   while (remaining > 0 && !stream.ended) {
+    if (stream.betweenMembers) {
+      if (*next == 0) break;
+      if (inflateReset(&stream.z) != Z_OK) fail(Z_STREAM_ERROR, stream.z);
+      stream.betweenMembers = false;
+    }
     const uInt take = static_cast<uInt>(std::min<std::size_t>(remaining, std::numeric_limits<uInt>::max()));
     stream.z.next_in = next;
     stream.z.avail_in = take;
@@ -232,18 +238,25 @@ inline std::vector<std::uint8_t> inflateInto(Stream& stream, const Bytes& bytes)
         stream.ended = true;
         break;
       }
-      if (inflateReset(&stream.z) != Z_OK) fail(Z_STREAM_ERROR, stream.z);
       stream.betweenMembers = true;
       continue;
     }
-    if (consumed > 0) stream.betweenMembers = false;
+    if (consumed == 0) {
+      stream.z.msg = nullptr;
+      fail(Z_BUF_ERROR, stream.z);
+    }
   }
+  stream.leftover = remaining > 0;
   return output;
 }
 
 inline std::vector<std::uint8_t> streamWrite(double handle, const Bytes& bytes) {
   Stream& stream = streamAt(handle);
   return stream.deflating ? deflateInto(stream, input(bytes), bytes.size(), Z_NO_FLUSH) : inflateInto(stream, bytes);
+}
+
+inline bool streamLeftover(double handle) {
+  return streamAt(handle).leftover;
 }
 
 inline std::vector<std::uint8_t> streamFinish(double handle) {

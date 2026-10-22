@@ -32,6 +32,8 @@ declare function __gea_node_zlib_stream_open(mode: number, windowBits: number, l
 /** @gea-host-inert */
 declare function __gea_node_zlib_stream_write(handle: number, input: Buffer): Buffer
 /** @gea-host-inert */
+declare function __gea_node_zlib_stream_leftover(handle: number): boolean
+/** @gea-host-inert */
 declare function __gea_node_zlib_stream_finish(handle: number): Buffer
 /** @gea-host-inert */
 declare function __gea_node_zlib_stream_close(handle: number): void
@@ -39,6 +41,8 @@ declare function __gea_node_zlib_stream_close(handle: number): void
 declare function __gea_node_brotli_stream_open(): number
 /** @gea-host-inert */
 declare function __gea_node_brotli_stream_write(handle: number, input: Buffer): Buffer
+/** @gea-host-inert */
+declare function __gea_node_brotli_stream_leftover(handle: number): boolean
 /** @gea-host-inert */
 declare function __gea_node_brotli_stream_finish(handle: number): void
 /** @gea-host-inert */
@@ -142,14 +146,17 @@ class ZlibBase extends Transform {
 
   override _transform(chunk: Buffer, _encoding: unknown, callback: TransformCallback): void {
     let output: Buffer
+    let leftover: boolean
     try {
       output = this.brotli_ ? __gea_node_brotli_stream_write(this.handle_, chunk) : __gea_node_zlib_stream_write(this.handle_, chunk)
+      leftover = this.brotli_ ? __gea_node_brotli_stream_leftover(this.handle_) : __gea_node_zlib_stream_leftover(this.handle_)
     } catch (error) {
       this.release_()
       callback(failureOf(error))
       return
     }
     if (output.length > 0) this.push(output)
+    if (leftover) this.push(null)
     callback(null)
   }
 

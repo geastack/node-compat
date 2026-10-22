@@ -46,6 +46,7 @@ inline std::vector<std::uint8_t> decompress(const Bytes& bytes) {
 struct Stream {
   BrotliDecoderState* state = nullptr;
   bool finished = false;
+  bool leftover = false;
 
   Stream() = default;
   Stream(const Stream&) = delete;
@@ -78,6 +79,7 @@ inline double streamOpen() {
 inline std::vector<std::uint8_t> streamWrite(double handle, const Bytes& bytes) {
   Stream& stream = streamAt(handle);
   std::vector<std::uint8_t> output;
+  stream.leftover = bytes.size() > 0;
   if (stream.finished) return output;
   static const std::uint8_t empty = 0;
   const std::uint8_t* nextIn = bytes.size() == 0 ? &empty : reinterpret_cast<const std::uint8_t*>(bytes.data());
@@ -94,7 +96,12 @@ inline std::vector<std::uint8_t> streamWrite(double handle, const Bytes& bytes) 
   }
   if (result == BROTLI_DECODER_RESULT_ERROR) gea::host::throwRuntimeError("Error", "Decompression failed");
   if (result == BROTLI_DECODER_RESULT_SUCCESS) stream.finished = true;
+  stream.leftover = availableIn > 0;
   return output;
+}
+
+inline bool streamLeftover(double handle) {
+  return streamAt(handle).leftover;
 }
 
 inline void streamFinish(double handle) {
