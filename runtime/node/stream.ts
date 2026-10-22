@@ -240,6 +240,7 @@ export class Readable extends Stream {
   private pipeEndListeners_: EventHandler[] | undefined
   private endPending_: boolean
   private endEmitted_: boolean
+  private endScheduled_: boolean
   private encoding_: BufferEncoding | ''
   private webPump_: WebReadablePump | null
   protected autoDestroy_: boolean
@@ -265,6 +266,7 @@ export class Readable extends Stream {
     this.pipeEndListeners_ = undefined
     this.endPending_ = false
     this.endEmitted_ = false
+    this.endScheduled_ = false
     this.encoding_ = options.encoding ?? ''
     this.webPump_ = null
     this.autoDestroy_ = options.autoDestroy !== false
@@ -372,16 +374,31 @@ export class Readable extends Stream {
   // allocation even when nobody is listening -- and on the server hot path
   // nobody is.
   private maybeEmitEnd(): void {
-    if (!this.endPending_ || this.pendingCount() !== 0 || this.endEmitted_) return
-    this.endEmitted_ = true
-    this.readableEnded = true
-    this.readable = false
-    if (this.hasAnyListeners()) this.emit('end')
-    if (this.autoDestroy_ && this.writableSideFinished()) this.destroy()
+    if (!this.endPending_ || this.pendingCount() !== 0 || this.endEmitted_ || this.endScheduled_) return
+    this.endScheduled_ = true
+    queueMicrotask(() => {
+      this.endScheduled_ = false
+      if (this.endEmitted_ || this.destroyed || this.errored !== null || this.pendingCount() !== 0) return
+      this.endEmitted_ = true
+      this.readableEnded = true
+      this.readable = false
+      if (this.hasAnyListeners()) this.emit('end')
+      if (this.autoDestroy_ && this.writableSideFinished()) this.destroy()
+    })
   }
 
   protected writableSideFinished(): boolean {
     return true
+  }
+
+  protected errorOrDestroy(error: Error): void {
+    if (this.destroyed) return
+    if (this.autoDestroy_) {
+      this.destroy(error)
+      return
+    }
+    this.errored = error
+    this.emit('error', error)
   }
 
   private drainFlowing(): void {
@@ -419,7 +436,11 @@ export class Readable extends Stream {
   }
 
   push(chunk: unknown, _encoding: BufferEncoding = 'utf8'): boolean {
-    if (this.destroyed || this.endPending_) return false
+    if (this.destroyed) return false
+    if (this.endPending_) {
+      if (chunk !== null) this.errorOrDestroy(streamError('stream.push() after EOF', 'ERR_STREAM_PUSH_AFTER_EOF'))
+      return false
+    }
     if (chunk === null) {
       this.pushEnd()
       return false
@@ -1367,16 +1388,6 @@ export class Duplex extends Readable {
     if (callbacks === undefined) return
     this.finishCallbacks_ = undefined
     for (const callback of callbacks) invokeCallback(callback, error)
-  }
-
-  private errorOrDestroy(error: Error): void {
-    if (this.destroyed) return
-    if (this.autoDestroy_) {
-      this.destroy(error)
-      return
-    }
-    this.errored = error
-    this.emit('error', error)
   }
 
   protected override writableSideFinished(): boolean {

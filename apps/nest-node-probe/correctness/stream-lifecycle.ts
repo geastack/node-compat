@@ -209,6 +209,18 @@ async function endWithChunk(): Promise<void> {
   log(`end with chunk: callback calls ${calls} received ${sink.received.join(' | ')}`)
 }
 
+async function pushAfterEnd(autoDestroy: boolean): Promise<void> {
+  const source = new Source({ autoDestroy })
+  const events = watch(source)
+  source.on('data', () => {})
+  source.push('x')
+  source.push(null)
+  const accepted = source.push('late')
+  source.push(null)
+  await settle()
+  log(`push after end autoDestroy ${autoDestroy}: returned ${accepted} destroyed ${source.destroyed} events ${events.join(',')}`)
+}
+
 async function main(): Promise<void> {
   for (const autoDestroy of [true, false]) await readableEnd(autoDestroy)
   for (const autoDestroy of [true, false]) await writableFinish(autoDestroy)
@@ -220,6 +232,7 @@ async function main(): Promise<void> {
   await endStates()
   await pendingEnds()
   await endWithChunk()
+  for (const autoDestroy of [true, false]) await pushAfterEnd(autoDestroy)
 }
 
 void main()
