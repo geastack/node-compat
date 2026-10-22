@@ -23,6 +23,9 @@ const DEFLATE = '789c0bc94855282ccd4cce56482aca2fcf5348cbaf50c82acd2d2856c82f4b2
 const DEFLATE_RAW = '0bc94855282ccd4cce56482aca2fcf5348cbaf50c82acd2d2856c82f4b2d5228c94855c849acaa5448c94fd7530819553caa7854f1a8e251c5a38a87976200'
 const BROTLI = '1b0707882c0e78d3d0955d9710bb172ba9cad092cc8cad415ce6f236c8199e9e0a7b830d387048206f24bf41a715ce1c1e27aa2938c2a9749f0603'
 const GZIP_MEMBERS = '1f8b08000000000000134bcb2c2a2e510000fc7af11c060000001f8b08000000000000132b4e4dcecf4b010069111fb606000000'
+const GZIP_FIRST = '1f8b08000000000000134bcb2c2a2e510000fc7af11c06000000'
+const GZIP_SECOND = '1f8b08000000000000132b4e4dcecf4b010069111fb606000000'
+const ZEROS = '00000000000000000000000000000000'
 
 interface Case {
   name: string
@@ -57,6 +60,11 @@ const cases: Case[] = [
   { name: 'brotli', decoder: 'brotli', input: Buffer.from(BROTLI, 'hex'), expected: TEXT },
   { name: 'gunzip members', decoder: 'gunzip', input: Buffer.from(GZIP_MEMBERS, 'hex'), expected: 'first second' },
   { name: 'gunzip garbage', decoder: 'gunzip', input: Buffer.from('0102030405', 'hex'), expected: '' },
+  { name: 'gunzip zero padding', decoder: 'gunzip', input: Buffer.from(GZIP + ZEROS, 'hex'), expected: TEXT },
+  { name: 'gunzip zero then garbage', decoder: 'gunzip', input: Buffer.from(GZIP + '00010203', 'hex'), expected: TEXT },
+  { name: 'gunzip trailing garbage', decoder: 'gunzip', input: Buffer.from(GZIP + '010203', 'hex'), expected: TEXT },
+  { name: 'gunzip padded members', decoder: 'gunzip', input: Buffer.from(GZIP_FIRST + '0000' + GZIP_SECOND, 'hex'), expected: 'first ' },
+  { name: 'unzip zero padding', decoder: 'unzip', input: Buffer.from(GZIP + ZEROS, 'hex'), expected: TEXT },
   { name: 'gunzip truncated', decoder: 'gunzip', input: Buffer.from(GZIP, 'hex').subarray(0, 40), expected: '' },
   { name: 'inflate garbage', decoder: 'inflate', input: Buffer.from('0102030405', 'hex'), expected: '' },
   { name: 'brotli truncated', decoder: 'brotli', input: Buffer.from(BROTLI, 'hex').subarray(0, 40), expected: '' },
@@ -155,6 +163,60 @@ function stringWrite(done: () => void): void {
   encoder.end('second', 'utf8')
 }
 
+function earlyEnd(name: string, stream: Transform, first: Buffer, second: Buffer, done: () => void): void {
+  const chunks: Buffer[] = []
+  let ended = false
+  stream.on('data', (chunk: Buffer) => {
+    chunks.push(chunk)
+  })
+  stream.on('end', () => {
+    ended = true
+  })
+  stream.on('error', (error: Error) => {
+    log(`${name}: error ${error.message}`)
+  })
+  stream.on('close', () => {
+    log(`${name}: close ${Buffer.concat(chunks).length}`)
+    done()
+  })
+  stream.write(first)
+  setTimeout(() => {
+    log(`${name}: ended before end() ${ended}`)
+    stream.end(second)
+  }, 20)
+}
+
+function concurrent(done: () => void): void {
+  const results: string[] = ['', '', '', '']
+  let open = results.length
+  for (let index = 0; index < results.length; index++) {
+    const stream = index % 2 === 0 ? createGunzip() : createBrotliDecompress()
+    const chunks: Buffer[] = []
+    stream.on('data', (chunk: Buffer) => {
+      chunks.push(chunk)
+    })
+    stream.on('end', () => {
+      results[index] = Buffer.concat(chunks).toString() === TEXT ? 'match' : 'MISMATCH'
+    })
+    stream.on('close', () => {
+      open--
+      if (open === 0) {
+        log(`concurrent streams: ${results.join(' ')}`)
+        done()
+      }
+    })
+    stream.end(Buffer.from(index % 2 === 0 ? GZIP : BROTLI, 'hex'))
+  }
+}
+
+function syncGunzip(name: string, hex: string): void {
+  try {
+    log(`gunzipSync ${name}: ${gunzipSync(Buffer.from(hex, 'hex')).toString().length}`)
+  } catch (error) {
+    log(`gunzipSync ${name}: error ${(error as Error).message}`)
+  }
+}
+
 function next(): void {
   if (at < cases.length) {
     const item = cases[at]
@@ -197,6 +259,35 @@ function next(): void {
     stringWrite(next)
     return
   }
+  if (at === cases.length + 7) {
+    at++
+    earlyEnd('inflate trailing', createInflate(), Buffer.from(DEFLATE + '61626364', 'hex'), Buffer.from('efgh'), next)
+    return
+  }
+  if (at === cases.length + 8) {
+    at++
+    earlyEnd('brotli trailing', createBrotliDecompress(), Buffer.from(BROTLI + '6162', 'hex'), Buffer.from('cd'), next)
+    return
+  }
+  if (at === cases.length + 9) {
+    at++
+    earlyEnd('gunzip zero padding then zero', createGunzip(), Buffer.from(GZIP + ZEROS, 'hex'), Buffer.from('0001', 'hex'), next)
+    return
+  }
+  if (at === cases.length + 10) {
+    at++
+    earlyEnd('gzip whole', createGunzip(), Buffer.from(GZIP, 'hex'), Buffer.alloc(0), next)
+    return
+  }
+  if (at === cases.length + 11) {
+    at++
+    concurrent(next)
+    return
+  }
+  syncGunzip('zero padding', GZIP + ZEROS)
+  syncGunzip('zero then garbage', GZIP + '00010203')
+  syncGunzip('trailing garbage', GZIP + '010203')
+  syncGunzip('padded members', GZIP_FIRST + '0000' + GZIP_SECOND)
   log(`brotliDecompressSync: ${brotliDecompressSync(Buffer.from(BROTLI, 'hex')).toString() === TEXT ? 'match' : 'MISMATCH'}`)
   log(`gunzipSync: ${gunzipSync(Buffer.from(GZIP, 'hex')).toString() === TEXT ? 'match' : 'MISMATCH'}`)
   log('done')
