@@ -288,7 +288,12 @@ const nodeOnlyHostFunctions = new Map([
   ['__gea_node_crypto_timing_safe_equal', 'gea::node::crypto::timingSafeEqual'],
   ['__gea_node_crypto_get_fips', 'gea::node::crypto::getFips'],
   ['__gea_node_zlib_inflate', 'gea::node::zlib::inflate'],
-  ['__gea_node_zlib_deflate', 'gea::node::zlib::deflate']
+  ['__gea_node_zlib_deflate', 'gea::node::zlib::deflate'],
+  ['__gea_node_brotli_decompress', 'gea::node::brotli::decompress'],
+  ['__gea_node_brotli_stream_open', 'gea::node::brotli::streamOpen'],
+  ['__gea_node_brotli_stream_write', 'gea::node::brotli::streamWrite'],
+  ['__gea_node_brotli_stream_finish', 'gea::node::brotli::streamFinish'],
+  ['__gea_node_brotli_stream_close', 'gea::node::brotli::streamClose']
 ])
 
 /**
@@ -442,7 +447,9 @@ const hostPreambles = () =>
         ? [runtimeHeader, '#include "gea_node_crypto.hpp"']
         : spelling.startsWith('gea::node::zlib::')
           ? [runtimeHeader, '#include "gea_node_zlib.hpp"']
-          : [runtimeHeader]
+          : spelling.startsWith('gea::node::brotli::')
+            ? [runtimeHeader, '#include "gea_node_brotli.hpp"']
+            : [runtimeHeader]
     ])
   )
 
