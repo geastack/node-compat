@@ -242,6 +242,7 @@ export class Readable extends Stream {
   private endEmitted_: boolean
   private encoding_: BufferEncoding | ''
   private webPump_: WebReadablePump | null
+  protected autoDestroy_: boolean
 
   destroyed: boolean
   closed: boolean
@@ -266,6 +267,7 @@ export class Readable extends Stream {
     this.endEmitted_ = false
     this.encoding_ = options.encoding ?? ''
     this.webPump_ = null
+    this.autoDestroy_ = options.autoDestroy !== false
     this.destroyed = false
     this.closed = false
     this.errored = null
@@ -375,6 +377,11 @@ export class Readable extends Stream {
     this.readableEnded = true
     this.readable = false
     if (this.hasAnyListeners()) this.emit('end')
+    if (this.autoDestroy_ && this.writableSideFinished()) this.destroy()
+  }
+
+  protected writableSideFinished(): boolean {
+    return true
   }
 
   private drainFlowing(): void {
@@ -838,6 +845,9 @@ export class Writable extends Stream {
   private writeEncodingQueue_: string[] | undefined
   private writeCallbackQueue_: unknown[] | undefined
   private defaultEncoding_: string
+  private decodeStrings_: boolean
+  private autoDestroy_: boolean
+  private finishCallbacks_: unknown[] | undefined
 
   destroyed: boolean
   closed: boolean
@@ -858,6 +868,9 @@ export class Writable extends Stream {
     this.writeEncodingQueue_ = undefined
     this.writeCallbackQueue_ = undefined
     this.defaultEncoding_ = options.defaultEncoding ?? 'utf8'
+    this.decodeStrings_ = options.decodeStrings !== false
+    this.autoDestroy_ = options.autoDestroy !== false
+    this.finishCallbacks_ = undefined
     this.destroyed = false
     this.closed = false
     this.errored = null
@@ -941,9 +954,8 @@ export class Writable extends Stream {
       this.writableLength -= length
       if (this.writableLength < 0) this.writableLength = 0
       if (error) {
-        this.errored = error
         invokeCallback(callback, error)
-        this.emit('error', error)
+        this.errorOrDestroy(error)
         return
       }
       invokeCallback(callback, null)
@@ -954,14 +966,23 @@ export class Writable extends Stream {
     })
   }
 
+  private rejectWrite(done: unknown): Error | null {
+    if (!this.writableEnded && !this.destroyed) return null
+    const error: Error = this.writableEnded
+      ? streamError('write after end', 'ERR_STREAM_WRITE_AFTER_END')
+      : streamError('Cannot call write after a stream was destroyed', 'ERR_STREAM_DESTROYED')
+    invokeCallback(done, error)
+    this.errorOrDestroy(error)
+    return error
+  }
+
   write(chunk: unknown, encodingOrCallback?: unknown, callback?: unknown): boolean {
-    if (this.writableEnded || this.destroyed) {
-      const error: Error = streamError('write after end', 'ERR_STREAM_WRITE_AFTER_END')
-      invokeCallback(typeof encodingOrCallback === 'function' ? encodingOrCallback : callback, error)
-      this.emit('error', error)
-      return false
+    if (this.rejectWrite(typeof encodingOrCallback === 'function' ? encodingOrCallback : callback) !== null) return false
+    let encoding = typeof encodingOrCallback === 'string' ? encodingOrCallback : this.defaultEncoding_
+    if (typeof chunk === 'string' && this.decodeStrings_ && !this.writableObjectMode) {
+      chunk = Buffer.from(chunk, encoding as BufferEncoding)
+      encoding = 'buffer'
     }
-    const encoding = typeof encodingOrCallback === 'string' ? encodingOrCallback : this.defaultEncoding_
     const done = typeof encodingOrCallback === 'function' ? encodingOrCallback : callback
     if (this.writableCorked > 0) {
       let queue = this.writeQueue_
@@ -1020,30 +1041,65 @@ export class Writable extends Stream {
       done = chunk
       chunk = undefined
     }
-    if (chunk !== undefined) this.write(chunk, encodingOrCallback)
+    const hasChunk = chunk !== undefined && chunk !== null
+    const rejected = hasChunk ? this.rejectWrite(undefined) : null
+    if (hasChunk && rejected === null) this.write(chunk, typeof encodingOrCallback === 'string' ? encodingOrCallback : undefined)
     while (this.writableCorked > 0) this.uncork()
-    if (this.writableEnded) {
-      invokeCallback(done, null)
+    if (rejected !== null) {
+      invokeCallback(done, rejected)
       return this
     }
-    this.writableEnded = true
-    this.writable = false
-    this._final(error => {
-      if (error) {
-        this.errored = error
-        invokeCallback(done, error)
-        this.emit('error', error)
-        return
-      }
-      this.writableFinished = true
-      this.emit('finish')
-      invokeCallback(done, null)
-    })
+    if (this.errored === null && !this.writableEnded) {
+      this.writableEnded = true
+      this.writable = false
+      this.awaitFinish(done)
+      if (this.destroyed) return this
+      this._final(error => {
+        if (error) {
+          this.settleFinish(error)
+          this.errorOrDestroy(error)
+          return
+        }
+        this.writableFinished = true
+        this.settleFinish(null)
+        this.emit('finish')
+        if (this.autoDestroy_) this.destroy()
+      })
+      return this
+    }
+    if (this.writableFinished) invokeCallback(done, streamError('Cannot call end after a stream was finished', 'ERR_STREAM_ALREADY_FINISHED'))
+    else if (this.destroyed) invokeCallback(done, streamError('Cannot call end after a stream was destroyed', 'ERR_STREAM_DESTROYED'))
+    else if (this.errored !== null) invokeCallback(done, this.errored)
+    else this.awaitFinish(done)
     return this
+  }
+
+  private awaitFinish(done: unknown): void {
+    if (typeof done !== 'function') return
+    if (this.finishCallbacks_ === undefined) this.finishCallbacks_ = []
+    this.finishCallbacks_.push(done)
+  }
+
+  private settleFinish(error: Error | null): void {
+    const callbacks = this.finishCallbacks_
+    if (callbacks === undefined) return
+    this.finishCallbacks_ = undefined
+    for (const callback of callbacks) invokeCallback(callback, error)
+  }
+
+  private errorOrDestroy(error: Error): void {
+    if (this.destroyed) return
+    if (this.autoDestroy_) {
+      this.destroy(error)
+      return
+    }
+    this.errored = error
+    this.emit('error', error)
   }
 
   destroy(error: Error | null = null): this {
     if (this.destroyed) return this
+    this.settleFinish(error ?? this.errored ?? streamError('Cannot call end after a stream was destroyed', 'ERR_STREAM_DESTROYED'))
     this.destroyed = true
     this.writableAborted = !this.writableFinished
     this.writable = false
@@ -1083,6 +1139,8 @@ export class Duplex extends Readable {
   private writeEncodingQueue_: string[]
   private writeCallbackQueue_: unknown[]
   private defaultEncoding_: string
+  private decodeStrings_: boolean
+  private finishCallbacks_: unknown[] | undefined
 
   allowHalfOpen: boolean
   private peer_: Duplex | null
@@ -1103,6 +1161,8 @@ export class Duplex extends Readable {
     this.writeEncodingQueue_ = []
     this.writeCallbackQueue_ = []
     this.defaultEncoding_ = options.defaultEncoding ?? 'utf8'
+    this.decodeStrings_ = options.decodeStrings !== false
+    this.finishCallbacks_ = undefined
     this.allowHalfOpen = true
     this.peer_ = null
     this.writable = true
@@ -1190,9 +1250,8 @@ export class Duplex extends Readable {
       this.writableLength -= length
       if (this.writableLength < 0) this.writableLength = 0
       if (error) {
-        this.errored = error
         invokeCallback(callback, error)
-        this.emit('error', error)
+        this.errorOrDestroy(error)
         return
       }
       invokeCallback(callback, null)
@@ -1203,14 +1262,23 @@ export class Duplex extends Readable {
     })
   }
 
+  private rejectWrite(done: unknown): Error | null {
+    if (!this.writableEnded && !this.destroyed) return null
+    const error: Error = this.writableEnded
+      ? streamError('write after end', 'ERR_STREAM_WRITE_AFTER_END')
+      : streamError('Cannot call write after a stream was destroyed', 'ERR_STREAM_DESTROYED')
+    invokeCallback(done, error)
+    this.errorOrDestroy(error)
+    return error
+  }
+
   write(chunk: unknown, encodingOrCallback?: unknown, callback?: unknown): boolean {
-    if (this.writableEnded || this.destroyed) {
-      const error: Error = streamError('write after end', 'ERR_STREAM_WRITE_AFTER_END')
-      invokeCallback(typeof encodingOrCallback === 'function' ? encodingOrCallback : callback, error)
-      this.emit('error', error)
-      return false
+    if (this.rejectWrite(typeof encodingOrCallback === 'function' ? encodingOrCallback : callback) !== null) return false
+    let encoding = typeof encodingOrCallback === 'string' ? encodingOrCallback : this.defaultEncoding_
+    if (typeof chunk === 'string' && this.decodeStrings_ && !this.writableObjectMode) {
+      chunk = Buffer.from(chunk, encoding as BufferEncoding)
+      encoding = 'buffer'
     }
-    const encoding = typeof encodingOrCallback === 'string' ? encodingOrCallback : this.defaultEncoding_
     const done = typeof encodingOrCallback === 'function' ? encodingOrCallback : callback
     if (this.writableCorked > 0) {
       this.writeQueue_.push(chunk)
@@ -1255,29 +1323,68 @@ export class Duplex extends Readable {
       done = chunk
       chunk = undefined
     }
-    if (chunk !== undefined) this.write(chunk, encodingOrCallback)
+    const hasChunk = chunk !== undefined && chunk !== null
+    const rejected = hasChunk ? this.rejectWrite(undefined) : null
+    if (hasChunk && rejected === null) this.write(chunk, typeof encodingOrCallback === 'string' ? encodingOrCallback : undefined)
     while (this.writableCorked > 0) this.uncork()
-    if (this.writableEnded) {
-      invokeCallback(done, null)
+    if (rejected !== null) {
+      invokeCallback(done, rejected)
       return this
     }
-    this.writableEnded = true
-    this.writable = false
-    this._final(error => {
-      if (error) {
-        this.errored = error
-        invokeCallback(done, error)
-        this.emit('error', error)
-        return
-      }
-      this.writableFinished = true
-      this.emit('finish')
-      invokeCallback(done, null)
-    })
+    if (this.errored === null && !this.writableEnded) {
+      this.writableEnded = true
+      this.writable = false
+      this.awaitFinish(done)
+      if (this.destroyed) return this
+      this._final(error => {
+        if (error) {
+          this.settleFinish(error)
+          this.errorOrDestroy(error)
+          return
+        }
+        this.writableFinished = true
+        this.settleFinish(null)
+        this.emit('finish')
+        if (this.autoDestroy_ && this.readableEnded) this.destroy()
+      })
+      return this
+    }
+    if (this.writableFinished) invokeCallback(done, streamError('Cannot call end after a stream was finished', 'ERR_STREAM_ALREADY_FINISHED'))
+    else if (this.destroyed) invokeCallback(done, streamError('Cannot call end after a stream was destroyed', 'ERR_STREAM_DESTROYED'))
+    else if (this.errored !== null) invokeCallback(done, this.errored)
+    else this.awaitFinish(done)
     return this
   }
 
+  private awaitFinish(done: unknown): void {
+    if (typeof done !== 'function') return
+    if (this.finishCallbacks_ === undefined) this.finishCallbacks_ = []
+    this.finishCallbacks_.push(done)
+  }
+
+  private settleFinish(error: Error | null): void {
+    const callbacks = this.finishCallbacks_
+    if (callbacks === undefined) return
+    this.finishCallbacks_ = undefined
+    for (const callback of callbacks) invokeCallback(callback, error)
+  }
+
+  private errorOrDestroy(error: Error): void {
+    if (this.destroyed) return
+    if (this.autoDestroy_) {
+      this.destroy(error)
+      return
+    }
+    this.errored = error
+    this.emit('error', error)
+  }
+
+  protected override writableSideFinished(): boolean {
+    return this.writableFinished
+  }
+
   override destroy(error: Error | null = null): this {
+    if (!this.destroyed) this.settleFinish(error ?? this.errored ?? streamError('Cannot call end after a stream was destroyed', 'ERR_STREAM_DESTROYED'))
     this.writableAborted = !this.writableFinished
     this.writable = false
     super.destroy(error)
