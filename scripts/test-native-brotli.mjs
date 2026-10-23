@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 
+import { brotliPrefix } from './native-libraries.mjs'
 import { compilerRuntimeInclude } from './resolve-compiler.mjs'
 
 const root = resolve(import.meta.dirname, '..')
@@ -20,16 +21,7 @@ const operations = inputs.map((input) => `std::cout << hex(gea::node::brotli::de
 const trailing = Buffer.concat([brotliCompressSync(inputs[1]), Buffer.from('xyz')])
 operations.push(`std::cout << hex(gea::node::brotli::decompress(${bytes(trailing)})) << '\\n';`)
 const truncated = brotliCompressSync(inputs[3]).subarray(0, 40)
-const prefixes = []
-if (process.env.BROTLI_DIR) prefixes.push(resolve(process.env.BROTLI_DIR))
-else if (process.platform === 'win32') prefixes.push(...[process.env.VCPKG_ROOT, 'C:\\vcpkg'].filter(Boolean).map((r) => resolve(r, 'installed', 'x64-windows-static')))
-else if (process.platform === 'darwin') {
-  try {
-    prefixes.push(execFileSync('brew', ['--prefix', 'brotli'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim())
-  } catch {}
-  prefixes.push('/opt/homebrew/opt/brotli', '/usr/local/opt/brotli')
-}
-const prefix = prefixes.find((p) => existsSync(resolve(p, 'include', 'brotli', 'decode.h')))
+const prefix = brotliPrefix()
 const brotliFlags = [
   ...(prefix ? [`-I${resolve(prefix, 'include')}`, `-L${resolve(prefix, 'lib')}`] : []),
   ...(prefix && process.platform !== 'win32' ? [`-Wl,-rpath,${resolve(prefix, 'lib')}`] : []),
