@@ -30,7 +30,11 @@ declare function __gea_node_brotli_decompress(input: Buffer): Buffer
 /** @gea-host-inert */
 declare function __gea_node_zlib_stream_open(mode: number, windowBits: number, level: number): number
 /** @gea-host-inert */
-declare function __gea_node_zlib_stream_write(handle: number, input: Buffer): Buffer
+declare function __gea_node_zlib_stream_write(handle: number, input: Buffer): void
+/** @gea-host-inert */
+declare function __gea_node_zlib_stream_read(handle: number): Buffer
+/** @gea-host-inert */
+declare function __gea_node_zlib_stream_pending(handle: number): boolean
 /** @gea-host-inert */
 declare function __gea_node_zlib_stream_leftover(handle: number): boolean
 /** @gea-host-inert */
@@ -40,7 +44,11 @@ declare function __gea_node_zlib_stream_close(handle: number): void
 /** @gea-host-inert */
 declare function __gea_node_brotli_stream_open(): number
 /** @gea-host-inert */
-declare function __gea_node_brotli_stream_write(handle: number, input: Buffer): Buffer
+declare function __gea_node_brotli_stream_write(handle: number, input: Buffer): void
+/** @gea-host-inert */
+declare function __gea_node_brotli_stream_read(handle: number): Buffer
+/** @gea-host-inert */
+declare function __gea_node_brotli_stream_pending(handle: number): boolean
 /** @gea-host-inert */
 declare function __gea_node_brotli_stream_leftover(handle: number): boolean
 /** @gea-host-inert */
@@ -145,35 +153,54 @@ class ZlibBase extends Transform {
   }
 
   override _transform(chunk: Buffer, _encoding: unknown, callback: TransformCallback): void {
-    let output: Buffer
-    let leftover: boolean
     try {
-      output = this.brotli_ ? __gea_node_brotli_stream_write(this.handle_, chunk) : __gea_node_zlib_stream_write(this.handle_, chunk)
-      leftover = this.brotli_ ? __gea_node_brotli_stream_leftover(this.handle_) : __gea_node_zlib_stream_leftover(this.handle_)
+      if (this.brotli_) __gea_node_brotli_stream_write(this.handle_, chunk)
+      else __gea_node_zlib_stream_write(this.handle_, chunk)
     } catch (error) {
       this.release_()
       callback(failureOf(error))
       return
     }
-    if (output.length > 0) this.push(output)
+    this.drain_(false, callback)
+  }
+
+  override _flush(callback: TransformCallback): void {
+    this.drain_(true, callback)
+  }
+
+  private drain_(finishing: boolean, callback: TransformCallback): void {
+    let more = true
+    while (more) {
+      let piece: Buffer
+      try {
+        piece = this.step_(finishing)
+        more = this.brotli_ ? __gea_node_brotli_stream_pending(this.handle_) : __gea_node_zlib_stream_pending(this.handle_)
+      } catch (error) {
+        this.release_()
+        callback(failureOf(error))
+        return
+      }
+      if (piece.length > 0) this.push(piece)
+      if (this.destroyed) {
+        callback(null)
+        return
+      }
+    }
+    if (finishing) {
+      this.release_()
+      callback(null)
+      return
+    }
+    const leftover = this.brotli_ ? __gea_node_brotli_stream_leftover(this.handle_) : __gea_node_zlib_stream_leftover(this.handle_)
     if (leftover) this.push(null)
     callback(null)
   }
 
-  override _flush(callback: TransformCallback): void {
-    let output: Buffer
-    try {
-      if (this.brotli_) {
-        __gea_node_brotli_stream_finish(this.handle_)
-        output = Buffer.alloc(0)
-      } else output = __gea_node_zlib_stream_finish(this.handle_)
-    } catch (error) {
-      this.release_()
-      callback(failureOf(error))
-      return
-    }
-    this.release_()
-    callback(null, output.length > 0 ? output : undefined)
+  private step_(finishing: boolean): Buffer {
+    if (!this.brotli_) return finishing ? __gea_node_zlib_stream_finish(this.handle_) : __gea_node_zlib_stream_read(this.handle_)
+    if (!finishing) return __gea_node_brotli_stream_read(this.handle_)
+    __gea_node_brotli_stream_finish(this.handle_)
+    return Buffer.alloc(0)
   }
 
   override _destroy(error: Error | null, callback: DestroyCallback): void {

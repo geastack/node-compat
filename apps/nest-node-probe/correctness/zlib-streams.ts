@@ -30,6 +30,7 @@ const GZIP_MEMBERS = '1f8b08000000000000134bcb2c2a2e510000fc7af11c060000001f8b08
 const GZIP_FIRST = '1f8b08000000000000134bcb2c2a2e510000fc7af11c06000000'
 const GZIP_SECOND = '1f8b08000000000000132b4e4dcecf4b010069111fb606000000'
 const ZEROS = '00000000000000000000000000000000'
+const BROTLI_GIB_OF_ZEROS = 'cbffff3ff82700e2b14020f7fe8fffff7ff04f00c4611180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffe3ffff1ffc1300715800a07bffc7ffff3ff82700e2b00040f7fe8fffff7ff04f00c4610180eefd1fffffffe09f0088c30200ddfb3ffeffffc13f0110870500baf77ffcffff837f02200e0b0074effff8ffff07ff04401c1600e8defff1ffff0ffe0980382c00d0bdffcbffff3ffc1300715800a07bff07'
 
 interface Case {
   name: string
@@ -213,6 +214,37 @@ function concurrent(done: () => void): void {
   }
 }
 
+function bomb(name: string, stream: Transform, payload: Buffer, done: () => void): void {
+  const limit = 1024 * 1024
+  let received = 0
+  let largest = 0
+  let offset = 0
+  stream.on('data', (chunk: Buffer) => {
+    received += chunk.length
+    if (chunk.length > largest) largest = chunk.length
+    if (received >= limit && !stream.destroyed) stream.destroy()
+  })
+  stream.on('error', (error: Error) => {
+    log(`${name}: error ${error.message}`)
+  })
+  stream.on('close', () => {
+    log(`${name}: received ${received} largest ${largest}`)
+    done()
+  })
+  const pump = (): void => {
+    if (stream.destroyed) return
+    if (offset >= payload.length) {
+      stream.end()
+      return
+    }
+    const end = Math.min(offset + 65536, payload.length)
+    stream.write(payload.subarray(offset, end))
+    offset = end
+    setImmediate(pump)
+  }
+  pump()
+}
+
 function syncGunzip(name: string, hex: string): void {
   try {
     log(`gunzipSync ${name}: ${gunzipSync(Buffer.from(hex, 'hex')).toString().length}`)
@@ -286,6 +318,16 @@ function next(): void {
   if (at === cases.length + 11) {
     at++
     concurrent(next)
+    return
+  }
+  if (at === cases.length + 12) {
+    at++
+    bomb('brotli bomb destroyed at 1 MiB', createBrotliDecompress(), Buffer.from(BROTLI_GIB_OF_ZEROS, 'hex'), next)
+    return
+  }
+  if (at === cases.length + 13) {
+    at++
+    bomb('gunzip bomb destroyed at 1 MiB', createGunzip(), gzipSync(Buffer.alloc(16 * 1024 * 1024)), next)
     return
   }
   syncGunzip('zero padding', GZIP + ZEROS)
