@@ -869,6 +869,8 @@ export class Writable extends Stream {
   private decodeStrings_: boolean
   private autoDestroy_: boolean
   private finishCallbacks_: unknown[] | undefined
+  private writesInFlight_: number
+  private finalPending_: boolean
 
   destroyed: boolean
   closed: boolean
@@ -892,6 +894,8 @@ export class Writable extends Stream {
     this.decodeStrings_ = options.decodeStrings !== false
     this.autoDestroy_ = options.autoDestroy !== false
     this.finishCallbacks_ = undefined
+    this.writesInFlight_ = 0
+    this.finalPending_ = false
     this.destroyed = false
     this.closed = false
     this.errored = null
@@ -971,7 +975,9 @@ export class Writable extends Stream {
   private performWrite(chunk: unknown, encoding: string, callback: unknown): void {
     const length = streamChunkLength(chunk, this.writableObjectMode)
     this.writableLength += length
+    this.writesInFlight_++
     this._write(chunk, encoding, error => {
+      this.writesInFlight_--
       this.writableLength -= length
       if (this.writableLength < 0) this.writableLength = 0
       if (error) {
@@ -984,6 +990,7 @@ export class Writable extends Stream {
         this.writableNeedDrain = false
         this.emit('drain')
       }
+      if (this.finalPending_ && this.writesInFlight_ === 0) this.callFinal()
     })
   }
 
@@ -1075,17 +1082,8 @@ export class Writable extends Stream {
       this.writable = false
       this.awaitFinish(done)
       if (this.destroyed) return this
-      this._final(error => {
-        if (error) {
-          this.settleFinish(error)
-          this.errorOrDestroy(error)
-          return
-        }
-        this.writableFinished = true
-        this.settleFinish(null)
-        this.emit('finish')
-        if (this.autoDestroy_) this.destroy()
-      })
+      if (this.writesInFlight_ > 0) this.finalPending_ = true
+      else this.callFinal()
       return this
     }
     if (this.writableFinished) invokeCallback(done, streamError('Cannot call end after a stream was finished', 'ERR_STREAM_ALREADY_FINISHED'))
@@ -1093,6 +1091,22 @@ export class Writable extends Stream {
     else if (this.errored !== null) invokeCallback(done, this.errored)
     else this.awaitFinish(done)
     return this
+  }
+
+  private callFinal(): void {
+    this.finalPending_ = false
+    if (this.destroyed) return
+    this._final(error => {
+      if (error) {
+        this.settleFinish(error)
+        this.errorOrDestroy(error)
+        return
+      }
+      this.writableFinished = true
+      this.settleFinish(null)
+      this.emit('finish')
+      if (this.autoDestroy_) this.destroy()
+    })
   }
 
   private awaitFinish(done: unknown): void {
@@ -1162,6 +1176,8 @@ export class Duplex extends Readable {
   private defaultEncoding_: string
   private decodeStrings_: boolean
   private finishCallbacks_: unknown[] | undefined
+  private writesInFlight_: number
+  private finalPending_: boolean
 
   allowHalfOpen: boolean
   private peer_: Duplex | null
@@ -1184,6 +1200,8 @@ export class Duplex extends Readable {
     this.defaultEncoding_ = options.defaultEncoding ?? 'utf8'
     this.decodeStrings_ = options.decodeStrings !== false
     this.finishCallbacks_ = undefined
+    this.writesInFlight_ = 0
+    this.finalPending_ = false
     this.allowHalfOpen = true
     this.peer_ = null
     this.writable = true
@@ -1267,7 +1285,9 @@ export class Duplex extends Readable {
   private performWrite(chunk: unknown, encoding: string, callback: unknown): void {
     const length = streamChunkLength(chunk, this.writableObjectMode)
     this.writableLength += length
+    this.writesInFlight_++
     this._write(chunk, encoding, error => {
+      this.writesInFlight_--
       this.writableLength -= length
       if (this.writableLength < 0) this.writableLength = 0
       if (error) {
@@ -1280,6 +1300,7 @@ export class Duplex extends Readable {
         this.writableNeedDrain = false
         this.emit('drain')
       }
+      if (this.finalPending_ && this.writesInFlight_ === 0) this.callFinal()
     })
   }
 
@@ -1357,17 +1378,8 @@ export class Duplex extends Readable {
       this.writable = false
       this.awaitFinish(done)
       if (this.destroyed) return this
-      this._final(error => {
-        if (error) {
-          this.settleFinish(error)
-          this.errorOrDestroy(error)
-          return
-        }
-        this.writableFinished = true
-        this.settleFinish(null)
-        this.emit('finish')
-        if (this.autoDestroy_ && this.readableEnded) this.destroy()
-      })
+      if (this.writesInFlight_ > 0) this.finalPending_ = true
+      else this.callFinal()
       return this
     }
     if (this.writableFinished) invokeCallback(done, streamError('Cannot call end after a stream was finished', 'ERR_STREAM_ALREADY_FINISHED'))
@@ -1375,6 +1387,22 @@ export class Duplex extends Readable {
     else if (this.errored !== null) invokeCallback(done, this.errored)
     else this.awaitFinish(done)
     return this
+  }
+
+  private callFinal(): void {
+    this.finalPending_ = false
+    if (this.destroyed) return
+    this._final(error => {
+      if (error) {
+        this.settleFinish(error)
+        this.errorOrDestroy(error)
+        return
+      }
+      this.writableFinished = true
+      this.settleFinish(null)
+      this.emit('finish')
+      if (this.autoDestroy_ && this.readableEnded) this.destroy()
+    })
   }
 
   private awaitFinish(done: unknown): void {

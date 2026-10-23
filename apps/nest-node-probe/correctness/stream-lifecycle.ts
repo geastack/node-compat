@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer'
-import { Duplex, Readable, Writable } from 'node:stream'
+import { Duplex, Readable, Transform, Writable } from 'node:stream'
 
 const log = (line: string): void => {
   console.log(line)
@@ -221,6 +221,66 @@ async function pushAfterEnd(autoDestroy: boolean): Promise<void> {
   log(`push after end autoDestroy ${autoDestroy}: returned ${accepted} destroyed ${source.destroyed} events ${events.join(',')}`)
 }
 
+class Pieces extends Transform {
+  events: string[] = []
+
+  override _transform(chunk: Buffer, _encoding: unknown, callback: (error?: Error | null) => void): void {
+    this.events.push('transform start')
+    this.push(chunk.subarray(0, 1))
+    this.push(chunk.subarray(1))
+    this.events.push('transform end')
+    callback(null)
+  }
+
+  override _flush(callback: (error?: Error | null) => void): void {
+    this.events.push('flush')
+    callback(null)
+  }
+}
+
+async function endDuringTransform(): Promise<void> {
+  const stream = new Pieces()
+  let first = true
+  stream.on('data', () => {
+    stream.events.push('data')
+    if (first) {
+      first = false
+      stream.end()
+    }
+  })
+  stream.on('error', (error: Error) => stream.events.push(`error ${code(error)}`))
+  stream.write(Buffer.from('ab'))
+  await settle()
+  log(`end during transform: ${stream.events.join(', ')}`)
+}
+
+class SlowSink extends Writable {
+  events: string[] = []
+
+  override _write(_chunk: Buffer, _encoding: unknown, callback: (error?: Error | null) => void): void {
+    setTimeout(() => {
+      this.events.push('write done')
+      callback(null)
+    }, 1)
+  }
+
+  override _final(callback: (error?: Error | null) => void): void {
+    this.events.push('final')
+    callback(null)
+  }
+}
+
+async function endDuringAsyncWrite(): Promise<void> {
+  const sink = new SlowSink()
+  sink.on('finish', () => sink.events.push('finish'))
+  sink.write(Buffer.from('x'), () => sink.events.push('write callback'))
+  sink.end(() => sink.events.push('end callback'))
+  sink.events.push('end returned')
+  await settle()
+  await settle()
+  log(`end during async write: ${sink.events.join(', ')}`)
+}
+
 async function main(): Promise<void> {
   for (const autoDestroy of [true, false]) await readableEnd(autoDestroy)
   for (const autoDestroy of [true, false]) await writableFinish(autoDestroy)
@@ -233,6 +293,8 @@ async function main(): Promise<void> {
   await pendingEnds()
   await endWithChunk()
   for (const autoDestroy of [true, false]) await pushAfterEnd(autoDestroy)
+  await endDuringTransform()
+  await endDuringAsyncWrite()
 }
 
 void main()
