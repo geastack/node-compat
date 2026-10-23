@@ -147,6 +147,12 @@ struct Stream {
   bool ended = false;
   bool betweenMembers = false;
   bool leftover = false;
+  bool stopped = false;
+  bool draining = false;
+  bool finishing = false;
+  bool finished = false;
+  std::vector<std::uint8_t> input;
+  std::size_t offset = 0;
 
   Stream() = default;
   Stream(const Stream&) = delete;
@@ -184,57 +190,62 @@ inline double streamOpen(double mode, double windowBits, double level) {
   return static_cast<double>(last);
 }
 
-inline std::vector<std::uint8_t> deflateInto(Stream& stream, Bytef* next, std::size_t size, int flush) {
-  std::vector<std::uint8_t> output;
-  constexpr std::size_t chunk = 64 * 1024;
-  std::size_t remaining = size;
-  do {
-    const uInt take = static_cast<uInt>(std::min<std::size_t>(remaining, std::numeric_limits<uInt>::max()));
-    stream.z.next_in = next;
-    stream.z.avail_in = take;
-    do {
-      const std::size_t used = output.size();
-      output.resize(used + chunk);
-      stream.z.next_out = reinterpret_cast<Bytef*>(output.data() + used);
-      stream.z.avail_out = static_cast<uInt>(chunk);
-      const int code = ::deflate(&stream.z, remaining == take ? flush : Z_NO_FLUSH);
-      output.resize(used + (chunk - stream.z.avail_out));
-      if (code == Z_STREAM_ERROR) fail(code, stream.z);
-    } while (stream.z.avail_out == 0);
-    next += take - stream.z.avail_in;
-    remaining -= take - stream.z.avail_in;
-  } while (remaining > 0);
+constexpr std::size_t kChunk = 16 * 1024;
+
+inline std::size_t remainingOf(const Stream& stream) {
+  return stream.input.size() - stream.offset;
+}
+
+inline Bytef* nextOf(Stream& stream) {
+  static Bytef empty = 0;
+  return stream.offset < stream.input.size() ? stream.input.data() + stream.offset : &empty;
+}
+
+inline std::vector<std::uint8_t> deflateStep(Stream& stream, int flush) {
+  std::vector<std::uint8_t> output(kChunk);
+  const std::size_t remaining = remainingOf(stream);
+  const std::size_t take = std::min<std::size_t>(remaining, std::numeric_limits<uInt>::max());
+  stream.z.next_in = nextOf(stream);
+  stream.z.avail_in = static_cast<uInt>(take);
+  stream.z.next_out = reinterpret_cast<Bytef*>(output.data());
+  stream.z.avail_out = static_cast<uInt>(kChunk);
+  const int code = ::deflate(&stream.z, take == remaining ? flush : Z_NO_FLUSH);
+  if (code == Z_STREAM_ERROR) fail(code, stream.z);
+  stream.offset += take - stream.z.avail_in;
+  stream.draining = stream.z.avail_out == 0;
+  if (code == Z_STREAM_END) stream.finished = true;
+  output.resize(kChunk - stream.z.avail_out);
   return output;
 }
 
-inline std::vector<std::uint8_t> inflateInto(Stream& stream, const Bytes& bytes) {
-  std::vector<std::uint8_t> output;
-  constexpr std::size_t chunk = 64 * 1024;
-  std::size_t remaining = bytes.size();
-  Bytef* next = input(bytes);
-  while (remaining > 0 && !stream.ended) {
+inline std::vector<std::uint8_t> inflateStep(Stream& stream) {
+  std::vector<std::uint8_t> output(kChunk);
+  std::size_t used = 0;
+  while (used < kChunk && !stream.ended && !stream.stopped) {
+    const std::size_t remaining = remainingOf(stream);
+    if (remaining == 0 && !stream.draining) break;
     if (stream.betweenMembers) {
-      if (*next == 0) break;
+      if (*nextOf(stream) == 0) {
+        stream.stopped = true;
+        break;
+      }
       if (inflateReset(&stream.z) != Z_OK) fail(Z_STREAM_ERROR, stream.z);
       stream.betweenMembers = false;
     }
-    const uInt take = static_cast<uInt>(std::min<std::size_t>(remaining, std::numeric_limits<uInt>::max()));
-    stream.z.next_in = next;
-    stream.z.avail_in = take;
-    int code = Z_OK;
-    do {
-      const std::size_t used = output.size();
-      output.resize(used + chunk);
-      stream.z.next_out = reinterpret_cast<Bytef*>(output.data() + used);
-      stream.z.avail_out = static_cast<uInt>(chunk);
-      code = ::inflate(&stream.z, Z_NO_FLUSH);
-      output.resize(used + (chunk - stream.z.avail_out));
-      if (code != Z_OK && code != Z_STREAM_END && code != Z_BUF_ERROR) fail(code, stream.z);
-    } while (code == Z_OK && stream.z.avail_out == 0);
+    const std::size_t take = std::min<std::size_t>(remaining, std::numeric_limits<uInt>::max());
+    stream.z.next_in = nextOf(stream);
+    stream.z.avail_in = static_cast<uInt>(take);
+    stream.z.next_out = reinterpret_cast<Bytef*>(output.data() + used);
+    stream.z.avail_out = static_cast<uInt>(kChunk - used);
+    const int code = ::inflate(&stream.z, Z_NO_FLUSH);
+    if (code != Z_OK && code != Z_STREAM_END && code != Z_BUF_ERROR) fail(code, stream.z);
     const std::size_t consumed = take - stream.z.avail_in;
-    next += consumed;
-    remaining -= consumed;
+    const std::size_t produced = (kChunk - used) - stream.z.avail_out;
+    stream.offset += consumed;
+    used += produced;
+    stream.draining = stream.z.avail_out == 0;
     if (code == Z_STREAM_END) {
+      stream.draining = false;
       if (stream.bits != 31 && stream.bits != 47) {
         stream.ended = true;
         break;
@@ -242,18 +253,36 @@ inline std::vector<std::uint8_t> inflateInto(Stream& stream, const Bytes& bytes)
       stream.betweenMembers = true;
       continue;
     }
-    if (consumed == 0) {
+    if (consumed == 0 && produced == 0) {
+      if (remaining == 0) break;
       stream.z.msg = nullptr;
       fail(Z_BUF_ERROR, stream.z);
     }
   }
-  stream.leftover = remaining > 0;
+  if (stream.ended || stream.stopped) stream.leftover = remainingOf(stream) > 0;
+  output.resize(used);
   return output;
 }
 
-inline gea::Ref<gea::TypedArray<std::uint8_t>> streamWrite(double handle, const Bytes& bytes) {
+inline void streamWrite(double handle, const Bytes& bytes) {
   Stream& stream = streamAt(handle);
-  return gea::node::buffer::detail::bufferResult(stream.deflating ? deflateInto(stream, input(bytes), bytes.size(), Z_NO_FLUSH) : inflateInto(stream, bytes));
+  const auto* data = reinterpret_cast<const std::uint8_t*>(bytes.data());
+  stream.input.assign(data, data + bytes.size());
+  stream.offset = 0;
+  stream.stopped = false;
+  stream.leftover = false;
+}
+
+inline gea::Ref<gea::TypedArray<std::uint8_t>> streamRead(double handle) {
+  Stream& stream = streamAt(handle);
+  return gea::node::buffer::detail::bufferResult(stream.deflating ? deflateStep(stream, Z_NO_FLUSH) : inflateStep(stream));
+}
+
+inline bool streamPending(double handle) {
+  const Stream& stream = streamAt(handle);
+  if (stream.finishing) return stream.deflating && !stream.finished;
+  if (stream.deflating) return stream.draining || remainingOf(stream) > 0;
+  return !stream.ended && !stream.stopped && (stream.draining || remainingOf(stream) > 0);
 }
 
 inline bool streamLeftover(double handle) {
@@ -262,10 +291,8 @@ inline bool streamLeftover(double handle) {
 
 inline gea::Ref<gea::TypedArray<std::uint8_t>> streamFinish(double handle) {
   Stream& stream = streamAt(handle);
-  if (stream.deflating) {
-    static Bytef empty = 0;
-    return gea::node::buffer::detail::bufferResult(deflateInto(stream, &empty, 0, Z_FINISH));
-  }
+  stream.finishing = true;
+  if (stream.deflating) return gea::node::buffer::detail::bufferResult(deflateStep(stream, Z_FINISH));
   if (!stream.ended && !stream.betweenMembers) {
     stream.z.msg = nullptr;
     fail(Z_BUF_ERROR, stream.z);

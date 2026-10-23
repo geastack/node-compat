@@ -48,6 +48,9 @@ struct Stream {
   BrotliDecoderState* state = nullptr;
   bool finished = false;
   bool leftover = false;
+  bool draining = false;
+  std::vector<std::uint8_t> input;
+  std::size_t offset = 0;
 
   Stream() = default;
   Stream(const Stream&) = delete;
@@ -77,28 +80,41 @@ inline double streamOpen() {
   return static_cast<double>(last);
 }
 
-inline gea::Ref<gea::TypedArray<std::uint8_t>> streamWrite(double handle, const Bytes& bytes) {
+constexpr std::size_t kChunk = 16 * 1024;
+
+inline void streamWrite(double handle, const Bytes& bytes) {
+  Stream& stream = streamAt(handle);
+  const auto* data = reinterpret_cast<const std::uint8_t*>(bytes.data());
+  stream.input.assign(data, data + bytes.size());
+  stream.offset = 0;
+  stream.leftover = stream.finished && bytes.size() > 0;
+}
+
+inline gea::Ref<gea::TypedArray<std::uint8_t>> streamRead(double handle) {
   Stream& stream = streamAt(handle);
   std::vector<std::uint8_t> output;
-  stream.leftover = bytes.size() > 0;
   if (stream.finished) return gea::node::buffer::detail::bufferResult(std::move(output));
+  output.resize(kChunk);
   static const std::uint8_t empty = 0;
-  const std::uint8_t* nextIn = bytes.size() == 0 ? &empty : reinterpret_cast<const std::uint8_t*>(bytes.data());
-  std::size_t availableIn = bytes.size();
-  constexpr std::size_t chunk = 64 * 1024;
-  BrotliDecoderResult result = BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT;
-  while (result == BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT) {
-    const std::size_t used = output.size();
-    output.resize(used + chunk);
-    std::uint8_t* nextOut = output.data() + used;
-    std::size_t availableOut = chunk;
-    result = BrotliDecoderDecompressStream(stream.state, &availableIn, &nextIn, &availableOut, &nextOut, nullptr);
-    output.resize(used + (chunk - availableOut));
-  }
+  const std::uint8_t* nextIn = stream.offset < stream.input.size() ? stream.input.data() + stream.offset : &empty;
+  std::size_t availableIn = stream.input.size() - stream.offset;
+  std::uint8_t* nextOut = output.data();
+  std::size_t availableOut = kChunk;
+  const BrotliDecoderResult result = BrotliDecoderDecompressStream(stream.state, &availableIn, &nextIn, &availableOut, &nextOut, nullptr);
   if (result == BROTLI_DECODER_RESULT_ERROR) gea::host::throwRuntimeError("Error", "Decompression failed");
-  if (result == BROTLI_DECODER_RESULT_SUCCESS) stream.finished = true;
-  stream.leftover = availableIn > 0;
+  stream.offset = stream.input.size() - availableIn;
+  stream.draining = result == BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT;
+  if (result == BROTLI_DECODER_RESULT_SUCCESS) {
+    stream.finished = true;
+    stream.leftover = availableIn > 0;
+  }
+  output.resize(kChunk - availableOut);
   return gea::node::buffer::detail::bufferResult(std::move(output));
+}
+
+inline bool streamPending(double handle) {
+  const Stream& stream = streamAt(handle);
+  return !stream.finished && stream.draining;
 }
 
 inline bool streamLeftover(double handle) {
