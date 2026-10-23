@@ -10,7 +10,11 @@ import {
   createInflate,
   createInflateRaw,
   createUnzip,
-  gunzipSync
+  deflateSync,
+  gunzip,
+  gunzipSync,
+  gzipSync,
+  inflateSync
 } from 'node:zlib'
 
 const log = (line: string): void => {
@@ -290,7 +294,21 @@ function next(): void {
   syncGunzip('padded members', GZIP_FIRST + '0000' + GZIP_SECOND)
   log(`brotliDecompressSync: ${brotliDecompressSync(Buffer.from(BROTLI, 'hex')).toString() === TEXT ? 'match' : 'MISMATCH'}`)
   log(`gunzipSync: ${gunzipSync(Buffer.from(GZIP, 'hex')).toString() === TEXT ? 'match' : 'MISMATCH'}`)
-  log('done')
+  const plain = Buffer.from(TEXT)
+  log(
+    `isBuffer: gzipSync ${Buffer.isBuffer(gzipSync(plain))} gunzipSync ${Buffer.isBuffer(gunzipSync(gzipSync(plain)))} deflateSync ${Buffer.isBuffer(deflateSync(plain))} inflateSync ${Buffer.isBuffer(inflateSync(deflateSync(plain)))} brotliDecompressSync ${Buffer.isBuffer(brotliDecompressSync(Buffer.from(BROTLI, 'hex')))}`
+  )
+  const chunkStream = createGunzip()
+  chunkStream.once('data', (chunk: Buffer) => {
+    log(`isBuffer: stream chunk ${Buffer.isBuffer(chunk)}`)
+  })
+  chunkStream.on('close', () => {
+    gunzip(Buffer.from(GZIP, 'hex'), (error: Error | null, result: Buffer) => {
+      log(`isBuffer: gunzip callback ${error === null && Buffer.isBuffer(result)}`)
+      log('done')
+    })
+  })
+  chunkStream.end(Buffer.from(GZIP, 'hex'))
 }
 
 log('start')

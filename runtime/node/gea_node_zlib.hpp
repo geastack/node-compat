@@ -10,6 +10,7 @@
 // 31 is gzip (Gzip/Gunzip), -15 is raw deflate (DeflateRaw/InflateRaw), and
 // 47 detects zlib or gzip from the header (Unzip).
 #include "gea_runtime.h"
+#include "gea_node_buffer.hpp"
 
 #include <zlib.h>
 
@@ -58,7 +59,7 @@ inline int deflateLevel(int bits, double level) {
   return static_cast<int>(level);
 }
 
-inline std::vector<std::uint8_t> inflate(const Bytes& bytes, double windowBits) {
+inline gea::Ref<gea::TypedArray<std::uint8_t>> inflate(const Bytes& bytes, double windowBits) {
   const int bits = framing(windowBits);
   z_stream stream{};
   if (inflateInit2(&stream, bits) != Z_OK) fail(Z_MEM_ERROR, stream);
@@ -104,10 +105,10 @@ inline std::vector<std::uint8_t> inflate(const Bytes& bytes, double windowBits) 
     }
   }
   inflateEnd(&stream);
-  return output;
+  return gea::node::buffer::detail::bufferResult(std::move(output));
 }
 
-inline std::vector<std::uint8_t> deflate(const Bytes& bytes, double windowBits, double level) {
+inline gea::Ref<gea::TypedArray<std::uint8_t>> deflate(const Bytes& bytes, double windowBits, double level) {
   const int bits = framing(windowBits);
   const int compression = deflateLevel(bits, level);
   z_stream stream{};
@@ -136,7 +137,7 @@ inline std::vector<std::uint8_t> deflate(const Bytes& bytes, double windowBits, 
   }
   deflateEnd(&stream);
   output.resize(written);
-  return output;
+  return gea::node::buffer::detail::bufferResult(std::move(output));
 }
 
 struct Stream {
@@ -250,26 +251,26 @@ inline std::vector<std::uint8_t> inflateInto(Stream& stream, const Bytes& bytes)
   return output;
 }
 
-inline std::vector<std::uint8_t> streamWrite(double handle, const Bytes& bytes) {
+inline gea::Ref<gea::TypedArray<std::uint8_t>> streamWrite(double handle, const Bytes& bytes) {
   Stream& stream = streamAt(handle);
-  return stream.deflating ? deflateInto(stream, input(bytes), bytes.size(), Z_NO_FLUSH) : inflateInto(stream, bytes);
+  return gea::node::buffer::detail::bufferResult(stream.deflating ? deflateInto(stream, input(bytes), bytes.size(), Z_NO_FLUSH) : inflateInto(stream, bytes));
 }
 
 inline bool streamLeftover(double handle) {
   return streamAt(handle).leftover;
 }
 
-inline std::vector<std::uint8_t> streamFinish(double handle) {
+inline gea::Ref<gea::TypedArray<std::uint8_t>> streamFinish(double handle) {
   Stream& stream = streamAt(handle);
   if (stream.deflating) {
     static Bytef empty = 0;
-    return deflateInto(stream, &empty, 0, Z_FINISH);
+    return gea::node::buffer::detail::bufferResult(deflateInto(stream, &empty, 0, Z_FINISH));
   }
   if (!stream.ended && !stream.betweenMembers) {
     stream.z.msg = nullptr;
     fail(Z_BUF_ERROR, stream.z);
   }
-  return {};
+  return gea::node::buffer::detail::bufferResult({});
 }
 
 inline void streamClose(double handle) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gea_runtime.h"
+#include "gea_node_buffer.hpp"
 
 #include <brotli/decode.h>
 
@@ -14,7 +15,7 @@
 namespace gea::node::brotli {
 using Bytes = gea::TypedArray<std::uint8_t>;
 
-inline std::vector<std::uint8_t> decompress(const Bytes& bytes) {
+inline gea::Ref<gea::TypedArray<std::uint8_t>> decompress(const Bytes& bytes) {
   BrotliDecoderState* state = BrotliDecoderCreateInstance(nullptr, nullptr, nullptr);
   if (state == nullptr) gea::host::throwRuntimeError("Error", "Cannot allocate memory");
   static const std::uint8_t empty = 0;
@@ -40,7 +41,7 @@ inline std::vector<std::uint8_t> decompress(const Bytes& bytes) {
     gea::host::throwRuntimeError("Error", "Decompression failed");
   }
   BrotliDecoderDestroyInstance(state);
-  return output;
+  return gea::node::buffer::detail::bufferResult(std::move(output));
 }
 
 struct Stream {
@@ -76,11 +77,11 @@ inline double streamOpen() {
   return static_cast<double>(last);
 }
 
-inline std::vector<std::uint8_t> streamWrite(double handle, const Bytes& bytes) {
+inline gea::Ref<gea::TypedArray<std::uint8_t>> streamWrite(double handle, const Bytes& bytes) {
   Stream& stream = streamAt(handle);
   std::vector<std::uint8_t> output;
   stream.leftover = bytes.size() > 0;
-  if (stream.finished) return output;
+  if (stream.finished) return gea::node::buffer::detail::bufferResult(std::move(output));
   static const std::uint8_t empty = 0;
   const std::uint8_t* nextIn = bytes.size() == 0 ? &empty : reinterpret_cast<const std::uint8_t*>(bytes.data());
   std::size_t availableIn = bytes.size();
@@ -97,7 +98,7 @@ inline std::vector<std::uint8_t> streamWrite(double handle, const Bytes& bytes) 
   if (result == BROTLI_DECODER_RESULT_ERROR) gea::host::throwRuntimeError("Error", "Decompression failed");
   if (result == BROTLI_DECODER_RESULT_SUCCESS) stream.finished = true;
   stream.leftover = availableIn > 0;
-  return output;
+  return gea::node::buffer::detail::bufferResult(std::move(output));
 }
 
 inline bool streamLeftover(double handle) {
