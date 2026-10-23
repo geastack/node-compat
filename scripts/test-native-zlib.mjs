@@ -60,10 +60,9 @@ gea::TypedArray<std::uint8_t> bytes(const std::string& hex) {
   std::copy(source->data(), source->data() + source->size(), result.data());
   return result;
 }
-std::string hex(const std::vector<std::uint8_t>& source) {
-  gea::TypedArray<std::uint8_t> value(source.size());
-  std::copy(source.begin(), source.end(), value.data());
-  return gea::node::buffer::toString(value, "hex");
+std::string hex(const gea::Ref<gea::TypedArray<std::uint8_t>>& source) {
+  assert(gea::node::buffer::isBuffer(*source));
+  return gea::node::buffer::toString(*source, "hex");
 }
 template<class F> void throws(F action) {
   bool caught = false;
