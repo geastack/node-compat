@@ -24,7 +24,7 @@ parser.add_argument('--output', required=True)
 parser.add_argument('--rounds', type=int, default=2)
 parser.add_argument('--duration', default='8s')
 parser.add_argument('--servers', nargs='+', default=[
-    'hono-gea', 'hono-node', 'gea-raw', 'node-raw',
+    'hono-gea', 'hono-node', 'nest-gea', 'nest-node', 'gea-raw', 'node-raw',
     'cpp-drogon', 'rust-axum', 'rust-hyper', 'cpp-epoll'])
 parser.add_argument('--workers', nargs='+', type=int, default=[1, 8])
 # `dist` is the historical build; `dist` is what `scripts/build.mjs` writes today.
@@ -56,10 +56,16 @@ def command(name, workers):
         # adapter, kept beside the native build as `server-pkg`.
         cmd = [f'apps/hono-hello/{args.gea_dist}/server-pkg']
         env['GEA_WORKERS'] = str(workers)
-    elif name in ('hono-gea', 'gea-raw'):
-        app = 'hono-hello' if name == 'hono-gea' else 'raw-http-hello'
+    elif name in ('hono-gea', 'nest-gea', 'gea-raw'):
+        app = {'hono-gea': 'hono-hello', 'nest-gea': 'hello-nest', 'gea-raw': 'raw-http-hello'}[name]
         cmd = [f'apps/{app}/{args.gea_dist}/server']
         env['GEA_WORKERS'] = str(workers)
+    elif name == 'nest-node':
+        # The same server.ts the nest-gea row compiles, built by tsc because Node's
+        # type stripping has no decorators or decorator metadata.
+        entry = 'dist-node/server.js' if workers == 1 else 'cluster.node.mjs'
+        cmd = ['node', f'apps/hello-nest/{entry}']
+        env['NODE_WORKERS'] = str(workers)
     elif name == 'hono-node-full':
         # Node on the unchanged server.ts (type stripping), not the tiny bridge.
         entry = 'server.ts' if workers == 1 else 'cluster.full.node.mjs'
@@ -96,6 +102,19 @@ def hono_gea_port():
     source = Path('apps/hono-hello/server.ts').read_text()
     match = re.search(r'port:\s*(\d+)', source)
     return int(match[1]) if match else 3000
+
+
+def nest_port():
+    source = Path('apps/hello-nest/server.ts').read_text()
+    match = re.search(r'listen\((\d+)\)', source)
+    return int(match[1]) if match else 3000
+
+
+ROOT_BODY = {'hono-': 'Hello Hono!', 'nest-': 'Hello Nest!'}
+
+
+def framework(name):
+    return next((prefix for prefix in ROOT_BODY if name.startswith(prefix)), None)
 
 
 def port_free(port):
@@ -258,7 +277,13 @@ def wrk(port, path, duration, warmup=False):
 artifacts = [
     f'apps/hono-hello/{args.gea_dist}/server', f'apps/hono-hello/{args.gea_dist}/server-pkg',
     f'apps/hono-hello/{args.gea_dist}/server.cpp',
-    f'apps/hono-hello/{args.gea_dist}/gea_runtime.h', f'apps/raw-http-hello/{args.gea_dist}/server',
+    f'apps/hono-hello/{args.gea_dist}/gea_runtime.h',
+    f'apps/hello-nest/{args.gea_dist}/server', f'apps/hello-nest/{args.gea_dist}/server.cpp',
+    f'apps/hello-nest/{args.gea_dist}/gea_runtime.h',
+    'apps/hello-nest/server.ts', 'apps/hello-nest/dist-node/server.js', 'apps/hello-nest/cluster.node.mjs',
+    'apps/hello-nest/node_modules/@nestjs/core/package.json',
+    'apps/hello-nest/node_modules/@nestjs/platform-node/package.json',
+    f'apps/raw-http-hello/{args.gea_dist}/server',
     f'apps/raw-http-hello/{args.gea_dist}/server.cpp', f'apps/raw-http-hello/{args.gea_dist}/gea_runtime.h',
     'apps/raw-http-hello/dist/cpp-drogon', 'apps/raw-http-hello/dist/cpp-epoll',
     'runtime/gea_node.cpp', 'runtime/gea_node.hpp',
@@ -322,7 +347,7 @@ for round_no in range(1, args.rounds + 1):
         # 3900 (port 3000 is taken on the developer Mac), the node entry kept
         # 3000, raw-http-hello listens on 3101.
         port = hono_gea_port() if name in ('hono-gea', 'hono-gea-pkg', 'hono-node-full') else \
-            3000 if name == 'hono-node' else 3101
+            nest_port() if name.startswith('nest-') else 3000 if name == 'hono-node' else 3101
         if not port_free(port):
             raise RuntimeError(f'Port {port} occupied before {name}')
         cmd, env = command(name, workers)
@@ -330,7 +355,7 @@ for round_no in range(1, args.rounds + 1):
         proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, start_new_session=True)
         try:
-            expected = 'Hello Hono!' if name.startswith('hono-') else 'Hello, World! GET /'
+            expected = ROOT_BODY.get(framework(name), 'Hello, World! GET /')
             for attempt in range(1000):
                 if proc.poll() is not None:
                     raise RuntimeError(f'{name} exited: {proc.stdout.read()}')
@@ -349,9 +374,9 @@ for round_no in range(1, args.rounds + 1):
             status, content_type, body = request(port, '/json')
             if status != 200 or body != '{"hello":"world"}' or not content_type.startswith('application/json'):
                 raise RuntimeError(f'{name} wrong JSON: {status} {content_type} {body}')
-            if name.startswith('hono-') and request(port, '/missing')[0] != 404:
+            if framework(name) and request(port, '/missing')[0] != 404:
                 raise RuntimeError(f'{name} wrong missing-route status')
-            if not name.startswith('hono-'):
+            if not framework(name):
                 for path in ('/', '/json'):
                     contract = validate_raw_wire(port, path)
                     contract.update({'server': name, 'workers': workers})
@@ -363,9 +388,9 @@ for round_no in range(1, args.rounds + 1):
             # Let all cluster/fork workers finish startup before warming up.
             time.sleep(1)
             before = process_memory(proc.pid)
-            expected_processes = workers + (1 if name in ('hono-node', 'hono-node-full', 'node-raw') else 0)
-            if workers > 1 and name in ('hono-gea', 'hono-gea-pkg', 'gea-raw', 'hono-node', 'hono-node-full',
-                                     'node-raw', 'cpp-epoll'):
+            expected_processes = workers + (1 if name in ('hono-node', 'hono-node-full', 'nest-node', 'node-raw') else 0)
+            if workers > 1 and name in ('hono-gea', 'hono-gea-pkg', 'nest-gea', 'gea-raw', 'hono-node', 'hono-node-full',
+                                     'nest-node', 'node-raw', 'cpp-epoll'):
                 if len(before['processes']) != expected_processes:
                     raise RuntimeError(f'{name}: expected {expected_processes} processes, got {before}')
             wrk(port, '/', '2s', warmup=True)
