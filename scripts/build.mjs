@@ -316,10 +316,45 @@ function builtinModules() {
 // framework. The package specifier below is the one mapping that names it.
 // `GEA_NODE_COMPAT_PACKAGE_ADAPTER=1` compiles the package instead, so the
 // two adapters can be measured against each other on one compiler.
+const nestDir = path.join(builtinsDir, 'nest')
+const nestAnsweredPackages = () => {
+  const entries = []
+  const walk = (directory, visit) => {
+    if (!fs.existsSync(directory)) return
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
+      const file = path.join(directory, entry.name)
+      if (entry.isDirectory()) walk(file, visit)
+      else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts')) visit(file)
+    }
+  }
+  const vendored = path.join(nestDir, 'platform-node')
+  walk(vendored, (file) => {
+    const relative = path.relative(vendored, file).slice(0, -'.ts'.length)
+    entries.push([`@nestjs/platform-node/${relative}`, file], [`@nestjs/platform-node/${relative}.js`, file])
+  })
+  const shims = path.join(nestDir, 'shims')
+  if (fs.existsSync(shims)) {
+    for (const scope of fs.readdirSync(shims, { withFileTypes: true }).filter((entry) => entry.isDirectory()).sort((left, right) => left.name.localeCompare(right.name))) {
+      const packages = scope.name.startsWith('@')
+        ? fs.readdirSync(path.join(shims, scope.name), { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => `${scope.name}/${entry.name}`)
+        : [scope.name]
+      for (const name of packages) {
+        const root = path.join(shims, name)
+        walk(root, (file) => {
+          const relative = path.relative(root, file).slice(0, -'.ts'.length)
+          if (relative === 'index') entries.push([name, file])
+          else entries.push([`${name}/${relative}.js`, file], [`${name}/${relative}`, file])
+        })
+      }
+    }
+  }
+  return entries
+}
 const answeredPackages = () =>
   new Map([
     ['whatwg-url', path.join(builtinsDir, 'whatwg-url.ts')],
-    ...(process.env.GEA_NODE_COMPAT_PACKAGE_ADAPTER === '1' ? [] : [['@hono/node-server', path.join(builtinsDir, 'node-server-adapter.ts')]])
+    ...(process.env.GEA_NODE_COMPAT_PACKAGE_ADAPTER === '1' ? [] : [['@hono/node-server', path.join(builtinsDir, 'node-server-adapter.ts')]]),
+    ...nestAnsweredPackages()
   ])
 const whatwgGlobalNames = new Set(['Response', 'Request', 'Headers', 'URL', 'URLSearchParams', 'FormData'])
 const targetModulePathKeys = new Set([
