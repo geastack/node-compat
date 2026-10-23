@@ -1,7 +1,7 @@
 // Generated from the pinned Node 24 declaration inventory. Do not edit.
 // Canonical builtin: node:zlib
 import { nodeNotImplemented } from "../../not-implemented"
-export { constants, deflate, deflateRawSync, deflateSync, gunzip, gunzipSync, gzip, gzipSync, inflate, inflateRawSync, inflateSync, unzipSync } from "../../zlib"
+export { brotliDecompress, BrotliDecompress, brotliDecompressSync, constants, createBrotliDecompress, createDeflate, createDeflateRaw, createGunzip, createGzip, createInflate, createInflateRaw, createUnzip, deflate, Deflate, DeflateRaw, deflateRawSync, deflateSync, gunzip, Gunzip, gunzipSync, gzip, Gzip, gzipSync, inflate, Inflate, InflateRaw, inflateRawSync, inflateSync, Unzip, unzipSync } from "../../zlib"
 
 export function brotliCompress(...args: unknown[]): never {
   void args
@@ -20,23 +20,6 @@ export function brotliCompressSync(...args: unknown[]): never {
   return nodeNotImplemented("node:zlib", "brotliCompressSync")
 }
 
-export function brotliDecompress(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "brotliDecompress")
-}
-
-export class BrotliDecompress {
-  constructor(...args: unknown[]) {
-    void args
-    nodeNotImplemented("node:zlib", "BrotliDecompress")
-  }
-}
-
-export function brotliDecompressSync(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "brotliDecompressSync")
-}
-
 export function crc32(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:zlib", "crc32")
@@ -45,46 +28,6 @@ export function crc32(...args: unknown[]): never {
 export function createBrotliCompress(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:zlib", "createBrotliCompress")
-}
-
-export function createBrotliDecompress(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "createBrotliDecompress")
-}
-
-export function createDeflate(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "createDeflate")
-}
-
-export function createDeflateRaw(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "createDeflateRaw")
-}
-
-export function createGunzip(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "createGunzip")
-}
-
-export function createGzip(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "createGzip")
-}
-
-export function createInflate(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "createInflate")
-}
-
-export function createInflateRaw(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "createInflateRaw")
-}
-
-export function createUnzip(...args: unknown[]): never {
-  void args
-  return nodeNotImplemented("node:zlib", "createUnzip")
 }
 
 export function createZstdCompress(...args: unknown[]): never {
@@ -97,44 +40,9 @@ export function createZstdDecompress(...args: unknown[]): never {
   return nodeNotImplemented("node:zlib", "createZstdDecompress")
 }
 
-export class Deflate {
-  constructor(...args: unknown[]) {
-    void args
-    nodeNotImplemented("node:zlib", "Deflate")
-  }
-}
-
 export function deflateRaw(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:zlib", "deflateRaw")
-}
-
-export class DeflateRaw {
-  constructor(...args: unknown[]) {
-    void args
-    nodeNotImplemented("node:zlib", "DeflateRaw")
-  }
-}
-
-export class Gunzip {
-  constructor(...args: unknown[]) {
-    void args
-    nodeNotImplemented("node:zlib", "Gunzip")
-  }
-}
-
-export class Gzip {
-  constructor(...args: unknown[]) {
-    void args
-    nodeNotImplemented("node:zlib", "Gzip")
-  }
-}
-
-export class Inflate {
-  constructor(...args: unknown[]) {
-    void args
-    nodeNotImplemented("node:zlib", "Inflate")
-  }
 }
 
 export function inflateRaw(...args: unknown[]): never {
@@ -142,23 +50,9 @@ export function inflateRaw(...args: unknown[]): never {
   return nodeNotImplemented("node:zlib", "inflateRaw")
 }
 
-export class InflateRaw {
-  constructor(...args: unknown[]) {
-    void args
-    nodeNotImplemented("node:zlib", "InflateRaw")
-  }
-}
-
 export function unzip(...args: unknown[]): never {
   void args
   return nodeNotImplemented("node:zlib", "unzip")
-}
-
-export class Unzip {
-  constructor(...args: unknown[]) {
-    void args
-    nodeNotImplemented("node:zlib", "Unzip")
-  }
 }
 
 export const Z_ASCII: unknown = undefined

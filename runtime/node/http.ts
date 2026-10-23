@@ -618,7 +618,7 @@ export class IncomingMessage extends Readable {
   }
 
   override _destroy(error: Error | null, callback: DestroyCallback): void {
-    __gea_http_destroy(this.connId_)
+    if (!this.readableEnded || !this.complete) __gea_http_destroy(this.connId_)
     // Mirrors the original behaviour: destroying a request owes listeners their 'close' off the
     // dispatch stack, not synchronously inside destroy().
     queueMicrotask(() => callback(error))

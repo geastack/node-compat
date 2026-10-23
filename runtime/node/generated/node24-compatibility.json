@@ -20938,25 +20938,38 @@
         {
           "name": "brotliDecompress",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(input: InputType, callback: ZlibCallback): void"
+          ]
         },
         {
           "name": "BrotliDecompress",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedConstructSignatures": [
+            "(): BrotliDecompress"
+          ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "Constructor"
             }
           ]
         },
         {
           "name": "brotliDecompressSync",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(input: InputType): Buffer"
+          ]
         },
         {
           "name": "constants",
@@ -20977,42 +20990,74 @@
         {
           "name": "createBrotliDecompress",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(): BrotliDecompress"
+          ]
         },
         {
           "name": "createDeflate",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(options?: ZlibOptions): Deflate"
+          ]
         },
         {
           "name": "createDeflateRaw",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(options?: ZlibOptions): DeflateRaw"
+          ]
         },
         {
           "name": "createGunzip",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(): Gunzip"
+          ]
         },
         {
           "name": "createGzip",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(options?: ZlibOptions): Gzip"
+          ]
         },
         {
           "name": "createInflate",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(): Inflate"
+          ]
         },
         {
           "name": "createInflateRaw",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(): InflateRaw"
+          ]
         },
         {
           "name": "createUnzip",
           "kind": "function",
-          "status": "stubbed"
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedCallSignatures": [
+            "(): Unzip"
+          ]
         },
         {
           "name": "createZstdCompress",
@@ -21036,13 +21081,18 @@
         {
           "name": "Deflate",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedConstructSignatures": [
+            "(options?: ZlibOptions): Deflate"
+          ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "Constructor"
             }
           ]
         },
@@ -21054,13 +21104,18 @@
         {
           "name": "DeflateRaw",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedConstructSignatures": [
+            "(options?: ZlibOptions): DeflateRaw"
+          ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "Constructor"
             }
           ]
         },
@@ -21094,13 +21149,18 @@
         {
           "name": "Gunzip",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedConstructSignatures": [
+            "(): Gunzip"
+          ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "Constructor"
             }
           ]
         },
@@ -21125,13 +21185,18 @@
         {
           "name": "Gzip",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedConstructSignatures": [
+            "(options?: ZlibOptions): Gzip"
+          ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "Constructor"
             }
           ]
         },
@@ -21156,13 +21221,18 @@
         {
           "name": "Inflate",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedConstructSignatures": [
+            "(): Inflate"
+          ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "Constructor"
             }
           ]
         },
@@ -21174,13 +21244,18 @@
         {
           "name": "InflateRaw",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedConstructSignatures": [
+            "(): InflateRaw"
+          ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "Constructor"
             }
           ]
         },
@@ -21210,13 +21285,18 @@
         {
           "name": "Unzip",
           "kind": "class",
-          "status": "stubbed",
+          "status": "partial",
+          "overlay": "zlib.ts",
+          "supportedConstructSignatures": [
+            "(): Unzip"
+          ],
           "members": [
             {
               "name": "<constructor>",
               "kind": "Constructor",
               "scope": "instance",
-              "status": "stubbed"
+              "status": "partial",
+              "overlayKind": "Constructor"
             }
           ]
         },

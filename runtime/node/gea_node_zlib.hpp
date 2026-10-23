@@ -1,22 +1,25 @@
 #pragma once
 
 // node:zlib's codecs, over the platform's own zlib -- the library node itself
-// vendors. TypeScript owns the API shape (`runtime/node/zlib.ts`); only whole
-// byte buffers cross this boundary, as native typed-array views, so a
-// compressed payload is never boxed.
+// vendors. TypeScript owns the API shape (`runtime/node/zlib.ts`); only byte
+// buffers and numeric stream handles cross this boundary, as native
+// typed-array views and doubles, so a compressed payload is never boxed.
 //
 // `windowBits` selects the framing exactly as zlib defines it, and node's
 // classes map onto it one to one: 15 is the zlib wrapper (Deflate/Inflate),
 // 31 is gzip (Gzip/Gunzip), -15 is raw deflate (DeflateRaw/InflateRaw), and
 // 47 detects zlib or gzip from the header (Unzip).
 #include "gea_runtime.h"
+#include "gea_node_buffer.hpp"
 
 #include <zlib.h>
 
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace gea::node::zlib {
@@ -49,7 +52,14 @@ inline Bytef* input(const Bytes& bytes) {
   return bytes.size() == 0 ? &empty : const_cast<Bytef*>(reinterpret_cast<const Bytef*>(bytes.data()));
 }
 
-inline std::vector<std::uint8_t> inflate(const Bytes& bytes, double windowBits) {
+inline int deflateLevel(int bits, double level) {
+  if (bits == 47) gea::host::throwRuntimeError("RangeError", "Unsupported zlib framing");
+  if (!std::isfinite(level) || level < -1.0 || level > 9.0 || std::trunc(level) != level)
+    gea::host::throwRuntimeError("RangeError", "The value of \"options.level\" is out of range. It must be >= -1 and <= 9.");
+  return static_cast<int>(level);
+}
+
+inline gea::Ref<gea::TypedArray<std::uint8_t>> inflate(const Bytes& bytes, double windowBits) {
   const int bits = framing(windowBits);
   z_stream stream{};
   if (inflateInit2(&stream, bits) != Z_OK) fail(Z_MEM_ERROR, stream);
@@ -79,7 +89,7 @@ inline std::vector<std::uint8_t> inflate(const Bytes& bytes, double windowBits) 
     if (code == Z_STREAM_END) {
       // node's Gunzip reads every member of a multi-member gzip file; bytes
       // after a zlib or raw stream are ignored, as node ignores them.
-      if (remaining == 0 || (bits != 31 && bits != 47)) break;
+      if (remaining == 0 || (bits != 31 && bits != 47) || *next == 0) break;
       if (inflateReset(&stream) != Z_OK) {
         inflateEnd(&stream);
         fail(Z_STREAM_ERROR, stream);
@@ -95,16 +105,14 @@ inline std::vector<std::uint8_t> inflate(const Bytes& bytes, double windowBits) 
     }
   }
   inflateEnd(&stream);
-  return output;
+  return gea::node::buffer::detail::bufferResult(std::move(output));
 }
 
-inline std::vector<std::uint8_t> deflate(const Bytes& bytes, double windowBits, double level) {
+inline gea::Ref<gea::TypedArray<std::uint8_t>> deflate(const Bytes& bytes, double windowBits, double level) {
   const int bits = framing(windowBits);
-  if (bits == 47) gea::host::throwRuntimeError("RangeError", "Unsupported zlib framing");
-  if (!std::isfinite(level) || level < -1.0 || level > 9.0 || std::trunc(level) != level)
-    gea::host::throwRuntimeError("RangeError", "The value of \"options.level\" is out of range. It must be >= -1 and <= 9.");
+  const int compression = deflateLevel(bits, level);
   z_stream stream{};
-  if (deflateInit2(&stream, static_cast<int>(level), Z_DEFLATED, bits, 8, Z_DEFAULT_STRATEGY) != Z_OK) fail(Z_MEM_ERROR, stream);
+  if (deflateInit2(&stream, compression, Z_DEFLATED, bits, 8, Z_DEFAULT_STRATEGY) != Z_OK) fail(Z_MEM_ERROR, stream);
   std::vector<std::uint8_t> output(deflateBound(&stream, static_cast<uLong>(bytes.size())));
   std::size_t remaining = bytes.size();
   Bytef* next = input(bytes);
@@ -129,7 +137,171 @@ inline std::vector<std::uint8_t> deflate(const Bytes& bytes, double windowBits, 
   }
   deflateEnd(&stream);
   output.resize(written);
+  return gea::node::buffer::detail::bufferResult(std::move(output));
+}
+
+struct Stream {
+  z_stream z{};
+  int bits = 0;
+  bool deflating = false;
+  bool ended = false;
+  bool betweenMembers = false;
+  bool leftover = false;
+  bool stopped = false;
+  bool draining = false;
+  bool finishing = false;
+  bool finished = false;
+  std::vector<std::uint8_t> input;
+  std::size_t offset = 0;
+
+  Stream() = default;
+  Stream(const Stream&) = delete;
+  Stream& operator=(const Stream&) = delete;
+  ~Stream() {
+    if (deflating) deflateEnd(&z);
+    else inflateEnd(&z);
+  }
+};
+
+inline std::unordered_map<std::uint64_t, std::unique_ptr<Stream>>& streams() {
+  static std::unordered_map<std::uint64_t, std::unique_ptr<Stream>> table;
+  return table;
+}
+
+inline Stream& streamAt(double handle) {
+  const auto found = streams().find(static_cast<std::uint64_t>(handle));
+  if (found == streams().end()) gea::host::throwRuntimeError("Error", "zlib binding closed");
+  return *found->second;
+}
+
+inline double streamOpen(double mode, double windowBits, double level) {
+  static std::uint64_t last = 0;
+  const int bits = framing(windowBits);
+  auto stream = std::make_unique<Stream>();
+  stream->bits = bits;
+  if (mode == 1.0) {
+    const int compression = deflateLevel(bits, level);
+    if (deflateInit2(&stream->z, compression, Z_DEFLATED, bits, 8, Z_DEFAULT_STRATEGY) != Z_OK) fail(Z_MEM_ERROR, stream->z);
+    stream->deflating = true;
+  } else if (inflateInit2(&stream->z, bits) != Z_OK) {
+    fail(Z_MEM_ERROR, stream->z);
+  }
+  streams().emplace(++last, std::move(stream));
+  return static_cast<double>(last);
+}
+
+constexpr std::size_t kChunk = 16 * 1024;
+
+inline std::size_t remainingOf(const Stream& stream) {
+  return stream.input.size() - stream.offset;
+}
+
+inline Bytef* nextOf(Stream& stream) {
+  static Bytef empty = 0;
+  return stream.offset < stream.input.size() ? stream.input.data() + stream.offset : &empty;
+}
+
+inline std::vector<std::uint8_t> deflateStep(Stream& stream, int flush) {
+  std::vector<std::uint8_t> output(kChunk);
+  const std::size_t remaining = remainingOf(stream);
+  const std::size_t take = std::min<std::size_t>(remaining, std::numeric_limits<uInt>::max());
+  stream.z.next_in = nextOf(stream);
+  stream.z.avail_in = static_cast<uInt>(take);
+  stream.z.next_out = reinterpret_cast<Bytef*>(output.data());
+  stream.z.avail_out = static_cast<uInt>(kChunk);
+  const int code = ::deflate(&stream.z, take == remaining ? flush : Z_NO_FLUSH);
+  if (code == Z_STREAM_ERROR) fail(code, stream.z);
+  stream.offset += take - stream.z.avail_in;
+  stream.draining = stream.z.avail_out == 0;
+  if (code == Z_STREAM_END) stream.finished = true;
+  output.resize(kChunk - stream.z.avail_out);
   return output;
+}
+
+inline std::vector<std::uint8_t> inflateStep(Stream& stream) {
+  std::vector<std::uint8_t> output(kChunk);
+  std::size_t used = 0;
+  while (used < kChunk && !stream.ended && !stream.stopped) {
+    const std::size_t remaining = remainingOf(stream);
+    if (remaining == 0 && !stream.draining) break;
+    if (stream.betweenMembers) {
+      if (*nextOf(stream) == 0) {
+        stream.stopped = true;
+        break;
+      }
+      if (inflateReset(&stream.z) != Z_OK) fail(Z_STREAM_ERROR, stream.z);
+      stream.betweenMembers = false;
+    }
+    const std::size_t take = std::min<std::size_t>(remaining, std::numeric_limits<uInt>::max());
+    stream.z.next_in = nextOf(stream);
+    stream.z.avail_in = static_cast<uInt>(take);
+    stream.z.next_out = reinterpret_cast<Bytef*>(output.data() + used);
+    stream.z.avail_out = static_cast<uInt>(kChunk - used);
+    const int code = ::inflate(&stream.z, Z_NO_FLUSH);
+    if (code != Z_OK && code != Z_STREAM_END && code != Z_BUF_ERROR) fail(code, stream.z);
+    const std::size_t consumed = take - stream.z.avail_in;
+    const std::size_t produced = (kChunk - used) - stream.z.avail_out;
+    stream.offset += consumed;
+    used += produced;
+    stream.draining = stream.z.avail_out == 0;
+    if (code == Z_STREAM_END) {
+      stream.draining = false;
+      if (stream.bits != 31 && stream.bits != 47) {
+        stream.ended = true;
+        break;
+      }
+      stream.betweenMembers = true;
+      continue;
+    }
+    if (consumed == 0 && produced == 0) {
+      if (remaining == 0) break;
+      stream.z.msg = nullptr;
+      fail(Z_BUF_ERROR, stream.z);
+    }
+  }
+  if (stream.ended || stream.stopped) stream.leftover = remainingOf(stream) > 0;
+  output.resize(used);
+  return output;
+}
+
+inline void streamWrite(double handle, const Bytes& bytes) {
+  Stream& stream = streamAt(handle);
+  const auto* data = reinterpret_cast<const std::uint8_t*>(bytes.data());
+  stream.input.assign(data, data + bytes.size());
+  stream.offset = 0;
+  stream.stopped = false;
+  stream.leftover = false;
+}
+
+inline gea::Ref<gea::TypedArray<std::uint8_t>> streamRead(double handle) {
+  Stream& stream = streamAt(handle);
+  return gea::node::buffer::detail::bufferResult(stream.deflating ? deflateStep(stream, Z_NO_FLUSH) : inflateStep(stream));
+}
+
+inline bool streamPending(double handle) {
+  const Stream& stream = streamAt(handle);
+  if (stream.finishing) return stream.deflating && !stream.finished;
+  if (stream.deflating) return stream.draining || remainingOf(stream) > 0;
+  return !stream.ended && !stream.stopped && (stream.draining || remainingOf(stream) > 0);
+}
+
+inline bool streamLeftover(double handle) {
+  return streamAt(handle).leftover;
+}
+
+inline gea::Ref<gea::TypedArray<std::uint8_t>> streamFinish(double handle) {
+  Stream& stream = streamAt(handle);
+  stream.finishing = true;
+  if (stream.deflating) return gea::node::buffer::detail::bufferResult(deflateStep(stream, Z_FINISH));
+  if (!stream.ended && !stream.betweenMembers) {
+    stream.z.msg = nullptr;
+    fail(Z_BUF_ERROR, stream.z);
+  }
+  return gea::node::buffer::detail::bufferResult({});
+}
+
+inline void streamClose(double handle) {
+  streams().erase(static_cast<std::uint64_t>(handle));
 }
 
 }  // namespace gea::node::zlib
