@@ -43,7 +43,7 @@
 // leaves a record. Exit codes: 1 nothing emitted, 2 link failed.
 import fs from 'node:fs'
 import path from 'node:path'
-import { spawn, spawnSync } from 'node:child_process'
+import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -53,6 +53,7 @@ import { resolveBuiltinModules, runtimeRootsForReachableGlobalNeeds } from './bu
 import { displayPathFrom } from './path-display.mjs'
 import { compilerRoot as resolveCompilerRoot, compilerModuleUrl } from './resolve-compiler.mjs'
 import { compilerInputs, assertCompilerInputs } from './compiler-input.mjs'
+import { brotliPrefix, windowsLibraries } from './native-libraries.mjs'
 
 const compilerRoot = resolveCompilerRoot()
 const { compile } = await import(compilerModuleUrl('.', compilerRoot))
@@ -896,7 +897,7 @@ await buildExecutable(emittedUnits, displayPath)
 // or worse silently mis-read, by a unit compiled with a different language
 // dialect, optimization level or visibility -- with `-x c++-header` in place of
 // `-c`. `pch` on a compile phase is that PCH's `{ file, codegen }`.
-function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, pch = null }) {
+function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, needsBrotli, pch = null }) {
   const compiling = phase !== 'link'
   const linking = phase === 'all' || phase === 'link'
   const runtimeDir = path.join(repo, 'runtime')
@@ -1014,6 +1015,7 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
     // the compiler and node-compat runtime roots.
     ...(compiling ? [`-I${compilerRuntimeDir}`, `-I${runtimeDir}`, `-I${path.join(runtimeDir, 'node')}`, `-I${outDir}`] : []),
     ...(compiling && needsZlib && windowsLibraries() ? [`-I${path.join(windowsLibraries(), 'include')}`] : []),
+    ...(compiling && needsBrotli ? brotliIncludeFlags() : []),
     // Escape hatch for one-off builds that need a flag the pipeline does not
     // model -- `-g` for a profile or an allocation census, `-fsanitize=...` for
     // a leak hunt. Whitespace-separated, appended last so it can override an
@@ -1079,6 +1081,7 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, p
     ...(process.platform === 'linux' ? ['-pthread'] : []),
     ...(linking && process.platform === 'linux' && needsCrypto ? ['-lcrypto'] : []),
     ...(linking && needsZlib ? zlibLinkFlags() : []),
+    ...(linking && needsBrotli ? brotliLinkFlags() : []),
     '-o',
     output
   ]
@@ -1164,25 +1167,62 @@ function thinLtoLinkFlags() {
   return ['-fuse-ld=gold', `-Wl,-plugin-opt,jobs=${jobs}`, `-Wl,-plugin-opt,cache-dir=${cache}`]
 }
 
-// The native libraries a Windows build links (zlib for node:zlib) come from
-// vcpkg's static triplet -- static libraries over the static CRT, what a plain
-// clang++ link uses -- found under VCPKG_ROOT, else C:\vcpkg, the same way the
-// compiler's release checks find them (its scripts/host-toolchain.mjs).
-// Install with `vcpkg install zlib --triplet x64-windows-static`. Null
-// elsewhere: Linux and macOS link the system's libraries.
-function windowsLibraries() {
-  if (process.platform !== 'win32') return null
-  for (const root of [process.env.VCPKG_ROOT, 'C:\\vcpkg'].filter(Boolean)) {
-    const installed = path.join(root, 'installed', 'x64-windows-static')
-    if (fs.existsSync(path.join(installed, 'lib'))) return installed
-  }
-  return null
-}
-
 // zlib is libz everywhere but vcpkg's static Windows build, which names it zs.lib.
 function zlibLinkFlags() {
   const windows = windowsLibraries()
   return windows ? [`-L${path.join(windows, 'lib')}`, '-lzs'] : ['-lz']
+}
+
+function brotliVersionIsPatched(version) {
+  const major = version >>> 24
+  const minor = (version >>> 12) & 0xfff
+  const patch = version & 0xfff
+  if (major !== 1) return major > 1
+  if (minor === 0) return patch >= 10
+  if (minor === 1 || minor === 2) return patch >= 1
+  return minor > 2
+}
+
+function assertPatchedBrotli(cxx) {
+  if (assertPatchedBrotli.checked) return
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gea-brotli-version-'))
+  try {
+    const source = path.join(dir, 'version.cpp')
+    const executable = path.join(dir, process.platform === 'win32' ? 'version.exe' : 'version')
+    fs.writeFileSync(source, '#include <brotli/decode.h>\n#include <cstdio>\nint main() { std::printf("%u\\n", static_cast<unsigned>(BrotliDecoderVersion())); }\n')
+    const compiled = spawnSync(cxx, [...brotliIncludeFlags(), source, '-o', executable, ...brotliLinkFlags()], { encoding: 'utf8' })
+    if (compiled.status !== 0) throw new Error(`could not build the libbrotlidec version check:\n${compiled.stderr}`)
+    const prefix = brotliPrefix()
+    const libraryPath = prefix === null ? {} : { DYLD_LIBRARY_PATH: path.join(prefix, 'lib'), LD_LIBRARY_PATH: path.join(prefix, 'lib') }
+    const ran = spawnSync(executable, [], { encoding: 'utf8', env: { ...process.env, ...libraryPath } })
+    const version = Number.parseInt(ran.stdout, 10)
+    if (ran.status !== 0 || !Number.isInteger(version)) throw new Error(`could not run the libbrotlidec version check:\n${ran.stderr}`)
+    if (!brotliVersionIsPatched(version)) {
+      const found = `${version >>> 24}.${(version >>> 12) & 0xfff}.${version & 0xfff}`
+      throw new Error(
+        `libbrotlidec ${found} is affected by CVE-2026-111497 (decoder out-of-bounds write): node:zlib's brotli decoder needs brotli 1.2.1, 1.1.1 or 1.0.10 or later on the same line. Upgrade brotli, or set BROTLI_DIR to a prefix holding a patched build.`
+      )
+    }
+    assertPatchedBrotli.checked = true
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+function brotliIncludeFlags() {
+  const prefix = brotliPrefix()
+  return prefix === null ? [] : [`-I${path.join(prefix, 'include')}`]
+}
+
+function brotliLinkFlags() {
+  const prefix = brotliPrefix()
+  const lib = prefix === null ? null : path.join(prefix, 'lib')
+  return [
+    ...(lib === null ? [] : [`-L${lib}`]),
+    ...(lib !== null && process.platform !== 'win32' ? [`-Wl,-rpath,${lib}`] : []),
+    '-lbrotlidec',
+    '-lbrotlicommon'
+  ]
 }
 
 // Full-LTO link flags for clang: the linker that reads LLVM bitcode -- gold's
@@ -1705,12 +1745,14 @@ async function linkUnits(units, displayPath, exePath) {
   // zlib the same way, on every platform: node:zlib's codecs are the system
   // libz, which macOS ships too but does not link by default.
   const needsZlib = units.some((unit) => unit.source.includes('#include "gea_node_zlib.hpp"'))
+  const needsBrotli = units.some((unit) => unit.source.includes('#include "gea_node_brotli.hpp"'))
   // The C++ compiler is the caller's; the default is clang++, which is what the
   // published benchmarks were built with (clang 18 on the Ubuntu bench host;
   // g++ 13 there is 4-10% slower on the same emitted source).
   const cxx = process.env.CXX ?? 'clang++'
   const cxxIsClang = /clang/.test(path.basename(cxx)) || (!/g\+\+|gcc/.test(path.basename(cxx)) && process.platform === 'darwin')
-  const common = { cxxIsClang, needsCrypto, needsZlib }
+  const common = { cxxIsClang, needsCrypto, needsZlib, needsBrotli }
+  if (needsBrotli) assertPatchedBrotli(cxx)
 
   const linkStarted = process.hrtime.bigint()
   const fail = (stderr, fields = {}) => {

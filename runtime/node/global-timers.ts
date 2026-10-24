@@ -44,6 +44,14 @@ declare function __gea_node_timer_start_interval(callback: () => void, delay: nu
 declare function __gea_node_timer_clear(id: number): void
 /** @gea-host-inert */
 declare function __gea_node_timer_unref(id: number): void
+/** @gea-host-no-property-writes */
+declare function __gea_node_immediate_start(callback: () => void): number
+/** @gea-host-inert */
+declare function __gea_node_immediate_clear(id: number): void
+/** @gea-host-inert */
+declare function __gea_node_immediate_ref(id: number): void
+/** @gea-host-inert */
+declare function __gea_node_immediate_unref(id: number): void
 
 class Timeout {
   private id_: number
@@ -111,4 +119,51 @@ function clearTimeout(handle: Timeout | number | null | undefined): void {
 
 function clearInterval(handle: Timeout | number | null | undefined): void {
   clearTimeout(handle)
+}
+
+class Immediate {
+  private id_: number
+  private referenced_: boolean
+
+  constructor(id: number) {
+    this.id_ = id
+    this.referenced_ = true
+  }
+
+  id(): number {
+    return this.id_
+  }
+
+  ref(): Immediate {
+    if (!this.referenced_) {
+      this.referenced_ = true
+      __gea_node_immediate_ref(this.id_)
+    }
+    return this
+  }
+
+  unref(): Immediate {
+    if (this.referenced_) {
+      this.referenced_ = false
+      __gea_node_immediate_unref(this.id_)
+    }
+    return this
+  }
+
+  hasRef(): boolean {
+    return this.referenced_
+  }
+}
+
+function setImmediate(callback: (...args: any[]) => void): Immediate {
+  return new Immediate(
+    __gea_node_immediate_start((): void => {
+      callback()
+    })
+  )
+}
+
+function clearImmediate(handle: Immediate | null | undefined): void {
+  if (handle === null || handle === undefined) return
+  __gea_node_immediate_clear(handle.id())
 }

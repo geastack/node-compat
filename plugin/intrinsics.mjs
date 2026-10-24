@@ -482,6 +482,26 @@ export const intrinsics = {
     returnType: 'void',
     decl: 'void __gea_node_clear_timer(double id);'
   },
+  __gea_node_immediate_start: {
+    emit: '__gea_node_immediate_start',
+    returnType: 'double',
+    decl: 'double __gea_node_immediate_start(std::function<void()> callback);'
+  },
+  __gea_node_immediate_clear: {
+    emit: '__gea_node_immediate_clear',
+    returnType: 'void',
+    decl: 'void __gea_node_immediate_clear(double id);'
+  },
+  __gea_node_immediate_ref: {
+    emit: '__gea_node_immediate_ref',
+    returnType: 'void',
+    decl: 'void __gea_node_immediate_ref(double id);'
+  },
+  __gea_node_immediate_unref: {
+    emit: '__gea_node_immediate_unref',
+    returnType: 'void',
+    decl: 'void __gea_node_immediate_unref(double id);'
+  },
   __gea_node_process_env: {
     emit: 'gea_cpp_process_env',
     returnType: 'gea_cpp_value'
@@ -590,6 +610,16 @@ export const intrinsics = {
     emit: '__gea_node_fs_access',
     returnType: 'bool',
     decl: 'bool __gea_node_fs_access(std::string path, double mode);'
+  },
+  __gea_node_fs_stat: {
+    emit: '__gea_node_fs_stat',
+    returnType: 'double',
+    decl: 'double __gea_node_fs_stat(std::string path, bool followSymlinks);'
+  },
+  __gea_node_fs_stat_field: {
+    emit: '__gea_node_fs_stat_field',
+    returnType: 'double',
+    decl: 'double __gea_node_fs_stat_field(double field);'
   },
   // These return the native Buffer carrier directly. Their declarations live
   // in gea_node_buffer.hpp, which generated_support.hpp includes, so no

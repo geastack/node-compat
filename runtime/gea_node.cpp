@@ -408,6 +408,87 @@ inline void fireDue() {
 
 }  // namespace gea::node::timers
 
+namespace gea::node::immediates {
+
+struct Immediate {
+  double id;
+  bool referenced;
+  std::function<void()> callback;
+};
+
+inline std::vector<Immediate> &queue() {
+  static std::vector<Immediate> immediates;
+  return immediates;
+}
+
+inline double nextImmediateId() {
+  static double id = 0;
+  return ++id;
+}
+
+inline bool hasPending() { return !queue().empty(); }
+inline bool hasReferenced() {
+  for (const Immediate &immediate : queue())
+    if (immediate.referenced) return true;
+  return false;
+}
+
+inline double add(std::function<void()> callback) {
+  const double id = nextImmediateId();
+  queue().push_back(Immediate{id, true, std::move(callback)});
+  return id;
+}
+
+// Each pass of runAll owns the ids of the batch it is running, and
+// clearImmediate drops an id from every pass in flight. A callback can pump the
+// loop again (an await on host work does), so a nested pass runs only what was
+// queued since and leaves its caller's batch alone.
+inline std::vector<std::unordered_set<double> *> &runningBatches() {
+  static std::vector<std::unordered_set<double> *> batches;
+  return batches;
+}
+
+inline void remove(double id) {
+  for (std::unordered_set<double> *batch : runningBatches()) batch->erase(id);
+  auto &immediates = queue();
+  immediates.erase(
+      std::remove_if(immediates.begin(), immediates.end(), [&](const Immediate &immediate) { return immediate.id == id; }),
+      immediates.end());
+}
+
+inline void setReferenced(double id, bool referenced) {
+  for (Immediate &immediate : queue()) {
+    if (immediate.id == id) {
+      immediate.referenced = referenced;
+      return;
+    }
+  }
+}
+
+// Whether the check phase runs this turn. An unreferenced immediate does not
+// keep the loop alive, but it still runs while other referenced work does.
+inline bool due(bool loopAlive) { return !queue().empty() && (loopAlive || hasReferenced()); }
+
+inline void runAll(bool loopAlive) {
+  if (!due(loopAlive)) return;
+  std::vector<Immediate> batch;
+  batch.swap(queue());
+  gea::detail::HostCallbackScope scope;
+  std::unordered_set<double> pending;
+  for (const Immediate &immediate : batch) pending.insert(immediate.id);
+  runningBatches().push_back(&pending);
+  struct Pop {
+    ~Pop() { runningBatches().pop_back(); }
+  } pop;
+  for (Immediate &immediate : batch) {
+    if (pending.erase(immediate.id) == 0) continue;
+    if (immediate.callback) immediate.callback();
+    gea::node::drain_microtasks();
+  }
+}
+
+}
+
 // ---------------------------------------------------------------------------
 // Size-class free-list allocator (global operator new/delete override).
 //
@@ -1070,7 +1151,7 @@ private:
       });
       const bool timersPending = gea::node::timers::hasPending();
       if ((pfds.empty() || (done == nullptr && !haveReferencedWatcher)) &&
-          !gea::node::timers::hasReferenced()) {
+          !gea::node::timers::hasReferenced() && !gea::node::immediates::hasReferenced()) {
         purgeClosedIfSafe();
         return stopRequested(done);  // only unref work remains
       }
@@ -1081,7 +1162,7 @@ private:
       // times per request, re-tracing the request's live objects each time.
       gea::collectCyclesAtQuiescence();
       if (!gea::node::microtasks().empty() || !gea::node::next_ticks().empty()) continue;
-      const int timeout = timersPending ? gea::node::timers::nextDelayMs() : -1;
+      const int timeout = gea::node::immediates::due(haveReferencedWatcher || gea::node::timers::hasReferenced()) ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
       const int events = platform::poll(pfds.data(), pfds.size(), timeout);
       if (events < 0) {
         if (errno == EINTR) continue;
@@ -1116,6 +1197,7 @@ private:
       // Handler promises progress here: continuations queued during dispatch
       // (async handlers, body-delivery microtasks) run before the next poll.
       gea::node::drain_microtasks();
+      gea::node::immediates::runAll(haveReferencedWatcher || gea::node::timers::hasReferenced());
       const bool stopped = stopRequested(done);
       --dispatchDepth_;
       purgeClosedIfSafe();
@@ -1155,14 +1237,14 @@ private:
       });
       const bool timersPending = gea::node::timers::hasPending();
       if ((!haveWatchers || (done == nullptr && !haveReferencedWatcher)) &&
-          !gea::node::timers::hasReferenced()) {
+          !gea::node::timers::hasReferenced() && !gea::node::immediates::hasReferenced()) {
         purgeClosedIfSafe();
         return stopRequested(done);
       }
 
       gea::collectCyclesAtQuiescence();  // see `runPoll`
       if (!gea::node::microtasks().empty() || !gea::node::next_ticks().empty()) continue;
-      const int timeout = timersPending ? gea::node::timers::nextDelayMs() : -1;
+      const int timeout = gea::node::immediates::due(haveReferencedWatcher || gea::node::timers::hasReferenced()) ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
       const int count = ::epoll_wait(epollFd_, events, 128, timeout);
       if (count < 0) {
         if (errno == EINTR) continue;
@@ -1192,6 +1274,7 @@ private:
         if (stopRequested(done)) break;
       }
       gea::node::drain_microtasks();
+      gea::node::immediates::runAll(haveReferencedWatcher || gea::node::timers::hasReferenced());
       const bool stopped = stopRequested(done);
       --dispatchDepth_;
       purgeClosedIfSafe();
@@ -1233,7 +1316,7 @@ private:
       });
       const bool timersPending = gea::node::timers::hasPending();
       if ((!haveWatchers || (done == nullptr && !haveReferencedWatcher)) &&
-          !gea::node::timers::hasReferenced()) {
+          !gea::node::timers::hasReferenced() && !gea::node::immediates::hasReferenced()) {
         applyKqueueChanges(changes);
         purgeClosedIfSafe();
         return stopRequested(done);
@@ -1245,7 +1328,7 @@ private:
         continue;
       }
       struct timespec wait{};
-      const int delay = timersPending ? gea::node::timers::nextDelayMs() : -1;
+      const int delay = gea::node::immediates::due(haveReferencedWatcher || gea::node::timers::hasReferenced()) ? 0 : timersPending ? gea::node::timers::nextDelayMs() : -1;
       if (delay >= 0) {
         wait.tv_sec = delay / 1000;
         wait.tv_nsec = static_cast<long>(delay % 1000) * 1000000L;
@@ -1300,6 +1383,7 @@ private:
         if (stopRequested(done)) break;
       }
       gea::node::drain_microtasks();
+      gea::node::immediates::runAll(haveReferencedWatcher || gea::node::timers::hasReferenced());
       const bool stopped = stopRequested(done);
       --dispatchDepth_;
       purgeClosedIfSafe();
@@ -1881,15 +1965,20 @@ inline std::string net_errno_name(double requested) {
   GEA_NODE_ERRNO_NAME(EINVAL)
   GEA_NODE_ERRNO_NAME(EIO)
   GEA_NODE_ERRNO_NAME(EISCONN)
+  GEA_NODE_ERRNO_NAME(ELOOP)
   GEA_NODE_ERRNO_NAME(EMFILE)
   GEA_NODE_ERRNO_NAME(EMSGSIZE)
+  GEA_NODE_ERRNO_NAME(ENAMETOOLONG)
   GEA_NODE_ERRNO_NAME(ENETDOWN)
   GEA_NODE_ERRNO_NAME(ENETUNREACH)
   GEA_NODE_ERRNO_NAME(ENFILE)
   GEA_NODE_ERRNO_NAME(ENOBUFS)
+  GEA_NODE_ERRNO_NAME(ENOENT)
   GEA_NODE_ERRNO_NAME(ENOMEM)
   GEA_NODE_ERRNO_NAME(ENOTCONN)
+  GEA_NODE_ERRNO_NAME(ENOTDIR)
   GEA_NODE_ERRNO_NAME(ENOTSOCK)
+  GEA_NODE_ERRNO_NAME(EOVERFLOW)
   GEA_NODE_ERRNO_NAME(EPERM)
   GEA_NODE_ERRNO_NAME(EPIPE)
   GEA_NODE_ERRNO_NAME(EPROTO)
@@ -4055,6 +4144,17 @@ inline void __gea_node_clear_timer(double id) { gea::node::timers::remove(id); }
 
 inline void __gea_node_timer_unref(double id) { gea::node::timers::unref(id); }
 
+inline double __gea_node_immediate_start(std::function<void()> callback) {
+  if (!callback) return 0;
+  return gea::node::immediates::add(std::move(callback));
+}
+
+inline void __gea_node_immediate_clear(double id) { gea::node::immediates::remove(id); }
+
+inline void __gea_node_immediate_ref(double id) { gea::node::immediates::setReferenced(id, true); }
+
+inline void __gea_node_immediate_unref(double id) { gea::node::immediates::setReferenced(id, false); }
+
 inline void __gea_node_run_pending() { gea::node::clientEventLoop().run(); }
 
 inline bool __gea_node_pump_until(const std::function<bool()> &done) {
@@ -4099,6 +4199,33 @@ inline void __gea_node_stdio_write(double fd, std::string data) {
 
 inline bool __gea_node_fs_access(std::string path, double mode) {
   return gea::node::platform::canAccess(path, static_cast<int>(mode));
+}
+
+static gea::node::platform::FileStatus gea_node_fs_last_stat;
+
+inline double __gea_node_fs_stat(std::string path, bool followSymlinks) {
+  return static_cast<double>(gea::node::platform::statFile(path, followSymlinks, gea_node_fs_last_stat));
+}
+
+inline double __gea_node_fs_stat_field(double field) {
+  const gea::node::platform::FileStatus &st = gea_node_fs_last_stat;
+  switch (static_cast<int>(field)) {
+    case 0: return st.dev;
+    case 1: return st.ino;
+    case 2: return st.mode;
+    case 3: return st.nlink;
+    case 4: return st.uid;
+    case 5: return st.gid;
+    case 6: return st.rdev;
+    case 7: return st.size;
+    case 8: return st.blksize;
+    case 9: return st.blocks;
+    case 10: return st.atimeMs;
+    case 11: return st.mtimeMs;
+    case 12: return st.ctimeMs;
+    case 13: return st.birthtimeMs;
+    default: return 0.0;
+  }
 }
 
 // The same refusal under both runtimes, raised the way each one raises: v1
