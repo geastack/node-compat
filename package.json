@@ -16,6 +16,7 @@
     "plugin",
     "runtime",
     "scripts/build.mjs",
+    "scripts/native-libraries.mjs",
     "scripts/resolve-compiler.mjs",
     "scripts/compiler-input.mjs",
     "scripts/builtin-modules.mjs",
