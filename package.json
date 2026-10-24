@@ -29,10 +29,10 @@
     "./package.json": "./package.json"
   },
   "peerDependencies": {
-    "@geastack/compiler": "^1.0.43"
+    "@geastack/compiler": "^1.0.47"
   },
   "devDependencies": {
-    "@geastack/compiler": "^1.0.43"
+    "@geastack/compiler": "^1.0.47"
   },
   "dependencies": {
     "@types/node": "^22.15.3"

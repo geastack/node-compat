@@ -20,13 +20,9 @@ assert.equal(expected.status, 0, `node status\n${expected.stderr}`)
 assert.equal(actual.status, 0, `compiled status\n${actual.stderr}`)
 const expectedLines = expected.stdout.trim().split('\n')
 const actualLines = actual.stdout.trim().split('\n')
-const deviating = new Set(['plain missing typeof string', 'nullish '])
 assert.equal(actualLines.length, expectedLines.length, `line count\n--- node\n${expected.stdout}\n--- compiled\n${actual.stdout}`)
-let same = 0
-for (let i = 0; i < expectedLines.length; i++) {
-  if (deviating.has(actualLines[i])) continue
-  assert.equal(actualLines[i], expectedLines[i], `line ${i + 1}`)
-  same++
-}
+for (let i = 0; i < expectedLines.length; i++) assert.equal(actualLines[i], expectedLines[i], `line ${i + 1}`)
 assert.ok(expectedLines.includes('optional passed some(x) none'), 'the oracle covered the optional map')
-console.log(`DICTIONARY_MISSING_PARITY_OK:${same}`)
+assert.ok(expectedLines.includes('plain missing typeof undefined'), 'the oracle covered typeof on a missing key')
+assert.ok(expectedLines.includes('nullish fallback'), 'the oracle covered ?? on a missing key')
+console.log(`DICTIONARY_MISSING_PARITY_OK:${expectedLines.length}`)
