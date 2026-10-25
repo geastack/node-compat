@@ -3,7 +3,7 @@ import { NodeAdapter, type NodeRequest, type NodeResponse, UriTooLongError } fro
 import { BodyParserError } from '../../../platform-node/body-parser/body-parser'
 import type { ParsedQuery } from '../../fast-querystring/index'
 import { HttpError } from '../../http-errors/index'
-import type { Server } from 'node:http'
+import { STATUS_CODES, type Server } from 'node:http'
 
 export interface NestApplicationOptions {
   logger?: boolean
@@ -78,15 +78,6 @@ export class NestApplication {
     if (error instanceof HttpException) {
       statusCode = error.getStatus()
       body = error.toJson()
-    } else if (error instanceof BodyParserError) {
-      statusCode = error.statusCode
-      body = httpErrorBody(error.statusCode, error.message)
-    } else if (error instanceof HttpError) {
-      statusCode = error.statusCode
-      body = httpErrorBody(error.statusCode, error.message)
-    } else if (error instanceof UriTooLongError) {
-      statusCode = error.statusCode
-      body = httpErrorBody(error.statusCode, error.message)
     } else {
       statusCode = 500
       body = UNKNOWN_EXCEPTION_BODY
@@ -113,14 +104,13 @@ export class NestApplication {
   }
 }
 
-function httpErrorBody(statusCode: number, message: string): string {
-  return '{"statusCode":' + String(statusCode) + ',"message":' + JSON.stringify(message) + '}'
-}
-
 function mapException(error: unknown): unknown {
   if (error instanceof HttpException) return error
   if (error instanceof SyntaxError || error instanceof URIError) return new BadRequestException(error.message)
   if (error instanceof BodyParserError && error.name === 'SyntaxError') return new BadRequestException(error.message)
+  if ((error instanceof BodyParserError || error instanceof HttpError || error instanceof UriTooLongError) && error.statusCode < 500) {
+    return new HttpException(error.expose === false ? STATUS_CODES[String(error.statusCode)] : error.message, error.statusCode, { cause: error })
+  }
   return error
 }
 
