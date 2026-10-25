@@ -19,3 +19,4 @@ tools/tools
 *.bak
 *.orig
 *.rej
+vendor/
