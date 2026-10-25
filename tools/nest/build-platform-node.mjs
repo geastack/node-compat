@@ -5,8 +5,8 @@ import path from 'node:path'
 const PIN = {
   repository: 'nestjs/nest',
   branch: 'feat/platform-node',
-  commit: '2b10fb228353fcaedd2817cc22f89ad1cca9a900',
-  version: '12.1.3',
+  commit: '0828b0d41c06285d9162daf70c3f068e21d77c5c',
+  version: '12.2.0',
   packages: ['common', 'core', 'platform-node']
 }
 

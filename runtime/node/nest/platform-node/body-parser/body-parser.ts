@@ -292,8 +292,9 @@ function hasBody(req: IncomingMessage) {
 }
 
 function getContentStream(req: IncomingMessage, inflate: boolean): Readable {
+  // An empty header is an empty list of codings, as body-parser reads it
   const encoding = (
-    req.headers['content-encoding'] ?? 'identity'
+    req.headers['content-encoding'] || 'identity'
   ).toLowerCase();
   if (encoding === 'identity') {
     return req;
@@ -352,7 +353,8 @@ function createReader(
     ) {
       return next();
     }
-    const charset = getCharset(req) ?? options.defaultCharset;
+    // An empty charset parameter gets the default too, as with body-parser
+    const charset = getCharset(req) || options.defaultCharset;
     if (options.isValidCharset && !options.isValidCharset(charset)) {
       return next(
         createHttpError(
@@ -751,26 +753,28 @@ export function urlencoded(options?: NodeUrlencodedParserOptions): Middleware {
   }
   // "qs" silently drops "__proto__" keys; with 'error', reject them as the
   // JSON parser does
-  const decoder: Decoder | undefined =
-    poisoningActions.protoAction === 'error'
-      ? (
-          value: string,
-          defaultDecoder: DefaultDecoder,
-          charset: Charset,
-          type: 'key' | 'value',
-        ): string | null => {
-          const decoded = defaultDecoder(value, undefined, charset);
-          if (
-            type === 'key' &&
-            (extended ? PROTO_KEY.test(decoded) : decoded === '__proto__')
-          ) {
-            throw new SyntaxError(
-              'Object contains forbidden prototype property',
-            );
-          }
-          return decoded;
-        }
-      : undefined;
+  const rejectProtoKeys = poisoningActions.protoAction === 'error';
+  const decoder: Decoder = (
+    value: string,
+    defaultDecoder: DefaultDecoder,
+    charset: Charset,
+    type: 'key' | 'value',
+  ): string | null => {
+    // The decoder of "qs" replaces "+" and calls decodeURIComponent() for
+    // every key and value, which leaves one without "%" or "+" unchanged
+    const decoded =
+      value.indexOf('%') === -1 && value.indexOf('+') === -1
+        ? value
+        : defaultDecoder(value, undefined, charset);
+    if (
+      rejectProtoKeys &&
+      type === 'key' &&
+      (extended ? PROTO_KEY.test(decoded) : decoded === '__proto__')
+    ) {
+      throw new SyntaxError('Object contains forbidden prototype property');
+    }
+    return decoded;
+  };
   return createReader(
     toReaderOptions(
       options,
