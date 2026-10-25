@@ -1,5 +1,5 @@
 Vendored from nestjs/nest branch feat/platform-node
-commit 2b10fb228353fcaedd2817cc22f89ad1cca9a900 (2026-10-14, packages at 12.1.3), packages/platform-node/:
+commit 0828b0d41c06285d9162daf70c3f068e21d77c5c (2026-10-24, packages at 12.2.0), packages/platform-node/:
   router/route-table.ts
   router/node-router.ts
   router/utils.ts
