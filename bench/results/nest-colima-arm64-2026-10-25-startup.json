@@ -1,0 +1,190 @@
+{
+  "utc": "2026-10-25T14:01:37Z",
+  "settings": {
+    "output": "bench/results/nest-colima-arm64-2026-10-25-startup.json",
+    "rounds": 5,
+    "duration": "8s",
+    "servers": [
+      "nest-gea",
+      "nest-node"
+    ],
+    "workers": [
+      1,
+      4
+    ],
+    "gea_dist": "dist",
+    "startup_only": true,
+    "server_cpus": "0-3",
+    "load_cpus": "4-7",
+    "load_threads": 4,
+    "connections": 64
+  },
+  "server_cpus": {
+    "1": "0",
+    "multi": "0-3"
+  },
+  "load_cpus": "4-7",
+  "connections": 64,
+  "load_threads": 4,
+  "caveat": "Eight-worker servers and wrk share CPUs; loopback throughput is host-limited.",
+  "machine": "Architecture:                         aarch64\nCPU op-mode(s):                       64-bit\nByte Order:                           Little Endian\nCPU(s):                               8\nOn-line CPU(s) list:                  0-7\nVendor ID:                            Apple\nModel name:                           -\nModel:                                0\nThread(s) per core:                   1\nCore(s) per cluster:                  8\nSocket(s):                            -\nCluster(s):                           1\nStepping:                             0x0\nBogoMIPS:                             48.00\nFlags:                                fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint\nNUMA node(s):                         1\nNUMA node0 CPU(s):                    0-7\nVulnerability Gather data sampling:   Not affected\nVulnerability Itlb multihit:          Not affected\nVulnerability L1tf:                   Not affected\nVulnerability Mds:                    Not affected\nVulnerability Meltdown:               Not affected\nVulnerability Mmio stale data:        Not affected\nVulnerability Reg file data sampling: Not affected\nVulnerability Retbleed:               Not affected\nVulnerability Spec rstack overflow:   Not affected\nVulnerability Spec store bypass:      Vulnerable\nVulnerability Spectre v1:             Mitigation; __user pointer sanitization\nVulnerability Spectre v2:             Not affected\nVulnerability Srbds:                  Not affected\nVulnerability Tsx async abort:        Not affected\nVulnerability Vmscape:                Not affected\n",
+  "node": "v24.20.0",
+  "start_load": "4.13 2.50 1.36 3/213 453",
+  "sha256": {
+    "apps/hono-hello/dist/server": "70beb788cfbd0b4d83640a2bebb86d4eccaf074c43fa0eb9c3309c900c260350",
+    "apps/hono-hello/dist/server.cpp": "dbe55e5085fe2fb4bbaf19eb253a440aafee1a844e79fd3b64f03e627f237dd6",
+    "apps/hello-nest/dist/server": "9d1f87da6e39534a7b3a2cc59e0843600290f40047492a16a98b86f193ff0d94",
+    "apps/hello-nest/dist/server.cpp": "ddfd261d7a7c58d07921ece5fb4170dd1351e3155072e507b55320652db960b0",
+    "apps/hello-nest/server.ts": "b0825ee6f9c0501c549c434089f9ab051161f6874f2b9adcb11974ce2331b0cb",
+    "apps/hello-nest/dist-node/server.js": "ca6b78ad8e06114ffebe24aaeff9aa7ec9cff23af9ec00d43cff0f84d05ffd1b",
+    "apps/hello-nest/cluster.node.mjs": "7ffce7d002106ab3e177563d758fe7d5bc7c7bccc3e58a8f229f3b623e5489e8",
+    "apps/hello-nest/node_modules/@nestjs/core/package.json": "f50d9728ea5590e8e0b0c1a03b79e40c0418fe3874f4fcdffd74913e87a5e762",
+    "apps/hello-nest/node_modules/@nestjs/platform-node/package.json": "8d068282687c7d014d9a7b1a00647e135d0859c4082a429a154d0417b3606754",
+    "apps/raw-http-hello/dist/server": "3924bfc64d8d23e262fcbcc16c42ae97ffba57f8175935a4f5f89d5675a369c7",
+    "apps/raw-http-hello/dist/server.cpp": "7720ca4130360dc12f4c0d4a72bd6a69a7994de452b3bf728ffb272226992a2b",
+    "apps/raw-http-hello/dist/cpp-drogon": "984465c08c73aaf8b2b28895f44aca312d14e62a40f72c1aade93fb135f53aad",
+    "apps/raw-http-hello/dist/cpp-epoll": "3ab056bf5c819738ec8c23398bab2fd7474c0636bc325e4b265a71895415e140",
+    "runtime/gea_node.cpp": "d3fec900e075df2d5373dce7d445d1fb7132faad1a9a64a8f6d93456f41d0f57",
+    "runtime/gea_node.hpp": "982a8c619ceea98ffc316e2f1dedac74adf402de9a24063c7f7b3c32c22b22cb",
+    "apps/hono-hello/server.node.mjs": "ebd47d008f7e66d6841ee8656cf9a91eda340b95c348879002856430f917c174",
+    "apps/hono-hello/cluster.node.mjs": "406b49ca878ef15d762f8bc623e7dea69c932dade4dcc9f981d7717e5082ddc4",
+    "apps/hono-hello/server.ts": "7de6949757315948121a51903d71cd82a57b4c127a2cad14f4e13e49510a7e90",
+    "apps/hono-hello/cluster.full.node.mjs": "a30b1a9b1098acc92e43de543e7205aaa153c287039f757735982c99a2e17ca3",
+    "apps/hono-hello/node_modules/hono/package.json": "83da95303f0d0e1df8b146d3d12df282e7ba0b28204a83501e8b29ba1bebd131",
+    "apps/raw-http-hello/server.node.mjs": "f0981deb78cb1203b5943d63aee6d0be0c627c580a19cb38ca69a78aa228529d",
+    "apps/raw-http-hello/cluster.node.mjs": "5ed904308537410a481203258ed9a861853209fdf7949573499051fbd998dcb4",
+    "apps/raw-http-hello/rust-server/target/release/rust-http-hello": "92fe89869f1a63015618298154357a0249d9400caa9b8b0b99b770bfb7f1d385",
+    "apps/raw-http-hello/rust-server/target/release/axum-http-hello": "53752083cfa225f538bc1d8fa5c589fab22d8afdc94514a56cf49330d8416e98",
+    "apps/raw-http-hello/rust-server/src/main.rs": "97f335c379a9f9153e30cef1b841d33f13e29d5b4251f319dad4b35a03ff33dd",
+    "apps/raw-http-hello/rust-server/src/bin/axum-http-hello.rs": "32c1d1fc4c5e76557672a3b9b78e383ba0cf7aeb5570deb7838b804c3ddab226",
+    "apps/raw-http-hello/cpp-server/server.cpp": "4881106e502fc43cbc6747af2cc3bb7d8457117ab656bde58b575c78efe25fb0",
+    "apps/raw-http-hello/drogon-server/main.cc": "aa790d8d9fef9ab76259e986c1705adcbf994592d7df119af4f08842ab165459",
+    "apps/raw-http-hello/rust-server/Cargo.lock": "914e45a89042aaacb3f6a0870902fd415d4e325b0a394674c2a9c63c06605a58",
+    "bench/http-matrix.py": "92e855c269f532ff1e0cd2e3fc231fb97c28808139b7a636da96e2449345a272"
+  },
+  "wire_contract": [],
+  "startups": [
+    {
+      "round": 1,
+      "server": "nest-gea",
+      "workers": 1,
+      "milliseconds": 13.131109066307545
+    },
+    {
+      "round": 1,
+      "server": "nest-gea",
+      "workers": 4,
+      "milliseconds": 12.724376982077956
+    },
+    {
+      "round": 1,
+      "server": "nest-node",
+      "workers": 1,
+      "milliseconds": 545.8524490240961
+    },
+    {
+      "round": 1,
+      "server": "nest-node",
+      "workers": 4,
+      "milliseconds": 907.2359619894996
+    },
+    {
+      "round": 2,
+      "server": "nest-node",
+      "workers": 4,
+      "milliseconds": 931.5704830223694
+    },
+    {
+      "round": 2,
+      "server": "nest-node",
+      "workers": 1,
+      "milliseconds": 490.5133069260046
+    },
+    {
+      "round": 2,
+      "server": "nest-gea",
+      "workers": 4,
+      "milliseconds": 12.057711952365935
+    },
+    {
+      "round": 2,
+      "server": "nest-gea",
+      "workers": 1,
+      "milliseconds": 12.261183001101017
+    },
+    {
+      "round": 3,
+      "server": "nest-gea",
+      "workers": 1,
+      "milliseconds": 12.311394093558192
+    },
+    {
+      "round": 3,
+      "server": "nest-gea",
+      "workers": 4,
+      "milliseconds": 12.611327925696969
+    },
+    {
+      "round": 3,
+      "server": "nest-node",
+      "workers": 1,
+      "milliseconds": 499.54154808074236
+    },
+    {
+      "round": 3,
+      "server": "nest-node",
+      "workers": 4,
+      "milliseconds": 901.8485610140488
+    },
+    {
+      "round": 4,
+      "server": "nest-node",
+      "workers": 4,
+      "milliseconds": 960.149547085166
+    },
+    {
+      "round": 4,
+      "server": "nest-node",
+      "workers": 1,
+      "milliseconds": 501.32544501684606
+    },
+    {
+      "round": 4,
+      "server": "nest-gea",
+      "workers": 4,
+      "milliseconds": 12.049420038238168
+    },
+    {
+      "round": 4,
+      "server": "nest-gea",
+      "workers": 1,
+      "milliseconds": 12.30430998839438
+    },
+    {
+      "round": 5,
+      "server": "nest-gea",
+      "workers": 1,
+      "milliseconds": 12.13821698911488
+    },
+    {
+      "round": 5,
+      "server": "nest-gea",
+      "workers": 4,
+      "milliseconds": 12.59670197032392
+    },
+    {
+      "round": 5,
+      "server": "nest-node",
+      "workers": 1,
+      "milliseconds": 493.08375094551593
+    },
+    {
+      "round": 5,
+      "server": "nest-node",
+      "workers": 4,
+      "milliseconds": 882.5751330005005
+    }
+  ],
+  "samples": [],
+  "complete": true
+}

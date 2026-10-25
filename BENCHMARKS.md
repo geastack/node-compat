@@ -42,7 +42,7 @@ server, 7% on Hono, 30% smaller binaries and 0.9-2 MB less PSS.
 
 ## What is measured
 
-Two applications, each compiled by geatsc and each also run under Node:
+Three applications, each compiled by geatsc and each also run under Node:
 
 - **Hono** (`apps/hono-hello/server.ts`): the real `hono` package with the
   default `SmartRouter` stack, served through `@hono/node-server`. Under
@@ -50,6 +50,14 @@ Two applications, each compiled by geatsc and each also run under Node:
   package (`runtime/node/node-server-adapter.ts`), so a request goes reactor →
   `Request` → `app.fetch` → wire with no intermediate Node objects. The app
   file is unchanged between the two runtimes.
+- **NestJS** (`apps/hello-nest/server.ts`): `@nestjs/core` 12.2.0 with a
+  decorated controller, served through `@nestjs/platform-node`'s
+  `NodeAdapter` over `node:http` (`tools/nest/build-platform-node.mjs` packs
+  the three packages from the pinned nest commit). The Node row runs the
+  `tsc` output of the same file (`dist-node/`), because Node's type stripping
+  has no decorators or decorator metadata; the gea row is `scripts/build.mjs`
+  on the file itself with the Nest AOT hook in `tools/nest/aot/`. The Nest
+  logger is off in both.
 - **Raw `node:http`** (`apps/raw-http-hello/server.ts`): `createServer((req,
   res) => ...)`, `writeHead`, `end`. Under geatsc this is node-compat's
   `IncomingMessage`/`ServerResponse` implementation over the C++ reactor.
@@ -95,8 +103,8 @@ validated by the harness before any sample is taken (72 wire-contract checks,
   capture group is `''`.
 
 Routes: `GET /` returns `text/plain`, `GET /json` returns
-`{"hello":"world"}`. Hono additionally serves `/missing` as a 404, which the
-harness checks.
+`{"hello":"world"}`. Hono and Nest additionally serve `/missing` as a 404,
+which the harness checks.
 
 ## Machine and method
 
@@ -342,7 +350,7 @@ and relocated library. `bench/pss-breakdown.py` is the instrument: it sums
 
 Run on an otherwise idle Linux host with at least eight logical CPUs. The
 harness uses `taskset`, `/proc` and `lscpu`, so it does not run on macOS.
-Ports 3000 (Node Hono), 3101 (raw servers) and 3900 (gea Hono) must be free.
+Ports 3000 (Node Hono), 3101 (raw servers) and 3900 (gea Hono, Nest) must be free.
 
 Requirements: Node.js and the repository's npm dependencies, Python 3, `wrk`,
 `util-linux`, clang (18 or newer; `-flto` needs its gold plugin,
@@ -356,6 +364,8 @@ built from:
 ```sh
 npm ci                                                  # @geastack/compiler + @geastack/node-compat from npm
 npm ci --prefix apps/hono-hello                         # hono + @hono/node-server (no workspaces: the root install does not reach it)
+node tools/nest/build-platform-node.mjs                 # @nestjs/{common,core,platform-node} 12.2.0 tarballs from the pinned nest checkout (../nest or GEA_NEST_DIR)
+npm ci --prefix apps/hello-nest                         # the vendored Nest packages, reflect-metadata, rxjs, typescript
 bash bench/goal-http-build.sh                           # gea servers + C++ and Rust controls, clang++ -Os -flto
 ```
 
@@ -382,6 +392,7 @@ script emit the servers. The gea servers are emitted by the one
 ```sh
 cd /path/to/geastack/compiler && npm run build && cd ../node-compat
 npm ci --prefix apps/hono-hello                         # needed on this path too
+node tools/nest/build-platform-node.mjs && npm ci --prefix apps/hello-nest
 bash bench/goal-http-build.sh
 ```
 
@@ -410,8 +421,8 @@ SCRIPTC_RAW=/path/to/raw-rp python3 bench/http-matrix.py --servers scriptc-raw \
 check `/sys/devices/system/cpu/cpu*/topology/thread_siblings_list` before
 choosing, because sibling numbering differs between machines and the wrong
 choice silently measures a saturated host. `--servers` narrows a run to any of
-`hono-gea`, `hono-node`, `gea-raw`, `node-raw`, `scriptc-raw`, `cpp-drogon`,
-`rust-axum`, `rust-hyper`, `cpp-epoll`. The result JSON keeps every raw `wrk`
+`hono-gea`, `hono-node`, `nest-gea`, `nest-node`, `gea-raw`, `node-raw`,
+`scriptc-raw`, `cpp-drogon`, `rust-axum`, `rust-hyper`, `cpp-epoll`. The result JSON keeps every raw `wrk`
 report, the percentile latencies, peak RSS and PSS per process, startup
 samples, machine metadata, artifact SHA-256 hashes and the wire-contract
 validation record.
@@ -428,3 +439,159 @@ package.json is read as a plain file, so an `exports` map that omits
 two scripts that both say "build" can name different compilers: the 09-21
 numbers were clang's while the document said g++, which was only caught by
 reading the binaries' `.comment` sections.
+
+## hello-nest: Node against the compiled binary, 2026-10-19
+
+Not the bench host. This run is `bench/http-matrix.py --servers nest-gea
+nest-node` inside an arm64 Linux container (Ubuntu 24.04, clang 18.1.3,
+Node v24.20.0, wrk 4.1.0) on a Colima VM with 8 vCPUs and 12 GiB on an Apple
+M1 (4 performance and 4 efficiency cores; the VM's vCPUs are not pinned to
+physical cores, so `--server-cpus 0-3 --load-cpus 4-7` separates server and
+load generator inside the VM only). The VM ran nothing else. Raw records:
+`bench/results/nest-colima-arm64-2026-10-19.json` and its `-startup` file.
+Numbers here are comparable with each other and with nothing in the tables
+above.
+
+`apps/hello-nest/server.ts` was built by `scripts/build.mjs` from a compiler
+checkout carrying the four hello-nest fixes (`GEA_COMPILER_DIR`, 1.0.37 plus
+`fix/error-subclass-instanceof`, `fix/array-keys-over-recursive-wrapper`,
+`fix/hoist-module-function-declarations`, `fix/uri-error-thrown-not-aborted`),
+`-Os -flto`, stripped: 7,619,264 bytes, 61,265 emitted lines. The Node row
+is `tsc` output of the same file (`dist-node/server.js`), one process or a
+`node:cluster` of four. Both answered `scripts/test-hello-nest.mjs` 10 of 11
+identical before the run (the known `JSON.parse` message wording).
+Protocol as above: 2 s warmup, 8 s samples, `-t4 -c64`, three interleaved
+rounds, startup in a separate five-launch pass.
+
+| Server | Single `/` | Single `/json` | Single RSS MiB | Single PSS MiB | Single startup ms | 4 workers `/` | 4 workers `/json` | 4 workers RSS MiB | 4 workers PSS MiB | 4 workers startup ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **nest-gea** | **121,131** | **111,276** | 10.8 | 9.4 | 13 | **281,100** | **270,107** | 31.4 | 10.9 | 13 |
+| nest-node | 53,039 | 47,787 | 123.9 | 122.8 | 527 | 142,989 | 139,628 | 536.0 | 338.1 | 1,014 |
+
+Per-round `GET /`: nest-gea 128.8k / 123.6k / 111.0k at one worker and
+291.2k / 270.9k / 281.2k at four; nest-node 53.6k / 51.6k / 53.9k and
+154.6k / 149.3k / 125.0k.
+
+| Server | Single p50 | Single p99 | 4 workers p50 | 4 workers p99 |
+| --- | ---: | ---: | ---: | ---: |
+| nest-gea | 502 µs | 2.34 ms | 169 µs | 816 µs |
+| nest-node | 1.13 ms | 2.27 ms | 388 µs | 38.3 ms |
+
+Ratios, compiled over Node, means over rounds: 1.97× (`/`) and 1.93×
+(`/json`) at four workers, 2.28× and 2.33× at one worker; PSS 1/31 at four
+workers and 1/13 at one; startup 13 ms against 527 ms and 1,014 ms. The
+compiled ratio is about half of Hono's on the bench host (3.7×), and the
+single-worker rounds spread 15% for the compiled binary against 4% for Node,
+so the one-worker cells carry the same caution as the bimodality note above.
+
+### The full matrix on the same VM, later the same day
+
+All ten servers, same container, same protocol, VM otherwise idle:
+`bench/results/http-colima-arm64-2026-10-19.json` (rounds 1-2 complete for
+every server, round 3 for the six gea and Node rows; the run aborted when
+`cpp-drogon` at one worker timed out 63 of 64 connections in its warmup, which
+the harness refuses), `http-colima-arm64-2026-10-19-controls.json` (the four
+controls again, three clean rounds, 19 minutes later) and
+`http-colima-arm64-2026-10-19-startup.json` (five launches each, all ten).
+The gea and Node rows are the first file, the controls the second, as the
+scriptc row above is a separate run of the same harness. Binaries: hono-gea
+4,805,616 bytes, nest-gea 7,619,264, gea-raw 3,403,464; controls built in the
+container with clang 18.1.3 and `cargo build --release --locked`.
+
+| Server | Single `/` | Single `/json` | Single RSS MiB | Single PSS MiB | Single startup ms | 4 workers `/` | 4 workers `/json` | 4 workers RSS MiB | 4 workers PSS MiB | 4 workers startup ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **hono-gea** | **132,018** | **97,355** | 7.3 | 6.3 | 7 | **254,633** | **211,371** | 25.9 | 8.5 | 11 |
+| hono-node | 29,372 | 25,538 | 116.8 | 115.7 | 89 | 56,799 | 48,976 | 440.9 | 260.2 | 148 |
+| **nest-gea** | **103,000** | **88,705** | 10.8 | 9.4 | 13 | **210,652** | **194,149** | 31.5 | 10.9 | 15 |
+| nest-node | 42,828 | 38,581 | 120.2 | 119.2 | 698 | 77,146 | 81,775 | 532.8 | 334.8 | 1,700 |
+| **gea-raw** | **156,805** | **153,935** | 5.5 | 4.6 | 14 | **291,858** | **278,909** | 18.1 | 5.9 | 15 |
+| node-raw | 43,572 | 43,894 | 87.8 | 86.8 | 101 | 103,868 | 96,322 | 365.2 | 185.7 | 219 |
+| cpp-drogon | 128,777 | 125,933 | 11.8 | 10.3 | 32 | 238,242 | 231,066 | 12.0 | 10.5 | 28 |
+| rust-axum | 154,358 | 157,571 | 4.1 | 3.2 | 13 | 189,086 | 184,784 | 5.0 | 4.1 | 92 |
+| rust-hyper | 186,388 | 180,580 | 3.1 | 2.2 | 10 | 208,856 | 211,222 | 3.5 | 2.6 | 6 |
+| cpp-epoll | 175,417 | 170,298 | 3.2 | 2.3 | 6 | 290,664 | 288,241 | 10.0 | 3.4 | 6 |
+
+| Server | Single p50 | Single p99 | 4 workers p50 | 4 workers p99 |
+| --- | ---: | ---: | ---: | ---: |
+| hono-gea | 448 µs | 910 µs | 179 µs | 880 µs |
+| hono-node | 1.90 ms | 4.23 ms | 840 µs | 2.89 ms |
+| nest-gea | 545 µs | 1.15 ms | 225 µs | 1.15 ms |
+| nest-node | 1.33 ms | 2.71 ms | 718 µs | 7.72 ms |
+| gea-raw | 363 µs | 1.42 ms | 154 µs | 990 µs |
+| node-raw | 1.41 ms | 2.82 ms | 633 µs | 2.69 ms |
+| cpp-drogon | 482 µs | 1.09 ms | 193 µs | 940 µs |
+| rust-axum | 406 µs | 19.46 ms | 265 µs | 950 µs |
+| rust-hyper | 317 µs | 542 µs | 251 µs | 1.84 ms |
+| cpp-epoll | 284 µs | 652 µs | 143 µs | 1.15 ms |
+
+Four workers, `GET /`: nest-gea 2.73× nest-node (2.40× at one worker),
+hono-gea 4.48× hono-node, gea-raw 2.81× node-raw; nest-gea is 0.83× hono-gea
+and 2.03× bare Node. PSS at four workers is 1/31 for all three pairs.
+
+What this VM can resolve. The Nest rows an hour apart read 281k / 143k
+(nest-gea / nest-node, four workers, the dedicated run above) and 211k / 77k
+here, so the same binaries moved 25% and 46% between runs and the ratio moved
+from 1.97× to 2.73×. Round-to-round spreads inside one run reach 30% for the
+Node cluster rows (node-raw 109k / 117k / 86k, nest-node 94k / 66k / 72k) and
+15% for cpp-epoll and cpp-drogon. The pairs hold their order in every round,
+the sizes of the gaps do not; the bench-host tables above are where those
+sizes are measured.
+
+## The same VM on 2026-10-25: platform-node 12.2.0, published compiler 1.0.47
+
+Same container, protocol and CPU split as the 2026-10-19 runs above. What
+changed: `apps/hello-nest` runs platform-node 12.2.0 (nest `0828b0d`), and all
+three gea binaries were built inside the container by the published
+`@geastack/compiler` 1.0.47 (`GEA_COMPILER_DIR` at an npm install, no
+checkout). Ubuntu 24.04 ships libbrotlidec 1.1.0, which `scripts/build.mjs`
+refuses (CVE-2026-111497), so brotli 1.2.1 was built into a prefix and passed
+as `BROTLI_DIR`. The VM's other containers were stopped and the macOS host ran
+nothing CPU-bound. An attempt earlier that day, with two desktop renderers each
+holding a host core, measured every row about 40% lower with doubled startup
+and the same ratios; it is not recorded.
+
+Records: `bench/results/http-colima-arm64-2026-10-25.json` (all ten servers,
+three complete rounds each, 72 wire checks passed) and its `-startup` file;
+`nest-colima-arm64-2026-10-25.json` and its `-startup` file are a nest-only run
+seventy minutes earlier that agrees with the full matrix within 2%. hello-nest
+answered `scripts/test-hello-nest.mjs` 10 of 11 identical (the `JSON.parse`
+message wording, which 1.0.47 predates). Binaries: hono-gea 5,283,152 bytes,
+nest-gea 8,016,904, gea-raw 3,669,280; cpp-epoll 73,944, cpp-drogon 126,352,
+rust-hyper 1,029,480, rust-axum 1,218,160.
+
+| Server | Single `/` | Single `/json` | Single RSS MiB | Single PSS MiB | Single startup ms | 4 workers `/` | 4 workers `/json` | 4 workers RSS MiB | 4 workers PSS MiB | 4 workers startup ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **hono-gea** | **153,784** | **121,440** | 7.4 | 6.4 | 7 | **376,158** | **323,931** | 26.0 | 8.5 | 8 |
+| hono-node | 32,085 | 29,943 | 117.0 | 115.9 | 65 | 99,174 | 90,035 | 436.3 | 255.5 | 103 |
+| **nest-gea** | **121,585** | **114,648** | 11.0 | 9.6 | 12 | **324,514** | **314,454** | 31.8 | 11.2 | 12 |
+| nest-node | 54,336 | 52,106 | 119.6 | 118.5 | 498 | 175,532 | 165,650 | 548.8 | 350.7 | 924 |
+| **gea-raw** | **232,639** | **229,654** | 5.4 | 4.5 | 9 | **459,725** | **474,422** | 17.8 | 5.9 | 7 |
+| node-raw | 58,188 | 57,713 | 89.2 | 88.1 | 53 | 180,682 | 177,656 | 361.9 | 182.4 | 76 |
+| cpp-drogon | 184,309 | 177,426 | 11.8 | 10.3 | 12 | 396,290 | 394,825 | 12.0 | 10.5 | 6 |
+| rust-axum | 212,382 | 216,768 | 4.0 | 3.2 | 6 | 320,962 | 321,643 | 5.2 | 4.2 | 6 |
+| rust-hyper | 245,773 | 249,293 | 3.2 | 2.3 | 6 | 340,853 | 341,511 | 3.7 | 2.8 | 6 |
+| cpp-epoll | 281,368 | 280,232 | 3.2 | 2.3 | 6 | 473,147 | 472,736 | 10.0 | 3.4 | 6 |
+
+| Server | Single p50 | Single p99 | 4 workers p50 | 4 workers p99 |
+| --- | ---: | ---: | ---: | ---: |
+| hono-gea | 395 µs | 826 µs | 128 µs | 844 µs |
+| hono-node | 1.94 ms | 3.89 ms | 571 µs | 2.02 ms |
+| nest-gea | 510 µs | 1.03 ms | 148 µs | 736 µs |
+| nest-node | 1.13 ms | 2.29 ms | 318 µs | 1.66 ms |
+| gea-raw | 249 µs | 534 µs | 96 µs | 1.68 ms |
+| node-raw | 1.06 ms | 2.10 ms | 302 µs | 1.17 ms |
+| cpp-drogon | 320 µs | 685 µs | 116 µs | 635 µs |
+| rust-axum | 292 µs | 352 µs | 163 µs | 498 µs |
+| rust-hyper | 251 µs | 302 µs | 152 µs | 442 µs |
+| cpp-epoll | 199 µs | 433 µs | 90 µs | 1.00 ms |
+
+`GET /`, compiled over Node: hono-gea 4.79× at one worker and 3.79× at four,
+nest-gea 2.24× and 1.85×, gea-raw 4.00× and 2.54×. At four workers nest-gea
+is 0.86× hono-gea and 1.80× bare Node, and gea-raw is 0.97× cpp-epoll and
+1.35× rust-hyper. PSS at four workers is 1/30 to 1/31 for the three pairs.
+
+Every row is higher than on 2026-10-19, the controls included (cpp-epoll
+175k to 281k at one worker), so this VM session ran faster than that one and
+only ratios compare across the two days. Those moved most for the Node cluster
+rows (nest-node 77k to 176k at four workers), which were the noisiest rows of
+2026-10-19.
