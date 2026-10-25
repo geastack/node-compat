@@ -10,7 +10,13 @@ import {
   type RouteTableOptions,
   RouteTable,
 } from './route-table.js';
-import { getRawPrefixEnd, getRoutingPath, loosen } from './utils.js';
+import {
+  getLiteralPrefix,
+  getPrefixSkips,
+  getRawPrefixEnd,
+  getRoutingPath,
+  loosen,
+} from './utils.js';
 
 type NextFunction = (err?: any) => void;
 type PathMatcher = (path: string) => false | { path: string; params: RouteParams };
@@ -19,6 +25,8 @@ interface MiddlewareLayer {
   table?: undefined;
   /** `null` matches every path. */
   matcher: PathMatcher | null;
+  /** What every path `matcher` matches starts with, see `getLiteralPrefix()`. */
+  prefix: string;
   /** Strip the matched path from `req.url` (a `use(path, ...)` mount). */
   isMount: boolean;
   /** Upper-case method, or `undefined` for every method. */
@@ -43,7 +51,9 @@ export type FinalHandler = (
 ) => void;
 
 function decodeParam(value: string) {
-  return decodeURIComponent(value);
+  // decodeURIComponent() is a call into the runtime (about 80 ns), even for a
+  // value without any "%" to decode
+  return value.indexOf('%') === -1 ? value : decodeURIComponent(value);
 }
 
 function invoke(
@@ -95,6 +105,10 @@ export const PARAM_TOO_LONG_KEY = Symbol('nestjs.node.paramTooLong');
  *
  * @internal
  */
+// Where handleError() resumes for a request: the layer after the error
+// handler that ran last (set on the error path only)
+const ERROR_RESUME_KEY = Symbol('nestjs.node.errorResume');
+
 export function createUriTooLongError() {
   return Object.assign(new Error('Route parameter too long'), {
     status: 414,
@@ -122,8 +136,17 @@ export interface NodeRouter {
  */
 export class NodeRouter {
   declare private stack: Layer[];
+  /** See `getPrefixSkips()`; computed on first use after a layer is added. */
+  declare private skips: number[] | undefined;
   declare private finalHandler: FinalHandler;
   declare private routeTableOptions: RouteTableOptions;
+  /**
+   * Called for a request whose target cannot be routed (a malformed URL,
+   * answered with a 400), before the error-handling middleware: no other
+   * middleware runs for such a request.
+   */
+  declare public onRejectedTarget:
+    ((req: NodeRequest, res: NodeResponse) => void) | undefined;
 
   constructor(finalHandler: FinalHandler, options: NodeRouterOptions = {}) {
     const { maxParamLength } = options;
@@ -142,6 +165,7 @@ export class NodeRouter {
     ) => router.handle(req, res, done)) as NodeRouter;
     Object.setPrototypeOf(router, new.target.prototype);
     router.stack = [];
+    router.skips = undefined;
     router.finalHandler = finalHandler;
     router.routeTableOptions = { maxParamLength };
     return router;
@@ -173,7 +197,10 @@ export class NodeRouter {
    * stores on every request.
    */
   public handleError(err: unknown, req: NodeRequest, res: NodeResponse) {
-    this.dispatch(req, res, undefined, err);
+    // An error raised by an error handler itself (an exception filter whose
+    // res.sendFile() fails as well) continues past that handler, as with
+    // Express' next(): starting over would run it again, without end
+    this.dispatch(req, res, undefined, err, (req as any)[ERROR_RESUME_KEY]);
   }
 
   public get(...args: any[]) {
@@ -256,6 +283,7 @@ export class NodeRouter {
           // Case-sensitive, as routes are (see RouteTable)
           sensitive: true,
         }) as PathMatcher);
+    const prefix = isRoot ? '' : getLiteralPrefix(loosen(path));
 
     for (const handler of handlers.flat()) {
       if (typeof handler !== 'function') {
@@ -263,8 +291,10 @@ export class NodeRouter {
           `NodeRouter.use() requires a middleware function, received ${typeof handler}`,
         );
       }
+      this.skips = undefined;
       this.stack.push({
         matcher,
+        prefix,
         isMount: !isRoot,
         method: undefined,
         handler,
@@ -281,6 +311,7 @@ export class NodeRouter {
     let last = this.stack[this.stack.length - 1];
     if (!last?.table) {
       last = { table: new RouteTable(this.routeTableOptions) };
+      this.skips = undefined;
       this.stack.push(last);
     }
     last.table.add(method, path, handler);
@@ -293,12 +324,14 @@ export class NodeRouter {
    * whose method is `method`.
    */
   public useExact(method: string | undefined, path: string, handler: Function) {
+    this.skips = undefined;
     this.stack.push({
       matcher: match(loosen(path), {
         decode: decodeParam,
         end: true,
         sensitive: true,
       }) as PathMatcher,
+      prefix: getLiteralPrefix(loosen(path)),
       isMount: false,
       method,
       handler,
@@ -327,14 +360,26 @@ export class NodeRouter {
     );
   }
 
+  // Nest registers a middleware bound to a controller once per route path
+  // (see createMiddlewareFactory()): without skipping, every request would
+  // run the matcher of each one
+  private getSkips() {
+    return (this.skips ??= getPrefixSkips(
+      this.stack.map(layer =>
+        layer.table || layer.matcher === null ? undefined : layer.prefix,
+      ),
+    ));
+  }
+
   private dispatch(
     req: NodeRequest,
     res: NodeResponse,
     done: NextFunction | undefined,
     initialError?: unknown,
+    startIndex = 0,
   ) {
     const stack = this.stack;
-    let index = 0;
+    let index = startIndex;
     let routeMatch: RouteMatch | undefined;
     let routeIndex = 0;
     // The other routes matching the path, once every handler of the matched
@@ -408,6 +453,9 @@ export class NodeRouter {
           } catch (error) {
             // A malformed URL goes to the error handlers (400)
             cachedPath = '';
+            if (err === undefined) {
+              this.onRejectedTarget?.(req, res);
+            }
             err ??= error;
           }
         }
@@ -447,6 +495,14 @@ export class NodeRouter {
           continue;
         }
         if (layer.matcher !== null) {
+          // When the path does not start with the prefix of a layer that the
+          // next ones share (e.g. the first one registered for a controller),
+          // skip them all; for a single layer, its matcher is as cheap
+          const skip = this.getSkips()[index - 1];
+          if (skip > index && !cachedPath.startsWith(layer.prefix)) {
+            index = skip;
+            continue;
+          }
           let result;
           try {
             result = layer.matcher(cachedPath);
@@ -475,6 +531,9 @@ export class NodeRouter {
             }
             req.baseUrl = parentBaseUrl + mountPath;
           }
+        }
+        if (err !== undefined) {
+          (req as any)[ERROR_RESUME_KEY] = index;
         }
         return invoke(layer.handler, req, res, next, err);
       }
