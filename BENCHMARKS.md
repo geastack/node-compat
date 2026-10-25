@@ -50,7 +50,7 @@ Three applications, each compiled by geatsc and each also run under Node:
   package (`runtime/node/node-server-adapter.ts`), so a request goes reactor →
   `Request` → `app.fetch` → wire with no intermediate Node objects. The app
   file is unchanged between the two runtimes.
-- **NestJS** (`apps/hello-nest/server.ts`): `@nestjs/core` 12.1.3 with a
+- **NestJS** (`apps/hello-nest/server.ts`): `@nestjs/core` 12.2.0 with a
   decorated controller, served through `@nestjs/platform-node`'s
   `NodeAdapter` over `node:http` (`tools/nest/build-platform-node.mjs` packs
   the three packages from the pinned nest commit). The Node row runs the
@@ -364,7 +364,7 @@ built from:
 ```sh
 npm ci                                                  # @geastack/compiler + @geastack/node-compat from npm
 npm ci --prefix apps/hono-hello                         # hono + @hono/node-server (no workspaces: the root install does not reach it)
-node tools/nest/build-platform-node.mjs                 # @nestjs/{common,core,platform-node} 12.1.3 tarballs from the pinned nest checkout (../nest or GEA_NEST_DIR)
+node tools/nest/build-platform-node.mjs                 # @nestjs/{common,core,platform-node} 12.2.0 tarballs from the pinned nest checkout (../nest or GEA_NEST_DIR)
 npm ci --prefix apps/hello-nest                         # the vendored Nest packages, reflect-metadata, rxjs, typescript
 bash bench/goal-http-build.sh                           # gea servers + C++ and Rust controls, clang++ -Os -flto
 ```
@@ -536,3 +536,62 @@ Node cluster rows (node-raw 109k / 117k / 86k, nest-node 94k / 66k / 72k) and
 15% for cpp-epoll and cpp-drogon. The pairs hold their order in every round,
 the sizes of the gaps do not; the bench-host tables above are where those
 sizes are measured.
+
+## The same VM on 2026-10-25: platform-node 12.2.0, published compiler 1.0.47
+
+Same container, protocol and CPU split as the 2026-10-19 runs above. What
+changed: `apps/hello-nest` runs platform-node 12.2.0 (nest `0828b0d`), and all
+three gea binaries were built inside the container by the published
+`@geastack/compiler` 1.0.47 (`GEA_COMPILER_DIR` at an npm install, no
+checkout). Ubuntu 24.04 ships libbrotlidec 1.1.0, which `scripts/build.mjs`
+refuses (CVE-2026-111497), so brotli 1.2.1 was built into a prefix and passed
+as `BROTLI_DIR`. The VM's other containers were stopped and the macOS host ran
+nothing CPU-bound. An attempt earlier that day, with two desktop renderers each
+holding a host core, measured every row about 40% lower with doubled startup
+and the same ratios; it is not recorded.
+
+Records: `bench/results/http-colima-arm64-2026-10-25.json` (all ten servers,
+three complete rounds each, 72 wire checks passed) and its `-startup` file;
+`nest-colima-arm64-2026-10-25.json` and its `-startup` file are a nest-only run
+seventy minutes earlier that agrees with the full matrix within 2%. hello-nest
+answered `scripts/test-hello-nest.mjs` 10 of 11 identical (the `JSON.parse`
+message wording, which 1.0.47 predates). Binaries: hono-gea 5,283,152 bytes,
+nest-gea 8,016,904, gea-raw 3,669,280; cpp-epoll 73,944, cpp-drogon 126,352,
+rust-hyper 1,029,480, rust-axum 1,218,160.
+
+| Server | Single `/` | Single `/json` | Single RSS MiB | Single PSS MiB | Single startup ms | 4 workers `/` | 4 workers `/json` | 4 workers RSS MiB | 4 workers PSS MiB | 4 workers startup ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **hono-gea** | **153,784** | **121,440** | 7.4 | 6.4 | 7 | **376,158** | **323,931** | 26.0 | 8.5 | 8 |
+| hono-node | 32,085 | 29,943 | 117.0 | 115.9 | 65 | 99,174 | 90,035 | 436.3 | 255.5 | 103 |
+| **nest-gea** | **121,585** | **114,648** | 11.0 | 9.6 | 12 | **324,514** | **314,454** | 31.8 | 11.2 | 12 |
+| nest-node | 54,336 | 52,106 | 119.6 | 118.5 | 498 | 175,532 | 165,650 | 548.8 | 350.7 | 924 |
+| **gea-raw** | **232,639** | **229,654** | 5.4 | 4.5 | 9 | **459,725** | **474,422** | 17.8 | 5.9 | 7 |
+| node-raw | 58,188 | 57,713 | 89.2 | 88.1 | 53 | 180,682 | 177,656 | 361.9 | 182.4 | 76 |
+| cpp-drogon | 184,309 | 177,426 | 11.8 | 10.3 | 12 | 396,290 | 394,825 | 12.0 | 10.5 | 6 |
+| rust-axum | 212,382 | 216,768 | 4.0 | 3.2 | 6 | 320,962 | 321,643 | 5.2 | 4.2 | 6 |
+| rust-hyper | 245,773 | 249,293 | 3.2 | 2.3 | 6 | 340,853 | 341,511 | 3.7 | 2.8 | 6 |
+| cpp-epoll | 281,368 | 280,232 | 3.2 | 2.3 | 6 | 473,147 | 472,736 | 10.0 | 3.4 | 6 |
+
+| Server | Single p50 | Single p99 | 4 workers p50 | 4 workers p99 |
+| --- | ---: | ---: | ---: | ---: |
+| hono-gea | 395 µs | 826 µs | 128 µs | 844 µs |
+| hono-node | 1.94 ms | 3.89 ms | 571 µs | 2.02 ms |
+| nest-gea | 510 µs | 1.03 ms | 148 µs | 736 µs |
+| nest-node | 1.13 ms | 2.29 ms | 318 µs | 1.66 ms |
+| gea-raw | 249 µs | 534 µs | 96 µs | 1.68 ms |
+| node-raw | 1.06 ms | 2.10 ms | 302 µs | 1.17 ms |
+| cpp-drogon | 320 µs | 685 µs | 116 µs | 635 µs |
+| rust-axum | 292 µs | 352 µs | 163 µs | 498 µs |
+| rust-hyper | 251 µs | 302 µs | 152 µs | 442 µs |
+| cpp-epoll | 199 µs | 433 µs | 90 µs | 1.00 ms |
+
+`GET /`, compiled over Node: hono-gea 4.79× at one worker and 3.79× at four,
+nest-gea 2.24× and 1.85×, gea-raw 4.00× and 2.54×. At four workers nest-gea
+is 0.86× hono-gea and 1.80× bare Node, and gea-raw is 0.97× cpp-epoll and
+1.35× rust-hyper. PSS at four workers is 1/30 to 1/31 for the three pairs.
+
+Every row is higher than on 2026-10-19, the controls included (cpp-epoll
+175k to 281k at one worker), so this VM session ran faster than that one and
+only ratios compare across the two days. Those moved most for the Node cluster
+rows (nest-node 77k to 176k at four workers), which were the noisiest rows of
+2026-10-19.
