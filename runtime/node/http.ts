@@ -18,12 +18,11 @@
 // close-delimited; 1xx/204/304 and HEAD suppress the body.
 //
 // Known deviations (documented, not silent): request `set-cookie` duplicates
-// join with ", " instead of becoming an array (headers stays a string→string
-// map); `getHeader` returns multi-value headers joined with ", ";
-// `writeHead(status, message, headers)` 3-arg form is not supported — set
-// `res.statusMessage` instead; chunk trailers are parsed and discarded;
-// body chunks are byte-preserving strings, not Buffers; `res.req` is not
-// provided (the request is in scope wherever the response is); req/res
+// join with ", " instead of becoming an array (a `headers` value is a string
+// or undefined, never an array); `getHeader` returns multi-value headers
+// joined with ", "; `writeHead(status, message, headers)` 3-arg form is not
+// supported — set `res.statusMessage` instead; chunk trailers are parsed and
+// discarded; body chunks are byte-preserving strings, not Buffers; req/res
 // listeners compile to NATIVE closures with no JS function identity, so
 // `removeListener(name, fn)` on them cannot match — use
 // `removeAllListeners(name)`.
@@ -247,9 +246,14 @@ export function statusText(code: number): string {
 
 // Node joins duplicate request headers per header semantics: singleton headers
 // keep the FIRST value, `cookie` joins with "; ", everything else with ", ".
-function addIncomingHeader(headers: { [name: string]: string }, lower: string, value: string): void {
-  if (!headers.hasOwnProperty(lower)) headers[lower] = value
-  else if (!isSingletonHeader(lower)) headers[lower] = headers[lower] + (lower === 'cookie' ? '; ' : ', ') + value
+function addIncomingHeader(headers: IncomingHttpHeaders, lower: string, value: string): void {
+  const existing = headers[lower]
+  if (existing === undefined) headers[lower] = value
+  else if (!isSingletonHeader(lower)) headers[lower] = existing + (lower === 'cookie' ? '; ' : ', ') + value
+}
+
+export interface IncomingHttpHeaders {
+  [name: string]: string | undefined
 }
 
 function isSingletonHeader(lower: string): boolean {
@@ -298,10 +302,20 @@ export class Socket extends NetSocket {
   // no such property, which reads the same falsy way.
   readonly encrypted: boolean = false
 
+  // `connId` 0 is "no connection": net.Socket's constructor leaves the handle `opening` and
+  // neither readable nor writable, and only its own connect path flips those. A Socket built for
+  // an accepted HTTP connection is already open, so it reports what net.Socket reports once
+  // connected; `destroy()` below reverses it the way net.Socket's does.
   constructor(connId: number = 0) {
     super()
     this.connId_ = connId
     this.remoteFamily = 'IPv4'
+    if (connId !== 0) {
+      this.pending = false
+      this.readyState = 'open'
+      this.readable = true
+      this.writable = true
+    }
     this.loadPeer()
   }
 
@@ -309,10 +323,10 @@ export class Socket extends NetSocket {
   // extended net.Socket): TypeScript will not let a subclass override a plain inherited property
   // with an accessor pair (TS2611/TS2855), so remoteAddress/remotePort now come straight from
   // net.Socket's own writable fields, populated once, eagerly, right here. Guarded on connId_ !==
-  // 0 so the module-load-time placeholder socket (connId 0, see below) never calls into the
-  // reactor for a connection that was never accepted. This is scoped by the same laziness the
-  // getter used to add on top of: `IncomingMessage.socket` only constructs a Socket at all when
-  // the app reads `.socket`, so the peer syscall still isn't paid by requests that never touch it.
+  // 0 so a Socket built without a connection never calls into the reactor for one that was never
+  // accepted. This is scoped by the same laziness the getter used to add on top of:
+  // `IncomingMessage.socket` only constructs a Socket at all when the app reads `.socket`, so the
+  // peer syscall still isn't paid by requests that never touch it.
   private loadPeer(): void {
     if (this.connId_ === 0) return
     const peer = __gea_http_peer(this.connId_)
@@ -334,6 +348,10 @@ export class Socket extends NetSocket {
   override destroy(): this {
     if (this.destroyed) return this
     this.destroyed = true
+    this.pending = false
+    this.readyState = 'closed'
+    this.readable = false
+    this.writable = false
     __gea_http_destroy(this.connId_)
     return this
   }
@@ -362,12 +380,6 @@ function connectionSocket(connId: number): Socket {
   connectionSockets.set(connId, socket)
   return socket
 }
-
-// Shared placeholder: ServerResponse's socket slot is overwritten with the
-// request's socket right after construction (Node shares ONE socket object
-// between req and res), so constructing a fresh Socket per response would be
-// a wasted allocation.
-const placeholderSocket = new Socket(0)
 
 // Body/lifecycle listeners are stored as TYPED native closures — a
 // `(chunk: string) => void` slot covers 'data' (one string arg) and the
@@ -432,7 +444,7 @@ export class IncomingMessage extends Readable {
 
   private connId_: number
   private socket_: Socket | undefined
-  private headersMap_: { [name: string]: string } | undefined
+  private headersMap_: IncomingHttpHeaders | undefined
   private rawHead_: string
   private rawHeaders_: string[] | undefined
   // Dedupes the deferred-resume microtask newListenerAdded schedules below -- 'data' and 'end'
@@ -514,7 +526,7 @@ export class IncomingMessage extends Readable {
 
   // Lazy joined headers — built on first access so requests that never read
   // `headers` (the common hot path) pay nothing.
-  get headers(): { [name: string]: string } {
+  get headers(): IncomingHttpHeaders {
     let headers = this.headersMap_
     if (headers === undefined) {
       headers = {}
@@ -645,14 +657,14 @@ export type ResponseListener = () => void
 // rewrite of code with a byte-for-byte parity requirement, for no behavioural gain -- Writable's
 // own `_write`/`_writev`/`_final`/`_destroy` defaults are simply never called here. `destroyed`,
 // `closed` and `errored` are Writable's real fields now (no more private `destroyed_` shadow).
-export class ServerResponse extends Writable {
+export class ServerResponse<Request extends IncomingMessage = IncomingMessage> extends Writable {
   statusCode: number
   statusMessage: string
   sendDate: boolean
   finished: boolean
 
   private connId_: number
-  private request_: IncomingMessage | undefined
+  private request_: IncomingMessage
   private isHead_: boolean
   private http10_: boolean
   private keepAliveRequested_: boolean
@@ -701,8 +713,12 @@ export class ServerResponse extends Writable {
     this.extraHeaderRawNames_ = undefined
   }
 
+  get req(): Request {
+    return this.request_ as Request
+  }
+
   get socket(): NetSocket {
-    return this.request_ === undefined ? placeholderSocket : this.request_.socket
+    return this.request_.socket
   }
 
   get headersSent(): boolean {
@@ -819,7 +835,7 @@ export class ServerResponse extends Writable {
   }
 
   // Node-compatible surface: accepts a string, number, or array of strings.
-  setHeader(name: string, value: OutgoingHttpHeader): ServerResponse {
+  setHeader(name: string, value: OutgoingHttpHeader): this {
     if (Array.isArray(value)) {
       // Bind the narrowed array into its own `readonly string[]`-declared
       // local. The manifest deliberately carries no computed `get` recipe
@@ -837,7 +853,7 @@ export class ServerResponse extends Writable {
     return this
   }
 
-  appendHeader(name: string, value: OutgoingHttpHeader): ServerResponse {
+  appendHeader(name: string, value: OutgoingHttpHeader): this {
     if (Array.isArray(value)) {
       // Same narrowing local as setHeader above, for the same reason: `value[i]`
       // on the mixed array/primitive union has no manifest recipe.
@@ -990,7 +1006,7 @@ export class ServerResponse extends Writable {
     if (suffix.length > 0) __gea_http_body(this.connId_, suffix)
   }
 
-  writeHead(status: number, headers: OutgoingHttpHeaders = {}): ServerResponse {
+  writeHead(status: number, headers: OutgoingHttpHeaders = {}): this {
     this.statusCode = status
     if (!this.headersCommitted_ && !this.firstHeaderPresent_) {
       // Nothing was staged with `setHeader`, so there is nothing for these
@@ -1150,26 +1166,35 @@ export type ConnectionListener = (socket: NetSocket) => void
 type ServerListener = EventHandler | RequestListener | ConnectionListener
 
 /**
- * `node:http`'s server-construction options -- deliberately EMPTY.
+ * `node:http`'s server-construction options: the two this target honours.
  *
- * Node's own `ServerOptions` carries fourteen members (`maxHeaderSize`,
- * `keepAlive`, `keepAliveInitialDelay`, `insecureHTTPParser`,
- * `joinDuplicateHeaders`, `IncomingMessage`, `ServerResponse`, ...) and this
- * target honors none of them: the reactor behind `__gea_http_serve` has fixed
- * parsing, fixed keep-alive behaviour, and constructs its own
- * `IncomingMessage`/`ServerResponse`. Declaring those members and ignoring
- * them is the failure this runtime avoids everywhere else -- the program would
- * compile a setting it silently does not get. Left empty, an object literal
- * that sets one is an excess-property error at the call site, naming the
- * member: the same fail-closed answer, in the checker instead of in
- * production.
+ * `IncomingMessage` and `ServerResponse` are the classes the server
+ * constructs for each request, as in Node: a framework hands its own
+ * subclasses (`@nestjs/platform-node`'s `NodeRequest`/`NodeResponse`, Express
+ * reparents prototypes instead) so that the objects its handlers receive carry
+ * its members from construction. Either defaults to this module's class. The
+ * subclass is constructed with the base class's own constructor arguments,
+ * which is what a subclass declaring no constructor inherits; `typeof
+ * IncomingMessage`/`typeof ServerResponse` state exactly that.
+ *
+ * Node's other twelve members (`maxHeaderSize`, `keepAlive`,
+ * `keepAliveInitialDelay`, `insecureHTTPParser`, `joinDuplicateHeaders`, ...)
+ * are deliberately ABSENT: the reactor behind `__gea_http_serve` has fixed
+ * parsing and fixed keep-alive behaviour. Declaring them and ignoring them is
+ * the failure this runtime avoids everywhere else -- the program would compile
+ * a setting it silently does not get. Left out, an object literal that sets
+ * one is an excess-property error at the call site, naming the member: the
+ * same fail-closed answer, in the checker instead of in production.
  *
  * The name itself has to exist regardless of what is in it:
  * an HTTP framework's Node server adapter imports it (`ServerOptions as
  * HttpServerOptions`) to type its own `serverOptions?` field, so an absent
  * export is a `TS2614` before any option is ever set.
  */
-export interface ServerOptions {}
+export interface ServerOptions {
+  IncomingMessage?: typeof IncomingMessage
+  ServerResponse?: typeof ServerResponse
+}
 
 // `connection`/`clientError` carry `NetSocket`, not this file's own `Socket`
 // subclass: real Node types both as `net.Socket`, and `IncomingMessage.socket`
@@ -1314,7 +1339,7 @@ export class Server extends EventEmitter {
   override listenerCount(name: EventName, listener?: unknown): number {
     const base = super.listenerCount(name, listener)
     if (listener !== undefined) return base
-    if (name === 'request') return base + this.requestListeners_.length + 1
+    if (name === 'request') return base + this.requestListeners_.length + (this.requestListener_ === undefined ? 0 : 1)
     if (name === 'connection') return base + this.connectionListeners_.length
     return base
   }
@@ -1324,13 +1349,25 @@ export class Server extends EventEmitter {
   private requestOnce_: boolean[]
   private connectionListeners_: ConnectionListener[]
   private connectionOnce_: boolean[]
-  private requestListener_: RequestListener
+  private requestListener_: RequestListener | undefined
   private port_: number
+  private incomingMessageClass_: typeof IncomingMessage
+  // Unlike `incomingMessageClass_`, left undefined rather than defaulted to `ServerResponse`:
+  // the compiler refuses to carry a generic class the program never instantiates as a value
+  // (`native-boundary:uncensused-class-object`), so the default is expressed where the response
+  // is constructed instead.
+  private serverResponseClass_: typeof ServerResponse | undefined
 
-  constructor(requestListener: RequestListener) {
+  constructor(optionsOrListener?: ServerOptions | RequestListener, requestListener?: RequestListener) {
     super()
+    let options: ServerOptions | undefined = undefined
+    let listener = requestListener
+    if (typeof optionsOrListener === 'function') listener = optionsOrListener
+    else options = optionsOrListener
     this.listening = false
-    this.requestListener_ = requestListener
+    this.requestListener_ = listener
+    this.incomingMessageClass_ = options === undefined || options.IncomingMessage === undefined ? IncomingMessage : options.IncomingMessage
+    this.serverResponseClass_ = options === undefined ? undefined : options.ServerResponse
     this.requestListeners_ = []
     this.requestOnce_ = []
     this.connectionListeners_ = []
@@ -1362,7 +1399,8 @@ export class Server extends EventEmitter {
     // reactor stores it by value; shared_from_this would dangle). The arrays
     // are captured by reference, so listeners registered after `listen()` are
     // still seen. Every listener below is called through its own typed
-    // carrier -- nothing here boxes `req`, `res` or the socket.
+    const requestClass = this.incomingMessageClass_
+    const responseClass = this.serverResponseClass_
     const listener = this.requestListener_
     const extraListeners = this.requestListeners_
     const extraOnce = this.requestOnce_
@@ -1372,8 +1410,11 @@ export class Server extends EventEmitter {
       port,
       (connId: number, flags: number, method: string, url: string, httpVersion: string, rawHead: string, body: string): void => {
         const keepAlive = (flags & FLAG_KEEP_ALIVE) !== 0
-        const req = new IncomingMessage(connId, method, url, httpVersion, rawHead, body)
-        const res = new ServerResponse(connId, method === 'HEAD', keepAlive, httpVersion === 'HTTP/1.0', req)
+        const req = new requestClass(connId, method, url, httpVersion, rawHead, body)
+        const res =
+          responseClass === undefined
+            ? new ServerResponse(connId, method === 'HEAD', keepAlive, httpVersion === 'HTTP/1.0', req)
+            : new responseClass(connId, method === 'HEAD', keepAlive, httpVersion === 'HTTP/1.0', req)
         if ((flags & FLAG_FIRST_ON_CONNECTION) !== 0 && connectionListeners.length > 0) {
           // `req.socket` is built lazily (its object bridge is the cost the
           // old listener-count gate existed to avoid); read once, here, only
@@ -1389,7 +1430,7 @@ export class Server extends EventEmitter {
             onConnection(socket)
           }
         }
-        listener(req, res)
+        if (listener !== undefined) listener(req, res)
         for (let i = 0; i < extraListeners.length; i++) {
           const extra = extraListeners[i]
           if (extraOnce[i]) {
@@ -1458,9 +1499,8 @@ export function get(
 // need an adapter into a callable (there is none) and whose generic
 // fallbacks would box `req`/`res` (see `Server`'s registration methods).
 /** @gea-exact-arms */
-export function createServer(optionsOrListener: ServerOptions | RequestListener, requestListener?: RequestListener): Server {
-  if (requestListener !== undefined) return new Server(requestListener)
-  return new Server(optionsOrListener as RequestListener)
+export function createServer(optionsOrListener?: ServerOptions | RequestListener, requestListener?: RequestListener): Server {
+  return new Server(optionsOrListener, requestListener)
 }
 
 // A CommonJS-style default namespace: every member here is already a
