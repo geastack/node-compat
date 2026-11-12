@@ -47,7 +47,7 @@ function collectModules(root, skipRootDirectories = new Set()) {
  */
 export function resolveBuiltinModules(builtinsDir, facadesDir) {
   const facades = collectModules(facadesDir)
-  const implementations = collectModules(builtinsDir, new Set(['generated']))
+  const implementations = collectModules(builtinsDir, new Set(['generated', 'nest']))
   const names = [...new Set([...facades.keys(), ...implementations.keys()])].sort()
   const modules = new Map()
   for (const name of names) {
