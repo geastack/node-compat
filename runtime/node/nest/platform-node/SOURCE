@@ -1,0 +1,11 @@
+Vendored from nestjs/nest branch feat/platform-node
+commit 0828b0d41c06285d9162daf70c3f068e21d77c5c (2026-10-24, packages at 12.2.0), packages/platform-node/:
+  router/route-table.ts
+  router/node-router.ts
+  router/utils.ts
+  adapters/node-request.ts
+  body-parser/body-parser.ts
+Excluded on purpose: adapters/node-adapter.ts (extends @nestjs/core AbstractHttpAdapter),
+multer/, views/, interfaces/ (not imported by the files above), index.ts.
+Edited only as listed in UPSTREAM-DIFF.md (strictness fixes).
+Re-vendor: copy the same five files from the pinned commit, then re-apply UPSTREAM-DIFF.md.
