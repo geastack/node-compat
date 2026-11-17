@@ -76,10 +76,38 @@ const setMaxIndex = (obj: object, maxIndex: number): void => {
   overflowIndexes.set(obj, maxIndex)
 }
 
+const conflictIndexes = new WeakMap<object, number>()
+const markConflict = <T extends object>(obj: T, maxIndex: number): T => {
+  conflictIndexes.set(obj, maxIndex)
+  return obj
+}
+const isConflict = (obj: object): boolean => conflictIndexes.has(obj)
+const getConflictIndex = (obj: object): number => conflictIndexes.get(obj) ?? -1
+
+const maxNumericIndex = (obj: object, min: number): number => {
+  let max = min
+  for (const key of Object.keys(obj)) {
+    const num = parseInt(key, 10)
+    if (String(num) === key && num > max) max = num
+  }
+  return max
+}
+
+const countElements = (arr: ParsedElement[]): number => {
+  let count = 0
+  for (const element of arr) if (element !== undefined) count += 1
+  return count
+}
+
 const isPlainObject = (value: ParsedElement): value is ParsedQs => value !== null && typeof value === 'object' && !Array.isArray(value)
 
 const interpretNumericEntities = (str: string): string =>
-  str.replace(/&#(\d+);/g, (_match, numberStr: string) => String.fromCharCode(parseInt(numberStr, 10)))
+  str.replace(/&#(\d+);/g, (_match, numberStr: string) => {
+    const code = parseInt(numberStr, 10)
+    if (code <= 0xffff || code > 0x10ffff) return String.fromCharCode(code)
+    const offset = code - 0x10000
+    return String.fromCharCode(0xd800 | (offset >> 10), 0xdc00 | (offset & 0x3ff))
+  })
 
 const isoSentinel = 'utf8=%26%2310003%3B'
 
@@ -114,6 +142,14 @@ const combine = (a: ParsedElement, b: ParsedElement, arrayLimit: number): Parsed
   if (result.length > arrayLimit) return markOverflow(arrayToObject(result), result.length - 1)
   return result
 }
+
+const limitedPair = (first: ParsedElement, second: ParsedElement, options: Options): ParsedValue => {
+  const pair: ParsedElement[] = [first, second]
+  if (pair.length > options.arrayLimit) return markOverflow(arrayToObject(pair), 1)
+  return pair
+}
+
+const stripWrappingBrackets = (key: string): string => (key.charAt(0) === '[' && key.charAt(key.length - 1) === ']' ? key.slice(1, -1) : key)
 
 const setElement = (target: ParsedElement[], index: number, element: ParsedElement): void => {
   while (target.length < index) target.push(undefined)
@@ -208,8 +244,7 @@ const parseObject = (chain: string[], val: ParsedValue, options: Options): Parse
     if (root === '[]') {
       obj = isPlainObject(leaf) && isOverflow(leaf) ? leaf : combine([], leaf, options.arrayLimit)
     } else {
-      const cleanRoot = root.charAt(0) === '[' && root.charAt(root.length - 1) === ']' ? root.slice(1, -1) : root
-      const decodedRoot = cleanRoot
+      const decodedRoot = stripWrappingBrackets(root)
       const index = parseInt(decodedRoot, 10)
       const isValidArrayIndex = !isNaN(index) && root !== decodedRoot && String(index) === decodedRoot && index >= 0
       if (isValidArrayIndex && index < options.arrayLimit) {
@@ -235,7 +270,7 @@ const parseObject = (chain: string[], val: ParsedValue, options: Options): Parse
 
 const splitKeyIntoSegments = (key: string, options: Options): string[] | undefined => {
   if (options.depth <= 0) {
-    if (isObjectPrototypeKey(key) && !options.allowPrototypes) return undefined
+    if (isObjectPrototypeKey(stripWrappingBrackets(key)) && !options.allowPrototypes) return undefined
     return [key]
   }
 
@@ -308,10 +343,14 @@ const mergeIntoObject = (target: ParsedQs, source: ParsedQs | ParsedElement[], o
     const existing = target[key]
     if (existing !== undefined && Object.hasOwn(target, key)) target[key] = merge(existing, value, options)
     else target[key] = value
-    if (sourceIsOverflow && !isOverflow(target)) markOverflow(target, getMaxIndex(source))
+    if (sourceIsOverflow && !isOverflow(target)) markOverflow(target, maxNumericIndex(target, getMaxIndex(source)))
     if (isOverflow(target)) {
       const keyNum = parseInt(key, 10)
       if (String(keyNum) === key && keyNum >= 0 && keyNum > getMaxIndex(target)) setMaxIndex(target, keyNum)
+    }
+    if (isConflict(target)) {
+      const conflictKey = parseInt(key, 10)
+      if (String(conflictKey) === key && conflictKey > getConflictIndex(target)) markConflict(target, conflictKey)
     }
   }
   return target
@@ -323,18 +362,23 @@ const merge = (target: ParsedValue, source: ParsedValue | undefined, options: Op
   if (typeof source !== 'object') {
     if (Array.isArray(target)) {
       const nextIndex = target.length
-      if (nextIndex >= options.arrayLimit) return markOverflow(arrayToObject(concatValues(target, source)), nextIndex)
+      if (countElements(target) >= options.arrayLimit) return markOverflow(arrayToObject(concatValues(target, source)), nextIndex)
       target.push(source)
     } else if (isPlainObject(target)) {
       if (isOverflow(target)) {
         const newIndex = getMaxIndex(target) + 1
         target[String(newIndex)] = source
         setMaxIndex(target, newIndex)
+      } else if (isConflict(target)) {
+        const nextConflict = getConflictIndex(target) + 1
+        target[String(nextConflict)] = source
+        markConflict(target, nextConflict)
       } else {
-        return [target, source]
+        const conflict = limitedPair(target, source, options)
+        return Array.isArray(conflict) ? markConflict(conflict, 1) : conflict
       }
     } else {
-      return [target, source]
+      return limitedPair(target, source, options)
     }
     return target
   }
@@ -365,11 +409,12 @@ const merge = (target: ParsedValue, source: ParsedValue | undefined, options: Op
         setElement(target, i, item)
       }
     }
-    if (target.length > options.arrayLimit) return markOverflow(arrayToObject(target), target.length - 1)
+    if (countElements(target) > options.arrayLimit) return markOverflow(arrayToObject(target), target.length - 1)
     return target
   }
 
   const mergeTarget: ParsedQs = Array.isArray(target) ? arrayToObject(target) : target
+  if (Array.isArray(target) && isConflict(target)) markConflict(mergeTarget, target.length - 1)
   return mergeIntoObject(mergeTarget, source, options)
 }
 

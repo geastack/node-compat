@@ -22,7 +22,8 @@ export async function run({ shim, original, assert }) {
     'a[25]=x&a[]=y', 'a[]=y&a[25]=x', 'a[25]=x&a=y', 'a=y&a[25]=x', 'a[25][b]=x&a[25][c]=y', 'a[0]=x&a[25]=y&a[1]=z', 'a[-1]=x', 'a[01]=x', 'a[1.5]=x', 'a[ 1]=x',
     '?a=b', 'a=b;c=d', 'a=b&&c=d', '&a=b', 'a=b&', '=', '&', '==', 'a==b', 'a=b=c', 'a[b]=c=d', 'a[]=', 'a[b]=', 'a[]', 'a[b]',
     'a[b][c]=1&a[b][d]=2&a[e]=3&f=4', 'x[y][z][]=1&x[y][z][]=2&x[y][w]=3', 'a[0][0]=1&a[0][1]=2&a[1][0]=3',
-    'a%5B%5D=1&a%5B%5D=2', 'a%5B0%5D=1', 'a%20b=c%20d', 'a=%F0%9F%98%80', 'a=%ff%fe', 'a[]=%25', 'a=%2520'
+    'a%5B%5D=1&a%5B%5D=2', 'a%5B0%5D=1', 'a%20b=c%20d', 'a=%F0%9F%98%80', 'a=%ff%fe', 'a[]=%25', 'a=%2520',
+    'a[1]=x&a=y', 'a[b][]=x&a=y', 'a=x&a=y&a[1]=z', 'a[0][b]=x&a[]=y', 'a=x&a[b]=y&a[]=z', '[toString]=1', 'a=%26%2366376%3B'
   ]
   const optionSets = [
     {}, { allowPrototypes: true }, { arrayLimit: 0 }, { arrayLimit: 1 }, { arrayLimit: 3 }, { arrayLimit: 100 }, { depth: 0 }, { depth: 1 }, { depth: 2 }, { depth: 10 }, { depth: false },
