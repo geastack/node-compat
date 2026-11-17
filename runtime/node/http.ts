@@ -19,10 +19,8 @@
 //
 // Known deviations (documented, not silent): request `set-cookie` duplicates
 // join with ", " instead of becoming an array (a `headers` value is a string
-// or undefined, never an array); `getHeader` returns multi-value headers
-// joined with ", "; `writeHead(status, message, headers)` 3-arg form is not
-// supported — set `res.statusMessage` instead; chunk trailers are parsed and
-// discarded; body chunks are byte-preserving strings, not Buffers; req/res
+// or undefined, never an array); chunk trailers are parsed and discarded;
+// body chunks are byte-preserving strings, not Buffers; req/res
 // listeners compile to NATIVE closures with no JS function identity, so
 // `removeListener(name, fn)` on them cannot match — use
 // `removeAllListeners(name)`.
@@ -230,6 +228,45 @@ function lowerHeaderName(name: string): string {
     if (c >= 65 && c <= 90) return name.toLowerCase()
   }
   return name
+}
+
+const httpTokenPattern = /^[\^_`a-zA-Z\-0-9!#$%&'*+.|~]+$/
+const invalidHeaderCharPattern = /[^\t\x20-\x7e\x80-\xff]/
+
+function headerError(error: Error, code: string): never {
+  ;(error as Error & { code: string }).code = code
+  throw error
+}
+
+export function validateHeaderName(name: string, label: string = 'Header name'): void {
+  if (name === '' || !httpTokenPattern.test(name)) headerError(new TypeError(`${label} must be a valid HTTP token ["${name}"]`), 'ERR_INVALID_HTTP_TOKEN')
+}
+
+export function validateHeaderValue(name: string, value: OutgoingHttpHeader | undefined): void {
+  if (value === undefined) headerError(new TypeError(`Invalid value "undefined" for header "${name}"`), 'ERR_HTTP_INVALID_HEADER_VALUE')
+  const text = Array.isArray(value) ? value.join(',') : String(value)
+  if (invalidHeaderCharPattern.test(text)) headerError(new TypeError(`Invalid character in header content ["${name}"]`), 'ERR_INVALID_CHAR')
+}
+
+function validateHeader(name: string, value: OutgoingHttpHeader): void {
+  validateHeaderName(name)
+  validateHeaderValue(name, value)
+}
+
+function invalidHeaderList(): never {
+  headerError(new TypeError("The argument 'headers' is invalid."), 'ERR_INVALID_ARG_VALUE')
+}
+
+function headerEntry(value: OutgoingHttpHeader): readonly string[] {
+  if (Array.isArray(value)) {
+    const entry: readonly string[] = value
+    return entry
+  }
+  return []
+}
+
+function validateStatusMessage(message: string): void {
+  if (message !== '' && invalidHeaderCharPattern.test(message)) headerError(new TypeError('Invalid character in statusMessage'), 'ERR_INVALID_CHAR')
 }
 
 export function statusText(code: number): string {
@@ -678,7 +715,7 @@ export class ServerResponse<Request extends IncomingMessage = IncomingMessage> e
   private request_: IncomingMessage
   private isHead_: boolean
   private http10_: boolean
-  private keepAliveRequested_: boolean
+  shouldKeepAlive: boolean
   private headersCommitted_: boolean // header block serialized (writeHead / first write)
   private headWritten_: boolean // header bytes handed to the reactor
   private chunked_: boolean
@@ -705,7 +742,7 @@ export class ServerResponse<Request extends IncomingMessage = IncomingMessage> e
     this.request_ = request
     this.isHead_ = isHead
     this.http10_ = http10
-    this.keepAliveRequested_ = keepAliveRequested
+    this.shouldKeepAlive = keepAliveRequested
     this.statusCode = 200
     this.statusMessage = ''
     this.sendDate = true
@@ -847,6 +884,7 @@ export class ServerResponse<Request extends IncomingMessage = IncomingMessage> e
 
   // Node-compatible surface: accepts a string, number, or array of strings.
   setHeader(name: string, value: OutgoingHttpHeader): this {
+    validateHeader(name, value)
     if (Array.isArray(value)) {
       // Bind the narrowed array into its own `readonly string[]`-declared
       // local. The manifest deliberately carries no computed `get` recipe
@@ -865,6 +903,7 @@ export class ServerResponse<Request extends IncomingMessage = IncomingMessage> e
   }
 
   appendHeader(name: string, value: OutgoingHttpHeader): this {
+    validateHeader(name, value)
     if (Array.isArray(value)) {
       // Same narrowing local as setHeader above, for the same reason: `value[i]`
       // on the mixed array/primitive union has no manifest recipe.
@@ -876,19 +915,19 @@ export class ServerResponse<Request extends IncomingMessage = IncomingMessage> e
     return this
   }
 
-  // Multi-value headers come back joined with ", " (deviation: Node returns
-  // the array that was set).
-  getHeader(name: string): string {
+  // Deviation: a number comes back as its string, and a one-element array as
+  // that element.
+  getHeader(name: string): string | string[] | undefined {
     const lower = lowerHeaderName(name)
-    let out = ''
-    if (this.firstHeaderPresent_ && this.firstHeaderName_ === lower) out = this.firstHeaderValue_
+    const found: string[] = []
+    if (this.firstHeaderPresent_ && this.firstHeaderName_ === lower) found.push(this.firstHeaderValue_)
     const names = this.extraHeaderNames_
     const values = this.extraHeaderValues_
-    if (names === undefined || values === undefined) return out
-    for (let i = 0; i < names.length; i++) {
-      if (names[i] === lower) out = out === '' ? values[i] : out + ', ' + values[i]
+    if (names !== undefined && values !== undefined) {
+      for (let i = 0; i < names.length; i++) if (names[i] === lower) found.push(values[i])
     }
-    return out
+    if (found.length === 0) return undefined
+    return found.length === 1 ? found[0] : found
   }
 
   hasHeader(name: string): boolean {
@@ -969,6 +1008,7 @@ export class ServerResponse<Request extends IncomingMessage = IncomingMessage> e
   }
 
   private beginHead(): void {
+    validateStatusMessage(this.statusMessage)
     this.headersCommitted_ = true
     const code = this.statusCode
     const message = this.statusMessage === '' ? statusText(code) : this.statusMessage
@@ -983,7 +1023,7 @@ export class ServerResponse<Request extends IncomingMessage = IncomingMessage> e
     let flags = 0
     if (noBody) flags += 1
     if (this.http10_) flags += 2
-    if (this.keepAliveRequested_) flags += 4
+    if (this.shouldKeepAlive) flags += 4
     if (this.sendDate) flags += 8
     const framing = __gea_http_head_end(this.connId_, flags, autoContentLength)
     this.chunked_ = framing === 1 || framing === 3
@@ -1017,8 +1057,15 @@ export class ServerResponse<Request extends IncomingMessage = IncomingMessage> e
     if (suffix.length > 0) __gea_http_body(this.connId_, suffix)
   }
 
-  writeHead(status: number, headers: OutgoingHttpHeaders = {}): this {
+  writeHead(
+    status: number,
+    reasonOrHeaders?: string | OutgoingHttpHeaders | OutgoingHttpHeader[],
+    maybeHeaders?: OutgoingHttpHeaders | OutgoingHttpHeader[]
+  ): this {
     this.statusCode = status
+    let given: OutgoingHttpHeaders | OutgoingHttpHeader[] | undefined = maybeHeaders
+    if (typeof reasonOrHeaders === 'string') this.statusMessage = reasonOrHeaders
+    else if (reasonOrHeaders !== undefined) given = reasonOrHeaders
     if (!this.headersCommitted_ && !this.firstHeaderPresent_) {
       // Nothing was staged with `setHeader`, so there is nothing for these
       // entries to replace or be merged with, and Node does not store them
@@ -1028,38 +1075,72 @@ export class ServerResponse<Request extends IncomingMessage = IncomingMessage> e
       // which for each entry meant a lowercased copy of the name, a linear
       // search for it, and three field stores, all to be read back once by
       // the serializer a few lines later.
-      this.beginHead()
-      for (const key in headers) {
-        const value = headers[key]
-        // The string arm first, and handed over as it is: almost every header
-        // value is one, and `String(value)` on the whole union selects an arm
-        // and then copies the text out of it to build a string it already was.
-        if (typeof value === 'string') __gea_http_head_field(this.connId_, key, value)
-        else if (value === undefined) continue
-        else if (Array.isArray(value)) {
-          // Same narrowing local as `setHeader`: `value[i]` on the mixed
-          // array/primitive union has no manifest recipe.
-          const values: readonly string[] = value
-          for (let i = 0; i < values.length; i++) __gea_http_head_field(this.connId_, key, String(values[i]))
+      if (Array.isArray(given)) {
+        const pairs: OutgoingHttpHeader[] = given
+        if (pairs.length > 0 && Array.isArray(pairs[0])) {
+          for (let i = 0; i < pairs.length; i++) {
+            const entry = headerEntry(pairs[i])
+            const name = entry.length > 0 ? entry[0] : ''
+            validateHeaderName(name)
+            validateHeaderValue(name, entry.length > 1 ? entry[1] : undefined)
+          }
+          this.beginHead()
+          for (let i = 0; i < pairs.length; i++) {
+            const entry = headerEntry(pairs[i])
+            this.headField(entry[0], entry[1])
+          }
         } else {
-          const text = String(value)
-          __gea_http_head_field(this.connId_, key, text)
+          if (pairs.length % 2 !== 0) invalidHeaderList()
+          for (let i = 0; i < pairs.length; i += 2) validateHeader(String(pairs[i]), pairs[i + 1])
+          this.beginHead()
+          for (let i = 0; i < pairs.length; i += 2) this.headField(String(pairs[i]), pairs[i + 1])
         }
-      }
+      } else if (given !== undefined) {
+        for (const key in given) {
+          const value = given[key]
+          if (value !== undefined) validateHeader(key, value)
+        }
+        this.beginHead()
+        for (const key in given) this.headField(key, given[key])
+      } else this.beginHead()
       this.endHead(-1)
       return this
     }
-    // Route every entry through setHeader (not the string-only fast path)
-    // so number/array values (Content-Length, repeated headers) get the same
-    // stringify-and-expand treatment setHeader/appendHeader already give them.
-    for (const key in headers) {
-      const value = headers[key]
-      if (value !== undefined) this.setHeader(key, value)
+    if (Array.isArray(given)) {
+      const pairs: OutgoingHttpHeader[] = given
+      if (pairs.length % 2 !== 0) invalidHeaderList()
+      for (let i = 0; i < pairs.length; i += 2) this.removeHeader(String(pairs[i]))
+      for (let i = 0; i < pairs.length; i += 2) this.appendHeader(String(pairs[i]), pairs[i + 1])
+    } else if (given !== undefined) {
+      // Route every entry through setHeader (not the string-only fast path)
+      // so number/array values (Content-Length, repeated headers) get the same
+      // stringify-and-expand treatment setHeader/appendHeader already give them.
+      for (const key in given) {
+        const value = given[key]
+        if (value !== undefined) this.setHeader(key, value)
+      }
     }
     // Node serializes the header block at writeHead time — the body that
     // follows streams chunked unless the app set Content-Length.
     this.commitHeaders(-1)
     return this
+  }
+
+  private headField(key: string, value: OutgoingHttpHeader | undefined): void {
+    // The string arm first, and handed over as it is: almost every header
+    // value is one, and `String(value)` on the whole union selects an arm
+    // and then copies the text out of it to build a string it already was.
+    if (typeof value === 'string') __gea_http_head_field(this.connId_, key, value)
+    else if (value === undefined) return
+    else if (Array.isArray(value)) {
+      // Same narrowing local as `setHeader`: `value[i]` on the mixed
+      // array/primitive union has no manifest recipe.
+      const values: readonly string[] = value
+      for (let i = 0; i < values.length; i++) __gea_http_head_field(this.connId_, key, String(values[i]))
+    } else {
+      const text = String(value)
+      __gea_http_head_field(this.connId_, key, text)
+    }
   }
 
   // RFC 8297 103 response, written straight to the reactor ahead of the real
@@ -1117,6 +1198,7 @@ export class ServerResponse<Request extends IncomingMessage = IncomingMessage> e
 
   override end(chunk: string | Uint8Array = ''): this {
     if (this.finished || this.destroyed) return this
+    if (!this.headersCommitted_) validateStatusMessage(this.statusMessage)
     this.finished = true
     this.writable = false
     this.writableEnded = true
@@ -1539,7 +1621,9 @@ const httpDefault: Record<string, unknown> = {
   ServerResponse,
   ClientRequest,
   STATUS_CODES,
-  METHODS: httpMethods
+  METHODS: httpMethods,
+  validateHeaderName,
+  validateHeaderValue
 }
 
 export default httpDefault

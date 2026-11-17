@@ -182,6 +182,7 @@ declare global {
     type Timeout = import('./timers.js').Timeout
     type Immediate = import('./timers.js').Immediate
     type WriteStream = import('./process.js').WriteStream
+    type WritableStream = import('./stream.js').Writable
     type Platform = typeof import('./process.js').platform
 
     // Node's own shape for a system-call error (`errno`/`code`/`syscall`/
