@@ -1,15 +1,26 @@
 import { serialize as serializeCookie } from 'cookie';
 import { sign as signCookie } from 'cookie-signature';
 import encodeUrl from 'encodeurl';
-import { IncomingMessage, ServerResponse, STATUS_CODES } from 'http';
+import {
+  IncomingMessage,
+  type OutgoingHttpHeader,
+  type OutgoingHttpHeaders,
+  ServerResponse,
+  STATUS_CODES,
+  validateHeaderName,
+  validateHeaderValue,
+} from 'http';
 import { parse as parseQueryString, type ParsedQuery } from 'fast-querystring';
 import { contentType as lookupContentType } from 'mime-types';
 import onFinished from 'on-finished';
 import { isAbsolute } from 'path';
 import send from 'send';
+import type { Readable } from 'stream';
 import typeIs from 'type-is';
 import type { RouteParams } from '../router/route-table.js';
 import { getRoutingPath } from '../router/utils.js';
+import { getHostname } from './utils/hostname.util.js';
+import { onResponseClose } from './utils/on-response-close.util.js';
 
 const QUERY = Symbol('query');
 const LOCALS = Symbol('locals');
@@ -27,14 +38,23 @@ const LOCALS = Symbol('locals');
 export const ROUTE_ERROR_HANDLER = Symbol('nestjs.node.routeErrorHandler');
 
 /**
+ * Set to `true` by the `NodeAdapter` on its HTTP server once the application
+ * shuts down: from then on, responses close their connection (see
+ * {@link NodeResponse.writeHead}).
+ *
+ * @internal
+ */
+export const SHUTTING_DOWN = Symbol('nestjs.node.shuttingDown');
+
+/**
  * What `req.app` returns: middleware written for Express reads settings from
  * it (`express-rate-limit` checks `req.app.get('trust proxy')`). There are no
- * Express settings here; `get()` reports the adapter's fixed behavior.
+ * Express settings here; `get()` reports the adapter's behavior.
  */
 class NodeApp {
   /**
-   * `'trust proxy'` is `false` (`req.ip` is the socket address); every other
-   * setting is `undefined`.
+   * `'trust proxy'` is `false` (`req.ip` is the socket address) unless the
+   * adapter's `trustProxy` option is set; every other setting is `undefined`.
    */
   get(setting: string): unknown {
     return setting === 'trust proxy' ? false : undefined;
@@ -106,6 +126,12 @@ export class NodeRequest extends IncomingMessage {
    */
   declare params: RouteParams;
   /**
+   * The route being run, as with Express' `req.route`: its path as
+   * registered (`/users/:id`) and its methods (`{ get: true }`). Unset
+   * before the request reaches a route.
+   */
+  declare route?: { path: string; methods: Record<string, boolean> };
+  /**
    * Parsed request body, set by the body parsers. Every request has a "body"
    * (Express libraries check "'body' in req"); it is a field here, where the
    * package defines it on the prototype to avoid a per-request write.
@@ -120,6 +146,11 @@ export class NodeRequest extends IncomingMessage {
    * Path the current middleware is mounted on (see `use(path, handler)`).
    */
   declare baseUrl: string;
+  /**
+   * The response to this request, as with Express, for code that only holds
+   * the request (a request-scoped provider, a GraphQL context).
+   */
+  declare res: NodeResponse;
 
   declare [QUERY]: ParsedQuery | undefined;
 
@@ -159,28 +190,34 @@ export class NodeRequest extends IncomingMessage {
   }
 
   /**
-   * Host name from the `Host` header, without the port.
+   * Host name from the `Host` header, without the port (from
+   * `X-Forwarded-Host` for a trusted proxy, see the `trustProxy` option).
    */
   get hostname(): string | undefined {
-    const host = this.headers.host;
-    if (!host) {
-      return undefined;
-    }
-    // IPv6 literal, e.g. "[::1]:3000"
-    const offset =
-      host.charCodeAt(0) === 91 /* [ */ ? host.indexOf(']') + 1 : 0;
-    const index = host.indexOf(':', offset);
-    return index === -1 ? host : host.slice(0, index);
+    return getHostname(this.headers.host);
   }
 
   /**
-   * Remote address of the underlying socket.
+   * Remote address of the underlying socket (the client's address from
+   * `X-Forwarded-For` for a trusted proxy, see the `trustProxy` option).
    */
   get ip(): string | undefined {
     return this.socket?.remoteAddress;
   }
 
-  get protocol(): 'http' | 'https' {
+  /**
+   * Addresses from `X-Forwarded-For`, from the client to the closest trusted
+   * proxy, as Express lists them; empty unless the `trustProxy` option is set.
+   */
+  get ips(): string[] {
+    return [];
+  }
+
+  /**
+   * `'https'` over TLS, `'http'` otherwise (from `X-Forwarded-Proto` for a
+   * trusted proxy, see the `trustProxy` option).
+   */
+  get protocol(): string {
     return (this.socket as { encrypted?: boolean })?.encrypted
       ? 'https'
       : 'http';
@@ -210,8 +247,8 @@ export class NodeRequest extends IncomingMessage {
 
   /**
    * Stand-in for the Express application, for middleware that reads its
-   * settings: `req.app.get('trust proxy')` is `false`, every other setting
-   * `undefined`.
+   * settings: `req.app.get('trust proxy')` is `false` (or the `trustProxy`
+   * option), every other setting `undefined`.
    */
   get app(): NodeApp {
     return NODE_APP;
@@ -258,6 +295,24 @@ export class NodeResponse<
   }
 
   /**
+   * Writes the status line and the headers, as `ServerResponse` does. Once
+   * the application shuts down, with `Connection: close`: a kept-alive
+   * connection would otherwise idle until `keepAliveTimeout`, which closing
+   * the server waits for, and the client would reuse a connection about to
+   * be closed.
+   */
+  writeHead(
+    statusCode: number,
+    reasonOrHeaders?: string | OutgoingHttpHeaders | OutgoingHttpHeader[],
+    headers?: OutgoingHttpHeaders | OutgoingHttpHeader[],
+  ): this {
+    if ((this.socket as { server?: any } | null)?.server?.[SHUTTING_DOWN]) {
+      this.shouldKeepAlive = false;
+    }
+    return super.writeHead(statusCode, reasonOrHeaders as string, headers);
+  }
+
+  /**
    * Sets the status code. Chainable.
    */
   status(statusCode: number): this {
@@ -270,10 +325,15 @@ export class NodeResponse<
    */
   set(field: string | Record<string, any>, value?: any): this {
     if (typeof field === 'string') {
-      this.setHeader(
-        field,
-        Array.isArray(value) ? value.map(String) : String(value),
-      );
+      let header = Array.isArray(value) ? value.map(String) : String(value);
+      if (field.toLowerCase() === 'content-type') {
+        if (Array.isArray(header)) {
+          throw new TypeError('Content-Type cannot be set to an Array');
+        }
+        // Adds the charset, as Express does
+        header = lookupContentType(header) || header;
+      }
+      this.setHeader(field, header);
     } else {
       for (const name of Object.keys(field)) {
         this.set(name, field[name]);
@@ -363,13 +423,12 @@ export class NodeResponse<
    * file extension (`'json'`, `'.html'`, `'png'`). Chainable.
    */
   type(type: string): this {
-    this.setHeader(
+    return this.set(
       'Content-Type',
       type.includes('/')
         ? type
         : lookupContentType(type) || 'application/octet-stream',
     );
-    return this;
   }
 
   /**
@@ -383,7 +442,11 @@ export class NodeResponse<
     if (!this.hasHeader('Content-Type')) {
       this.setHeader('Content-Type', 'application/json; charset=utf-8');
     }
-    if (text === undefined) {
+    if (this.send !== NodeResponse.prototype.send) {
+      // Through the res.send() a middleware wrapped, with the serialized body,
+      // as Express' res.json() does
+      this.send(text);
+    } else if (text === undefined) {
       this.end();
     } else {
       endWithBody(this, text);
@@ -439,12 +502,15 @@ export class NodeResponse<
    * Streams a file, like Express' `res.sendFile()` (both build on the `send`
    * package): `Content-Type` from the extension, `Content-Length`,
    * `Last-Modified`, `ETag`, ranges and conditional requests (304). `path` is
-   * absolute, or relative to `options.root`.
+   * absolute, or relative to `options.root`. Throws when the path, or a header
+   * of `options.headers`, is not valid.
    *
    * `callback(err)` is called once the transfer is done or failed (check
    * `res.headersSent` before responding). Without one, a failure goes to the
    * error-handling middleware and Nest's exception filters, as with Express:
    * a missing file is a 404, a directory answers like an unmatched route.
+   * What the callback throws once `sendFile()` returned (or the promise it
+   * returns rejects with) goes there as well, unlike with Express.
    */
   sendFile(
     path: string,
@@ -469,12 +535,57 @@ export class NodeResponse<
         'path must be absolute or specify root to res.sendFile',
       );
     }
+    if (opts.headers) {
+      // They are set once the file is found, after the route handler
+      // returned, where nothing would catch what setHeader() throws for an
+      // invalid one: they are checked here, and copied, so that what is set
+      // is what was checked
+      const headers = { ...opts.headers };
+      for (const name of Object.keys(headers)) {
+        validateHeaderName(name);
+        validateHeaderValue(name, headers[name] as string);
+      }
+      opts.headers = headers;
+    }
     opts.etag ??= true;
     const req = this.req;
     const file = send(req, encodeURI(path), opts as send.SendOptions);
+    const report = (err: unknown) => {
+      const handleError = (req.socket as any)?.server?.[ROUTE_ERROR_HANDLER];
+      if (handleError) {
+        handleError(err, req, this);
+      } else {
+        respondWithError(this, err);
+      }
+    };
+    // Whatever the callback throws is an error: the router's next() takes a
+    // falsy value and "route" for none, and "router" for leaving the router
+    const reportThrown = (reason: unknown) =>
+      report(
+        !reason || reason === 'route' || reason === 'router'
+          ? new Error(`res.sendFile() callback failed: ${String(reason)}`)
+          : reason,
+      );
+    let returned = false;
     transferFile(this, file, opts, err => {
       if (done) {
-        return done(err);
+        // The callback mostly runs from a listener of the send stream, once
+        // the route handler returned, where nothing else would catch what it
+        // throws (or the rejection of the promise it returns)
+        try {
+          const result: any = done(err);
+          if (result !== undefined && typeof result?.then === 'function') {
+            result.then(undefined, reportThrown);
+          }
+        } catch (error) {
+          // send refuses some paths (a dotfile) at once: the caller of
+          // sendFile() is still there to catch the error, as with Express
+          if (!returned) {
+            throw error;
+          }
+          reportThrown(error);
+        }
+        return;
       }
       // Client aborts and write errors are nothing to report, as with Express
       if (
@@ -484,13 +595,9 @@ export class NodeResponse<
       ) {
         return;
       }
-      const handleError = (req.socket as any)?.server?.[ROUTE_ERROR_HANDLER];
-      if (handleError) {
-        handleError(err, req, this);
-      } else {
-        respondWithError(this, err);
-      }
+      report(err);
     });
+    returned = true;
   }
 
   /**
@@ -525,7 +632,10 @@ export class NodeResponse<
     this.statusCode = statusCode;
     this.setHeader('Location', location);
     appendVary(this, 'Accept');
-    this.setHeader('Content-Length', Buffer.byteLength(body));
+    // A "Transfer-Encoding" forbids a "Content-Length" (RFC 9112)
+    if (!this.hasHeader('Transfer-Encoding')) {
+      this.setHeader('Content-Length', Buffer.byteLength(body));
+    }
     this.end(this.req.method === 'HEAD' ? undefined : body);
   }
 }
@@ -561,8 +671,15 @@ function transferFile(
   file.on('file', () => {
     streaming = false;
   });
-  file.on('stream', () => {
+  file.on('stream', (stream: Readable) => {
     streaming = true;
+    // send destroys the stream once the response is finished, which the
+    // response of a pipelined request waiting behind others may never be
+    onResponseClose(res, () => {
+      if (!stream.readableEnded) {
+        stream.destroy();
+      }
+    });
   });
   onFinished(res, (err: any) => {
     if (err && err.code === 'ECONNRESET') {
@@ -691,12 +808,15 @@ export function toBytes(view: ArrayBufferView): Uint8Array {
 }
 
 // With an explicit "Content-Length", which Node.js leaves out in answer to
-// HEAD requests otherwise
+// HEAD requests otherwise, unless a "Transfer-Encoding" is set (as Express
+// does), which forbids it
 function endWithBody(response: ServerResponse, body: string | Uint8Array) {
-  response.setHeader(
-    'Content-Length',
-    typeof body === 'string' ? Buffer.byteLength(body) : body.byteLength,
-  );
+  if (!response.hasHeader('Transfer-Encoding')) {
+    response.setHeader(
+      'Content-Length',
+      typeof body === 'string' ? Buffer.byteLength(body) : body.byteLength,
+    );
+  }
   response.end(body);
 }
 

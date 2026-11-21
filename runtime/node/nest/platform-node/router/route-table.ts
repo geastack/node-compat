@@ -16,6 +16,11 @@ export interface RouteParams {
 export interface RouteMatch {
   handlers: RouteHandler[];
   params: RouteParams;
+  /**
+   * The params of each handler, when the routes of the handlers name them
+   * differently (`params` are then those of the first handler).
+   */
+  paramsByHandler?: RouteParams[];
   /** Registration order of each handler, see {@link RouteTable.lookupRest}. */
   seqs: number[];
 }
@@ -35,6 +40,8 @@ interface RouteRecord {
    * pass control to each other through `next()`, as in Express.
    */
   paramNames: string[][];
+  /** Whether the routes of the handlers name their parameters differently. */
+  hasDistinctNames: boolean;
   /** Whether the last parameter is a trailing wildcard (find-my-way's `*`). */
   hasWildcard: boolean;
   /** Number of "/" in the route path before the wildcard. */
@@ -47,7 +54,8 @@ interface RouteRecord {
   entries?: RecordEntry[];
   /**
    * For each handler, the path-to-regexp matcher of its route when it has
-   * variants ending with "/" (see `RouteTable.add()`).
+   * variants ending with "/", or when this is the record of "/" and the route
+   * does not match "//" (see `RouteTable.add()`).
    */
   pathMatchers: (Matcher | undefined)[];
   hasPathMatchers: boolean;
@@ -66,6 +74,15 @@ interface FoundRoute {
   handlers: RouteHandler[];
   seqs: number[];
   params: RouteParams;
+  paramsByHandler?: RouteParams[];
+  /**
+   * Set when the route of the record left a parameter empty, or its
+   * path-to-regexp matcher did not match the path: `seqs` are then those of
+   * the routes of the record, and `params` empty (see `lookup()`).
+   * `'segment'` for a parameter that is a whole segment of the route, without
+   * an empty segment in the path ("/" for "/:id").
+   */
+  mismatch?: 'segment' | 'param';
 }
 
 interface FindMyWayVariant {
@@ -81,6 +98,11 @@ interface FindMyWayVariant {
   hasMixedSegment: boolean;
   /** Ends with "/", see `toFindMyWayPath()`. */
   trailingSlash: boolean;
+}
+
+function hasDistinctNames(paramNames: string[][]): boolean {
+  const first = paramNames[0];
+  return paramNames.some(names => names.some((n, i) => n !== first[i]));
 }
 
 // Positional parameter names, see `RouteRecord`
@@ -333,6 +355,13 @@ function toFindMyWayPath(tokens: Token[]): FindMyWayVariant | undefined {
         return undefined;
     }
   }
+  // find-my-way reads the first character of a route path as its leading
+  // "/", so "{*any}" would be its "*" route, whose wildcard then includes
+  // that "/" (see find()). Matched with path-to-regexp, a path without the
+  // leading "/" works as with Express: "{*any}" matches every path.
+  if (path !== '' && path.charCodeAt(0) !== 47 /* / */) {
+    return undefined;
+  }
   // A variant ending with "/" ("/admin/" of "/admin/{*path}") must not match
   // "/admin", as with Express, but find-my-way's ignoreTrailingSlash would
   const trailingSlash = path.length > 1 && path.endsWith('/');
@@ -367,7 +396,8 @@ export class RouteTable {
   /**
    * The routes that can match a path with an empty segment ("/a//b"), in
    * registration order: those with a wildcard, a variant ending with "/" or
-   * holding "//", or a variant find-my-way cannot express.
+   * holding "//", a variant in the tree as "/" (where "//" goes), or a variant
+   * find-my-way cannot express.
    */
   private readonly emptySegmentRoutes: RegisteredRoute[] = [];
   /** See `getPrefixSkips()`, for `lookupFirst()` and `lookupRest()`. */
@@ -408,13 +438,15 @@ export class RouteTable {
         : expandGroups(tokens);
     const variants = expanded?.map(toFindMyWayPath) ?? [undefined];
     // A variant ending with "/" also matches the path with one more "/"
-    // ("/a{/}" matches "/a//"); one find-my-way cannot express may be anything
+    // ("/a{/}" matches "/a//"), as "/" does ("//"); one find-my-way cannot
+    // express may be anything
     if (
       variants.some(
         variant =>
           variant === undefined ||
           variant.hasWildcard ||
           variant.trailingSlash ||
+          variant.path === '/' ||
           variant.path.includes('//'),
       )
     ) {
@@ -466,6 +498,18 @@ export class RouteTable {
     const treeMethods =
       method === null ? METHODS : method === 'GET' ? GET_AND_HEAD : [method];
     for (const variant of uniqueVariants.values()) {
+      // The empty variant of a route ("{/:id}" without its group) is "/" in
+      // the tree, where find-my-way's ignoreTrailingSlash also sends "//".
+      // Unlike the "/" route, such a route does not match "//", nor does its
+      // middleware: find() then checks that path with path-to-regexp, as it
+      // does for the routes with variants ending with "/".
+      let recordMatcher = pathMatcher;
+      if (recordMatcher === undefined && variant.path === '/') {
+        const matcher = compileMatcher(path);
+        if (!matcher('//')) {
+          recordMatcher = matcher;
+        }
+      }
       for (const treeMethod of treeMethods) {
         if (
           !this.addToRecord(
@@ -474,7 +518,7 @@ export class RouteTable {
             method,
             handler,
             seq,
-            pathMatcher,
+            recordMatcher,
           )
         ) {
           // Same shape as an existing route under different parameter names
@@ -513,6 +557,7 @@ export class RouteTable {
         handlers: [],
         seqs: [],
         paramNames: [],
+        hasDistinctNames: false,
         hasWildcard,
         wildcardSlashes,
         wildcardOffset,
@@ -533,6 +578,7 @@ export class RouteTable {
       record.seqs.push(seq);
       record.paramNames.push(paramNames);
       record.pathMatchers.push(pathMatcher);
+      record.hasDistinctNames = hasDistinctNames(record.paramNames);
       return true;
     }
     // A HEAD route takes precedence over the GET routes of the same path,
@@ -547,6 +593,7 @@ export class RouteTable {
     record.seqs = active.map(entry => entry.seq);
     record.paramNames = active.map(entry => entry.paramNames);
     record.pathMatchers = active.map(entry => entry.pathMatcher);
+    record.hasDistinctNames = hasDistinctNames(record.paramNames);
     return true;
   }
 
@@ -563,12 +610,26 @@ export class RouteTable {
       exceeded = true;
       found = null;
     }
-    if (found === EMPTY_PARAM || found === EMPTY_SEGMENT) {
-      // find-my-way does not look past the most specific route, while another
-      // one may match ("/ext/.b" is "/ext/:file", not "/ext/:file.:ext"). A
-      // path with an empty segment can only match `emptySegmentRoutes`. When
-      // the empty parameter is a whole segment of its route otherwise ("/"
-      // for "/:id"), find-my-way would have found any route matching it.
+    if (found?.mismatch === 'segment') {
+      // find-my-way would have found any other route of the tree matching it
+      found = null;
+    } else if (found?.mismatch === 'param') {
+      // The most specific route left a parameter empty ("/docs/.env" for
+      // "/docs/:page.:format", "/docs//edit" for "/docs/:id/edit"). The
+      // routes of its record may still match the path without one of their
+      // optional groups ("/docs/:page{.:format}" gives "/docs/:page" too);
+      // otherwise the request is a miss, as with Fastify, rather than going
+      // to another, less specific route ("/docs/*path", or "/ext/:file" for
+      // "/ext/.b"), which the exclusions of middleware do not attribute it to
+      return this.lookupFirst(
+        method,
+        path,
+        found.seqs.map(seq => this.routes[seq]),
+      );
+    } else if (found === EMPTY_PARAM || found === EMPTY_SEGMENT) {
+      // A wildcard left empty: find-my-way does not look past the most
+      // specific route, while another one may match. A path with an empty
+      // segment can only match `emptySegmentRoutes`.
       if (path.indexOf('//') !== -1) {
         return this.lookupFirst(method, path, this.emptySegmentRoutes);
       }
@@ -627,7 +688,15 @@ export class RouteTable {
       // one ("/users//profile"). Treat that as no match, or the route could
       // run without the middleware guarding it.
       if (key !== '*' && values[key] === '') {
-        return record.hasMixedSegment ? EMPTY_PARAM : EMPTY_SEGMENT;
+        return {
+          handlers: [],
+          seqs: record.seqs,
+          params: {},
+          mismatch:
+            record.hasMixedSegment || path.indexOf('//') !== -1
+              ? 'param'
+              : 'segment',
+        };
       }
     }
     let wildcard: string[] | undefined;
@@ -657,8 +726,10 @@ export class RouteTable {
       }
       wildcard = path.slice(start, end).split('/').map(decodeSegment);
     }
-    // Every handler sees the parameters under the names its route uses
-    const params: RouteParams = {};
+    // Every handler sees the parameters under the names its route uses: with
+    // the same names for all of them, one object serves every handler
+    let params: RouteParams = {};
+    const paramsByHandler = record.hasDistinctNames ? [params] : undefined;
     // find-my-way matched "/admin/x/" with the variant of "/admin/{*path}"
     // without the "/", path-to-regexp gives the route's own parameters
     const usePathMatchers =
@@ -666,11 +737,20 @@ export class RouteTable {
       path.length > 1 &&
       path.charCodeAt(path.length - 1) === 47; /* / */
     for (let h = 0; h < record.paramNames.length; h++) {
+      if (paramsByHandler !== undefined && h > 0) {
+        params = {};
+        paramsByHandler.push(params);
+      }
       const pathMatcher = usePathMatchers ? record.pathMatchers[h] : undefined;
       if (pathMatcher !== undefined) {
         const result = pathMatcher(path);
         if (!result) {
-          return EMPTY_PARAM;
+          return {
+            handlers: [],
+            seqs: record.seqs,
+            params: {},
+            mismatch: 'param',
+          };
         }
         for (const name of Object.keys(result.params)) {
           params[name] = result.params[name];
@@ -689,7 +769,12 @@ export class RouteTable {
         }
       }
     }
-    return { handlers: record.handlers, seqs: record.seqs, params };
+    return {
+      handlers: record.handlers,
+      seqs: record.seqs,
+      params: paramsByHandler === undefined ? params : paramsByHandler[0],
+      paramsByHandler,
+    };
   }
 
   // The first of `routes` path-to-regexp matches, in registration order, as

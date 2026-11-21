@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from 'http';
+import { type IncomingMessage, type ServerResponse, httpMethods as METHODS } from 'http';
 import { match } from 'path-to-regexp';
 import { NodeRequest, NodeResponse } from '../adapters/node-request.js';
 import {
@@ -11,10 +11,13 @@ import {
   RouteTable,
 } from './route-table.js';
 import {
+  getCommonPrefix,
+  getDecodedForms,
   getLiteralPrefix,
   getPrefixSkips,
   getRawPrefixEnd,
   getRoutingPath,
+  hasTextDecodedByRouter,
   loosen,
 } from './utils.js';
 
@@ -50,10 +53,91 @@ export type FinalHandler = (
   res: NodeResponse,
 ) => void;
 
+/**
+ * The mount paths a `use()` call starts with: a path, or a list of paths as
+ * Express accepts (`use(['/css', '/js'], serveStatic(...))`), each of which
+ * may itself be a list matched as one path; `undefined` when it starts with
+ * the middleware.
+ */
+function getMountPaths(value: unknown): (string | string[])[] | undefined {
+  if (typeof value === 'string') {
+    return [value];
+  }
+  if (
+    !Array.isArray(value) ||
+    !value.flat(Infinity).every(path => typeof path === 'string')
+  ) {
+    return undefined;
+  }
+  return value.map(path =>
+    Array.isArray(path) ? (path.flat(Infinity) as string[]) : path,
+  );
+}
+
 function decodeParam(value: string) {
   // decodeURIComponent() is a call into the runtime (about 80 ns), even for a
   // value without any "%" to decode
   return value.indexOf('%') === -1 ? value : decodeURIComponent(value);
+}
+
+/**
+ * The matcher of a middleware path (or list of paths matched as one), on the
+ * routing path. Where the routes match some text of a path in a decoded form
+ * of the routing path (see `hasTextDecodedByRouter()`), the path is matched
+ * in those forms too, so that the middleware runs for every request its
+ * route serves. Their parameters are not decoded again.
+ */
+function compileMiddlewareMatcher(
+  path: string | string[],
+  end: boolean,
+): PathMatcher {
+  const pattern = Array.isArray(path) ? path.map(loosen) : loosen(path);
+  const options = { end, sensitive: true };
+  const matcher = match(pattern, {
+    ...options,
+    decode: decodeParam,
+  }) as PathMatcher;
+  const paths = Array.isArray(path) ? path : [path];
+  if (!paths.some(hasTextDecodedByRouter)) {
+    return matcher;
+  }
+  const formMatcher = match(pattern, { ...options, decode: false });
+  return (routingPath: string) => {
+    const result = matcher(routingPath);
+    if (result) {
+      return result;
+    }
+    const [decoded, folded] = getDecodedForms(routingPath);
+    const formResult = formMatcher(decoded) || formMatcher(folded);
+    if (!formResult) {
+      return false;
+    }
+    // The forms have the segments of the routing path: the matched path (a
+    // mount path, see dispatch()) is given as it is there
+    const segments = formResult.path.split('/');
+    const trailingSlash = formResult.path.endsWith('/');
+    const matched = routingPath
+      .split('/')
+      .slice(0, trailingSlash ? segments.length - 1 : segments.length)
+      .join('/');
+    return {
+      path: trailingSlash ? `${matched}/` : matched,
+      params: formResult.params,
+    };
+  };
+}
+
+/**
+ * Marks the URIError of a request target the router cannot decode as the
+ * client's error, with a 400 status, as the Express router does for a
+ * malformed parameter. One a middleware throws has none: it comes from
+ * server code (see `NodeAdapter.mapException()`).
+ */
+function toClientError(error: unknown) {
+  if (error instanceof URIError) {
+    (error as URIError & { status?: number }).status = 400;
+  }
+  return error;
 }
 
 function invoke(
@@ -147,6 +231,14 @@ export class NodeRouter {
    */
   declare public onRejectedTarget:
     ((req: NodeRequest, res: NodeResponse) => void) | undefined;
+  /**
+   * Prototype given to a request of another server, which is not a
+   * `NodeRequest` (`NodeRequest.prototype` by default): the `NodeAdapter`
+   * sets that of its request class, so that its options apply there too.
+   *
+   * @internal
+   */
+  declare public requestPrototype: NodeRequest | undefined;
 
   constructor(finalHandler: FinalHandler, options: NodeRouterOptions = {}) {
     const { maxParamLength } = options;
@@ -182,11 +274,15 @@ export class NodeRouter {
     done?: NextFunction,
   ) {
     if (!(req instanceof NodeRequest)) {
-      Object.setPrototypeOf(req, NodeRequest.prototype);
+      Object.setPrototypeOf(
+        req,
+        this.requestPrototype ?? NodeRequest.prototype,
+      );
     }
     if (!(res instanceof NodeResponse)) {
       Object.setPrototypeOf(res, NodeResponse.prototype);
     }
+    (req as NodeRequest).res = res as NodeResponse;
     this.dispatch(req as NodeRequest, res as NodeResponse, done);
   }
 
@@ -272,18 +368,40 @@ export class NodeRouter {
   }
 
   public use(...args: any[]) {
-    const [path, handlers] =
-      typeof args[0] === 'string' ? [args[0], args.slice(1)] : ['/', args];
-    const isRoot = path === '/' || path === '';
-    const matcher = isRoot
+    const paths = getMountPaths(args[0]);
+    const handlers = paths ? args.slice(1) : args;
+    // Only the string "/" (or "") mounts at the root: as with Express, ["/"]
+    // matches "/" alone
+    const isRoot = !paths || args[0] === '/' || args[0] === '';
+    const matchers = isRoot
+      ? []
+      : // Case-sensitive, as routes are (see RouteTable)
+        paths.map(path => compileMiddlewareMatcher(path, false));
+    // With several paths, the first one that matches is the mount path and
+    // the middleware runs once, as with Express
+    const matcher: PathMatcher | null = isRoot
       ? null
-      : (match(loosen(path), {
-          decode: decodeParam,
-          end: false,
-          // Case-sensitive, as routes are (see RouteTable)
-          sensitive: true,
-        }) as PathMatcher);
-    const prefix = isRoot ? '' : getLiteralPrefix(loosen(path));
+      : matchers.length === 1
+        ? matchers[0]
+        : path => {
+            for (const pathMatcher of matchers) {
+              const result = pathMatcher(path);
+              if (result) {
+                return result;
+              }
+            }
+            return false;
+          };
+    const prefix = isRoot
+      ? ''
+      : getCommonPrefix(
+          paths.map(path =>
+            Array.isArray(path)
+              ? // An empty list matches every path: no prefix
+                getCommonPrefix(path.map(p => getLiteralPrefix(loosen(p))))
+              : getLiteralPrefix(loosen(path)),
+          ),
+        );
 
     for (const handler of handlers.flat()) {
       if (typeof handler !== 'function') {
@@ -314,7 +432,17 @@ export class NodeRouter {
       this.skips = undefined;
       this.stack.push(last);
     }
-    last.table.add(method, path, handler);
+    // Express' req.route, which code that reports by route reads; as with
+    // Express' app.all(), a route for every method lists each of them
+    const methods = method === null ? METHODS : [method];
+    const route = {
+      path,
+      methods: Object.fromEntries(methods.map(m => [m.toLowerCase(), true])),
+    };
+    last.table.add(method, path, (req: NodeRequest, res, next) => {
+      req.route = route;
+      return handler(req, res, next);
+    });
     return this;
   }
 
@@ -326,11 +454,7 @@ export class NodeRouter {
   public useExact(method: string | undefined, path: string, handler: Function) {
     this.skips = undefined;
     this.stack.push({
-      matcher: match(loosen(path), {
-        decode: decodeParam,
-        end: true,
-        sensitive: true,
-      }) as PathMatcher,
+      matcher: compileMiddlewareMatcher(path, true),
       prefix: getLiteralPrefix(loosen(path)),
       isMount: false,
       method,
@@ -402,9 +526,13 @@ export class NodeRouter {
     const parentBaseUrl = req.baseUrl;
 
     const next: NextFunction = (err?: any) => {
+      // As with Express, next('router') leaves the router: nothing left on
+      // its stack runs (other routes and error handlers included), and a
+      // mounted router hands the request back to its parent
+      const leavesRouter = err === 'router';
       // As with Express, a falsy value is no error: callbacks commonly
       // pass on their "null" error ("cb(err => next(err))")
-      if (!err || err === 'route' || err === 'router') {
+      if (!err || err === 'route' || leavesRouter) {
         err = undefined;
       }
       if (removed) {
@@ -416,10 +544,18 @@ export class NodeRouter {
         req.baseUrl = parentBaseUrl;
         removed = '';
       }
+      if (leavesRouter) {
+        routeMatch = undefined;
+        restEntries = undefined;
+        index = stack.length;
+      }
       // Continue with the next handler registered for the matched route
       if (routeMatch !== undefined) {
         if (err === undefined) {
           if (routeIndex < routeMatch.handlers.length) {
+            if (routeMatch.paramsByHandler !== undefined) {
+              req.params = routeMatch.paramsByHandler[routeIndex];
+            }
             return invoke(routeMatch.handlers[routeIndex++], req, res, next);
           }
           // Every handler passed: on to the other routes matching the path,
@@ -456,7 +592,7 @@ export class NodeRouter {
             if (err === undefined) {
               this.onRejectedTarget?.(req, res);
             }
-            err ??= error;
+            err ??= toClientError(error);
           }
         }
 
@@ -468,7 +604,7 @@ export class NodeRouter {
           try {
             found = layer.table.lookup(method, cachedPath);
           } catch (error) {
-            err = error;
+            err = toClientError(error);
             continue;
           }
           if (found === null) {
@@ -507,7 +643,7 @@ export class NodeRouter {
           try {
             result = layer.matcher(cachedPath);
           } catch (error) {
-            err = error;
+            err = toClientError(error);
             continue;
           }
           if (!result) {
