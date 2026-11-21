@@ -35,7 +35,7 @@
 //                                      signal handler) writes to wake the loop
 //   startThread(entry, argument)       a detached thread; false when none starts
 //   utcTime(seconds, tm)               gmtime
-//   canAccess / readWholeFile / statFile / fillRandom
+//   canAccess / readWholeFile / readFileRange / statFile / fillRandom
 //   arguments / environmentEntries / executablePath / canonicalPath /
 //   currentDirectory / processId / parentProcessId / exitImmediately /
 //   onlineProcessors / machineArch / kernelRelease
