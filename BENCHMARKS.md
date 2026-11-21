@@ -437,3 +437,72 @@ package.json is read as a plain file, so an `exports` map that omits
 two scripts that both say "build" can name different compilers: the 09-21
 numbers were clang's while the document said g++, which was only caught by
 reading the binaries' `.comment` sections.
+
+## hello-nest and the full matrix on an arm64 Linux VM, 2026-11-21
+
+Not the bench host. `bench/http-matrix.py` over all ten servers inside an
+arm64 Linux container (Ubuntu 24.04, clang 18.1.3, Node v24.20.0) on a Colima
+VM with 8 vCPUs on an Apple M1 (4 performance and 4 efficiency cores; the
+VM's vCPUs are not pinned to physical cores, so `--server-cpus 0-3
+--load-cpus 4-7` separates server and load generator inside the VM only).
+The load generator is wrk 4.1.0 patched to time with the monotonic clock
+(sha256 `6cd2ada4…`): the VM's guest agent steps its wall clock by about
+100 ms, and stock wrk, which times with `gettimeofday`, reports false
+timeouts after a backward step. The VM's other containers were stopped and
+the macOS host ran nothing CPU-bound. Numbers here are comparable with each
+other and with nothing in the tables above.
+
+`apps/hello-nest` runs `@nestjs/{common,core,platform-node}` 12.5.1 from npm.
+All three gea binaries were built inside the container by
+`bench/goal-http-build.sh` with one compiler: `@geastack/compiler` main
+`1ae87837` (1.0.61) plus the unreleased fixes hello-nest and Hono need
+(geastack/compiler#21, #28, #29, #30, #31 and #33), packed and installed
+through `GEA_COMPILER_DIR`. No released compiler builds this tree yet: main
+alone refuses hello-nest at `instanceof Date` (#28) and does not compile
+`apps/hono-hello` (#33). Ubuntu 24.04 ships libbrotlidec 1.1.0, which
+`scripts/build.mjs` refuses, so brotli 1.2.1 was built into a prefix and
+passed as `BROTLI_DIR`. hello-nest answered `scripts/test-hello-nest.mjs`
+11 of 11 identical before the run, and all 72 wire checks passed. Binaries:
+hono-gea 5,834,032 bytes, nest-gea 10,432,576, gea-raw 3,669,816; cpp-epoll
+73,944, cpp-drogon 126,352, rust-hyper 1,029,480, rust-axum 1,218,160.
+
+Records: `bench/results/http-colima-arm64-2026-11-21.json` (three complete
+rounds per server, worker count and route) and its `-startup` file (five
+launches each).
+
+| Server | Single `/` | Single `/json` | Single RSS MiB | Single PSS MiB | Single startup ms | 4 workers `/` | 4 workers `/json` | 4 workers RSS MiB | 4 workers PSS MiB | 4 workers startup ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **hono-gea** | **101,976** | **77,438** | 7.6 | 6.6 | 11 | **267,135** | **221,123** | 27.0 | 8.8 | 14 |
+| hono-node | 19,602 | 18,276 | 106.2 | 105.1 | 93 | 57,472 | 52,756 | 432.8 | 254.7 | 136 |
+| **nest-gea** | **67,391** | **64,149** | 12.9 | 11.5 | 19 | **201,071** | **185,376** | 37.8 | 13.6 | 21 |
+| nest-node | 33,759 | 30,668 | 126.0 | 124.9 | 801 | 96,807 | 87,825 | 549.4 | 355.0 | 1,369 |
+| **gea-raw** | **164,840** | **166,216** | 5.6 | 4.7 | 9 | **338,969** | **335,115** | 18.6 | 6.1 | 10 |
+| node-raw | 35,551 | 35,323 | 87.2 | 86.1 | 69 | 103,145 | 100,339 | 357.0 | 180.5 | 113 |
+| cpp-drogon | 120,560 | 123,346 | 11.6 | 10.1 | 20 | 285,978 | 286,891 | 11.8 | 10.3 | 12 |
+| rust-axum | 141,322 | 145,564 | 4.1 | 3.2 | 6 | 227,313 | 227,929 | 5.0 | 4.1 | 6 |
+| rust-hyper | 171,116 | 172,834 | 3.1 | 2.2 | 7 | 235,277 | 237,552 | 3.9 | 3.0 | 6 |
+| cpp-epoll | 196,066 | 193,934 | 3.2 | 2.2 | 7 | 385,802 | 367,690 | 10.0 | 3.4 | 6 |
+
+| Server | Single p50 | Single p99 | 4 workers p50 | 4 workers p99 |
+| --- | ---: | ---: | ---: | ---: |
+| hono-gea | 602 µs | 1.23 ms | 186 µs | 1.38 ms |
+| hono-node | 3.15 ms | 6.43 ms | 1.02 ms | 2.71 ms |
+| nest-gea | 0.90 ms | 1.81 ms | 266 µs | 1.24 ms |
+| nest-node | 1.83 ms | 3.67 ms | 587 µs | 1.68 ms |
+| gea-raw | 354 µs | 771 µs | 140 µs | 1.16 ms |
+| node-raw | 1.76 ms | 3.53 ms | 549 µs | 1.63 ms |
+| cpp-drogon | 488 µs | 1.14 ms | 167 µs | 1.05 ms |
+| rust-axum | 436 µs | 614 µs | 237 µs | 748 µs |
+| rust-hyper | 368 µs | 774 µs | 216 µs | 600 µs |
+| cpp-epoll | 286 µs | 615 µs | 120 µs | 1.00 ms |
+
+`GET /`, compiled over Node: hono-gea 5.20× at one worker and 4.65× at four,
+nest-gea 2.00× and 2.08×, gea-raw 4.64× and 3.29×. At four workers nest-gea
+is 0.75× hono-gea and 1.95× bare Node, and gea-raw is 0.88× cpp-epoll and
+1.44× rust-hyper. PSS at four workers is 1/29 (Hono), 1/26 (Nest) and 1/30
+(raw); nest-gea starts in 19-21 ms against nest-node's 801 ms and 1,369 ms.
+
+The three rounds of each four-worker `GET /` cell stay within 2% for
+nest-gea (199.9k-203.5k) and hono-gea (264.2k-271.1k) and within 6% for
+gea-raw (331.0k-349.4k); rust-hyper spreads 16% (212.6k-247.2k), so its
+ratio is the least firm one here.
