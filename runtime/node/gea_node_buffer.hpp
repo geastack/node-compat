@@ -396,7 +396,7 @@ inline gea::Ref<View> bufferFromSize(std::size_t size, std::uint8_t fill) {
 
 inline gea::Ref<View> alloc(double size) { return detail::bufferFromSize(detail::allocationSize(size), std::uint8_t{0}); }
 
-inline gea::Ref<View> alloc(double size, double fill) {
+inline gea::Ref<View> alloc(double size, double fill, const std::string& = "utf8") {
   const std::uint8_t byte = static_cast<std::uint8_t>(static_cast<std::uint64_t>(std::isfinite(fill) ? std::trunc(fill) : 0.0) & 0xffu);
   return detail::bufferFromSize(detail::allocationSize(size), byte);
 }
@@ -418,6 +418,24 @@ inline gea::Ref<View> alloc(double size, const View& fill, const std::string& = 
     for (std::size_t index = 0; index < byteLength; ++index) block->data()[index] = fill.data()[index % fill.size()];
   }
   return detail::bufferFromArrayBuffer(std::move(block), byteLength);
+}
+
+inline gea::Ref<View> alloc(double size, const gea::Ref<View>& fill, const std::string& encoding = "utf8") {
+  return alloc(size, *fill, encoding);
+}
+
+/**
+ * `Buffer.alloc(size, fill)` with `fill` declared `string | number |
+ * Uint8Array`: the argument arrives as that union and each arm forwards to its
+ * overload above.
+ */
+template <typename... Arms, typename... Rest>
+inline gea::Ref<View> alloc(double size, const gea::TaggedUnion<Arms...>& fill, Rest... rest) {
+  gea::Ref<View> result;
+  [&]<std::size_t... Indices>(std::index_sequence<Indices...>) {
+    ((fill.template is<Indices>() ? (result = alloc(size, fill.template get<Indices>(), rest...), 0) : 0), ...);
+  }(std::index_sequence_for<Arms...>{});
+  return result;
 }
 
 /**
