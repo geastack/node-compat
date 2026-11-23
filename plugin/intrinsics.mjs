@@ -332,6 +332,11 @@ export const intrinsics = {
     returnType: 'void',
     decl: 'void __gea_http_serve(double port, const gea_cpp_value& handler);'
   },
+  __gea_http_listen: {
+    emit: '__gea_http_listen',
+    returnType: 'double',
+    decl: 'double __gea_http_listen(double port, const gea_cpp_value& onListening, const gea_cpp_value& handler);'
+  },
   __gea_http_write: {
     emit: '__gea_http_write',
     returnType: 'void',
