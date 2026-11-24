@@ -3686,7 +3686,8 @@ inline void serve(int port, Responder responder) {
   }
   const bool isParent = platform::forkWorkers(workers);  // 1 where the host cannot fork
   EventLoop &loop = clientEventLoop();
-  HttpServer<Responder> server(loop, port, std::move(responder));
+  auto owned = std::make_unique<HttpServer<Responder>>(loop, port, std::move(responder));
+  HttpServer<Responder> &server = *owned;
   if (!server.valid()) {
     std::fprintf(stderr, "gea-node: failed to bind port %d: %s\n", port, platform::errorText(errno));
     return;
@@ -3699,6 +3700,19 @@ inline void serve(int port, Responder responder) {
     if (workers > 1) std::snprintf(line, sizeof(line), "gea-node: listening on http://127.0.0.1:%d (%d workers)\n", port, workers);
     else std::snprintf(line, sizeof(line), "gea-node: listening on http://127.0.0.1:%d\n", port);
     std::fputs(line, stderr);
+  }
+  if (gea::detail::hostCallbackDepth() != 0) {
+    // Reached from inside a host callback -- typically `await start()` at the
+    // top level, where `listen` runs in a microtask the outer wait is
+    // draining. A nested `loop.run()` here would spin forever: the outer
+    // `drain_microtasks` is still on the stack, so the nested drain returns at
+    // once while the queue stays non-empty and the reactor never blocks. Hand
+    // the listener to the loop instead and return; the outer wait finishes,
+    // and the pending-work pump after the program's entry serves it.
+    HttpServer<Responder> *raw = owned.get();
+    loop.adopt(std::move(owned));
+    listenerCloser() = [&loop, raw]() { loop.close(raw); };
+    return;
   }
   loop.addBorrowed(&server);
   listenerCloser() = [&loop, &server]() { loop.close(&server); };

@@ -20,10 +20,6 @@
     "build:work": "npm run build:assets:work && npm run build:node:work",
     "node": "node scripts/run-with-work-env.mjs npm run node:work",
     "node:work": "npm run build:work && node dist-node/server.js",
-    "build:native:hono": "node scripts/run-with-work-env.mjs npm run build:native:hono:work",
-    "build:native:hono:work": "npm run build:assets:work && node ../../scripts/build.mjs server.ts --globals --out dist --exe dist/hono",
-    "native:hono": "node scripts/run-with-work-env.mjs npm run native:hono:work",
-    "native:hono:work": "npm run build:native:hono:work && ./dist/hono",
     "build:native:hono-mongodb": "node scripts/run-with-work-env.mjs npm run build:native:hono-mongodb:work",
     "build:native:hono-mongodb:work": "npm run build:assets:work && node ../../scripts/build.mjs server.ts --source-project node_modules/mongodb/tsconfig.json --out dist --exe dist/hono-mongodb",
     "native:hono-mongodb": "node scripts/run-with-work-env.mjs npm run native:hono-mongodb:work",
@@ -39,7 +35,6 @@
     "benchmark:stress": "node scripts/run-with-work-env.mjs node benchmarks/stress.mjs",
     "benchmark:http": "node scripts/run-with-work-env.mjs node benchmarks/http-stress.mjs",
     "benchmark:flex": "node scripts/run-with-work-env.mjs node benchmarks/flex.mjs",
-    "native-Hono": "npm run native:hono",
     "native-Hono+Mongo": "npm run native:hono-mongodb"
   },
   "dependencies": {
@@ -54,6 +49,7 @@
     "kerberos": "7.0.0",
     "mongodb-client-encryption": "7.0.0",
     "playwright-core": "1.61.1",
+    "tsx": "4.23.15",
     "typescript": "6.0.3",
     "vite": "8.1.0"
   }

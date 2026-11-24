@@ -67,16 +67,8 @@ declare global {
     interface ProcessBuiltinModules {
       readonly diagnostics_channel: typeof import('./diagnostics_channel.js')
       readonly 'node:diagnostics_channel': typeof import('./diagnostics_channel.js')
-      readonly v8?: {
-        readonly startupSnapshot?: {
-          isBuildingSnapshot?(): boolean
-          // Retains the callback for a later run; writes no property. This target
-          // links no `v8` module, so `getBuiltinModule('v8')` answers undefined.
-          /** @gea-host-no-property-writes */
-          addDeserializeCallback?(callback: () => void): void
-        }
-      }
-      readonly 'node:v8'?: ProcessBuiltinModules['v8']
+      readonly v8: typeof import('./v8.js')
+      readonly 'node:v8': typeof import('./v8.js')
     }
 
     /**

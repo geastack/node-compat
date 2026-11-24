@@ -1803,9 +1803,11 @@ type BodyInit =
 
 // Web Crypto, the part node's global `crypto` object carries that libraries
 // this target compiles actually call: `subtle.digest`, raw HMAC keys through
-// `importKey`/`sign`/`verify`, and `getRandomValues`. A database driver's
-// AWS SigV4 authentication is digest + HMAC-SHA256; an HTTP framework signs
-// cookies with the same pair. Every operation runs on the
+// `importKey`/`sign`/`verify`, raw PBKDF2 keys through `importKey`/
+// `deriveBits`, and `getRandomValues`. A database driver's AWS SigV4
+// authentication is digest + HMAC-SHA256, and its SCRAM authentication adds
+// PBKDF2 for the salted password; an HTTP framework signs cookies with the
+// digest + HMAC pair. Every operation runs on the
 // node-compat crypto runtime `node:crypto` already uses (OpenSSL), through
 // the same host functions, so there is one digest and one HMAC in the
 // program. An algorithm outside that set rejects with node's own
@@ -1816,6 +1818,8 @@ declare function __gea_node_crypto_validate(algorithm: string): void;
 declare function __gea_node_crypto_digest(algorithm: string, input: Buffer): Buffer;
 /** @gea-host-inert */
 declare function __gea_node_crypto_hmac(algorithm: string, key: Buffer, input: Buffer): Buffer;
+/** @gea-host-inert */
+declare function __gea_node_crypto_pbkdf2(password: Buffer, salt: Buffer, iterations: number, keyLength: number, digest: string): Buffer;
 /** @gea-host-inert */
 declare function __gea_node_crypto_timing_safe_equal(left: Uint8Array, right: Uint8Array): boolean;
 /** @gea-host-inert */
@@ -1830,6 +1834,16 @@ function webCryptoAlgorithmName(algorithm: WebCryptoAlgorithmIdentifier): string
 
 function webCryptoUnsupported(message: string): DOMException {
   return new DOMException(message, "NotSupportedError");
+}
+
+function webCryptoInvalidAccess(message: string): DOMException {
+  return new DOMException(message, "InvalidAccessError");
+}
+
+// Node checks a key's usage and its algorithm before it touches the data.
+function webCryptoRequireKey(key: CryptoKey, algorithm: string, usage: string): void {
+  if (!key.usages.includes(usage)) throw webCryptoInvalidAccess(`baseKey does not have ${usage} usage`);
+  if (key.algorithm.name !== algorithm) throw webCryptoInvalidAccess("Key algorithm mismatch");
 }
 
 // Web Crypto's digest names to OpenSSL's.
@@ -1874,17 +1888,26 @@ function webCryptoArrayBuffer(bytes: Buffer): ArrayBuffer {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
+// The PBKDF2 parameters `deriveBits` takes (Web Crypto's `Pbkdf2Params`).
+interface WebCryptoPbkdf2Params {
+  name: string;
+  salt: WebCryptoBufferSource;
+  iterations: number;
+  hash: WebCryptoHashIdentifier;
+}
+
 class CryptoKey {
-  readonly algorithm: { name: string; hash: { name: string } };
+  // An HMAC key names its hash; a PBKDF2 key is `{ name: "PBKDF2" }` alone.
+  readonly algorithm: { name: string; hash?: { name: string } };
   readonly extractable: boolean;
   readonly type: string;
   readonly usages: string[];
-  // The raw key bytes and their OpenSSL digest name, private to this runtime.
+  // The raw key bytes and, for HMAC, their OpenSSL digest name, private to this runtime.
   readonly secret_: Buffer;
   readonly digest_: string;
 
-  constructor(hashName: string, digest: string, secret: Buffer, extractable: boolean, usages: string[]) {
-    this.algorithm = { name: "HMAC", hash: { name: hashName } };
+  constructor(name: string, hashName: string | null, digest: string, secret: Buffer, extractable: boolean, usages: string[]) {
+    this.algorithm = hashName === null ? { name } : { name, hash: { name: hashName } };
     this.extractable = extractable;
     this.type = "secret";
     this.usages = usages;
@@ -1910,19 +1933,28 @@ class SubtleCrypto {
   ): Promise<CryptoKey> {
     return new Promise<CryptoKey>((resolve) => {
       if (format !== "raw") throw webCryptoUnsupported(`Unsupported key format: ${format}`);
+      if (webCryptoAlgorithmName(algorithm) === "PBKDF2") {
+        if (extractable) throw new DOMException("PBKDF2 keys are not extractable", "SyntaxError");
+        for (const usage of keyUsages)
+          if (usage !== "deriveBits" && usage !== "deriveKey")
+            throw new DOMException("Unsupported key usage for a PBKDF2 key", "SyntaxError");
+        resolve(new CryptoKey("PBKDF2", null, "", Buffer.from(webCryptoBytes(keyData)), false, keyUsages.slice()));
+        return;
+      }
       if (typeof algorithm === "string" || webCryptoAlgorithmName(algorithm) !== "HMAC" || algorithm.hash === undefined)
-        throw webCryptoUnsupported("Only raw HMAC keys are supported");
+        throw webCryptoUnsupported("Only raw HMAC and PBKDF2 keys are supported");
       const hash = algorithm.hash;
       const hashName = (typeof hash === "string" ? hash : hash.name).toUpperCase();
       const digest = webCryptoDigestName(hashName);
       __gea_node_crypto_validate(digest);
-      resolve(new CryptoKey(hashName, digest, Buffer.from(webCryptoBytes(keyData)), extractable, keyUsages.slice()));
+      resolve(new CryptoKey("HMAC", hashName, digest, Buffer.from(webCryptoBytes(keyData)), extractable, keyUsages.slice()));
     });
   }
 
   sign(algorithm: WebCryptoAlgorithmIdentifier, key: CryptoKey, data: WebCryptoBufferSource): Promise<ArrayBuffer> {
     return new Promise<ArrayBuffer>((resolve) => {
       if (webCryptoAlgorithmName(algorithm) !== "HMAC") throw webCryptoUnsupported("Only HMAC signing is supported");
+      webCryptoRequireKey(key, "HMAC", "sign");
       resolve(webCryptoArrayBuffer(__gea_node_crypto_hmac(key.digest_, key.secret_, webCryptoBytes(data))));
     });
   }
@@ -1935,9 +1967,31 @@ class SubtleCrypto {
   ): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       if (webCryptoAlgorithmName(algorithm) !== "HMAC") throw webCryptoUnsupported("Only HMAC verification is supported");
+      webCryptoRequireKey(key, "HMAC", "verify");
       const expected = __gea_node_crypto_hmac(key.digest_, key.secret_, webCryptoBytes(data));
       const actual = webCryptoBytes(signature);
       resolve(expected.length === actual.length && __gea_node_crypto_timing_safe_equal(expected, actual));
+    });
+  }
+
+  // PBKDF2 only: every other derivation (HKDF, ECDH, X25519, ...) rejects
+  // with NotSupportedError naming it rather than deriving anything.
+  deriveBits(algorithm: WebCryptoPbkdf2Params, baseKey: CryptoKey, length: number | null): Promise<ArrayBuffer> {
+    return new Promise<ArrayBuffer>((resolve) => {
+      const name = webCryptoAlgorithmName(algorithm);
+      if (name !== "PBKDF2") throw webCryptoUnsupported(`deriveBits: ${name} is not supported by this runtime`);
+      const digest = webCryptoDigestName(algorithm.hash);
+      webCryptoRequireKey(baseKey, "PBKDF2", "deriveBits");
+      if (length === null) throw new DOMException("length cannot be null", "OperationError");
+      if (length % 8 !== 0) throw new DOMException("length must be a multiple of 8", "OperationError");
+      if (algorithm.iterations === 0) throw new DOMException("iterations cannot be zero", "OperationError");
+      const salt = webCryptoBytes(algorithm.salt);
+      // Web Crypto derives zero bits as an empty buffer; the native PBKDF2 refuses a zero length.
+      if (length === 0) {
+        resolve(new ArrayBuffer(0));
+        return;
+      }
+      resolve(webCryptoArrayBuffer(__gea_node_crypto_pbkdf2(baseKey.secret_, salt, algorithm.iterations, length / 8, digest)));
     });
   }
 }

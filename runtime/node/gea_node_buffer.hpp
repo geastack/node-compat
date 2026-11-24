@@ -555,6 +555,12 @@ inline double byteLength(const View& view) { return static_cast<double>(view.siz
 
 inline double byteLength(const gea::Ref<gea::ArrayBuffer>& block) { return static_cast<double>(block ? block->size() : 0); }
 
+// Node accepts an encoding beside any input and consults it only for a
+// string, so a union-typed caller passes it through for every arm.
+inline double byteLength(const View& view, const std::string&) { return byteLength(view); }
+
+inline double byteLength(const gea::Ref<gea::ArrayBuffer>& block, const std::string&) { return byteLength(block); }
+
 /**
  * `Buffer.isBuffer(value)`.
  *

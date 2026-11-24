@@ -303,7 +303,12 @@ const nodeOnlyHostFunctions = new Map([
   ['__gea_node_brotli_stream_pending', 'gea::node::brotli::streamPending'],
   ['__gea_node_brotli_stream_leftover', 'gea::node::brotli::streamLeftover'],
   ['__gea_node_brotli_stream_finish', 'gea::node::brotli::streamFinish'],
-  ['__gea_node_brotli_stream_close', 'gea::node::brotli::streamClose']
+  ['__gea_node_brotli_stream_close', 'gea::node::brotli::streamClose'],
+  ['__gea_node_zstd_compressor_open', 'gea::node::zstd::compressorOpen'],
+  ['__gea_node_zstd_compressor_set', 'gea::node::zstd::compressorSet'],
+  ['__gea_node_zstd_compress', 'gea::node::zstd::compress'],
+  ['__gea_node_zstd_compressor_close', 'gea::node::zstd::compressorClose'],
+  ['__gea_node_zstd_decompress', 'gea::node::zstd::decompress']
 ])
 
 /**
@@ -459,7 +464,9 @@ const hostPreambles = () =>
           ? [runtimeHeader, '#include "gea_node_zlib.hpp"']
           : spelling.startsWith('gea::node::brotli::')
             ? [runtimeHeader, '#include "gea_node_brotli.hpp"']
-            : [runtimeHeader]
+            : spelling.startsWith('gea::node::zstd::')
+              ? [runtimeHeader, '#include "gea_node_zstd.hpp"']
+              : [runtimeHeader]
     ])
   )
 

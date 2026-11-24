@@ -10,10 +10,35 @@
 import { Buffer } from './buffer'
 import { Transform, type DestroyCallback, type TransformCallback } from './stream'
 
-// The driver always supplies Buffer here. Keeping the alias exact to that
-// source use prevents the Buffer | Uint8Array API union from degrading the
-// wire payload to gea_cpp_value.
-export type InputType = Buffer
+// Node's `InputType`: a string (encoded as UTF-8), an ArrayBuffer, or any
+// ArrayBufferView. The views are spelled as the carriers they can be, as Web
+// Crypto's `BufferSource` is in globals.ts, so each arm is the native typed
+// array itself -- a database driver's wire compression hands its
+// `Uint8Array` message straight through -- and a Buffer arrives as the
+// Uint8Array it is. Every codec reads the bytes the view covers, never the
+// whole backing store.
+export type InputType =
+  | string
+  | ArrayBuffer
+  | DataView
+  | Uint8Array
+  | Uint8ClampedArray
+  | Int8Array
+  | Uint16Array
+  | Int16Array
+  | Uint32Array
+  | Int32Array
+  | Float32Array
+  | Float64Array
+  | BigInt64Array
+  | BigUint64Array
+
+const bytesOf = (input: InputType): Buffer =>
+  typeof input === 'string'
+    ? Buffer.from(input, 'utf8')
+    : ArrayBuffer.isView(input)
+      ? Buffer.from(input.buffer, input.byteOffset, input.byteLength)
+      : Buffer.from(input)
 
 export interface ZlibOptions {
   level?: number
@@ -55,6 +80,16 @@ declare function __gea_node_brotli_stream_leftover(handle: number): boolean
 declare function __gea_node_brotli_stream_finish(handle: number): void
 /** @gea-host-inert */
 declare function __gea_node_brotli_stream_close(handle: number): void
+/** @gea-host-inert */
+declare function __gea_node_zstd_compressor_open(): number
+/** @gea-host-inert */
+declare function __gea_node_zstd_compressor_set(handle: number, key: number, value: number): void
+/** @gea-host-inert */
+declare function __gea_node_zstd_compress(handle: number, input: Buffer): Buffer
+/** @gea-host-inert */
+declare function __gea_node_zstd_compressor_close(handle: number): void
+/** @gea-host-inert */
+declare function __gea_node_zstd_decompress(input: Buffer): Buffer
 
 // zlib's `windowBits` for each of node's framings.
 const ZLIB = 15
@@ -62,41 +97,78 @@ const GZIP = 31
 const RAW = -15
 const DETECT = 47
 
+// The zstd entries are libzstd's own enum values, which node re-exports
+// unchanged (read from node 24's `zlib.constants`).
 export const constants = {
   Z_NO_COMPRESSION: 0,
   Z_BEST_SPEED: 1,
   Z_BEST_COMPRESSION: 9,
-  Z_DEFAULT_COMPRESSION: -1
+  Z_DEFAULT_COMPRESSION: -1,
+  ZSTD_COMPRESS: 10,
+  ZSTD_DECOMPRESS: 11,
+  ZSTD_e_continue: 0,
+  ZSTD_e_flush: 1,
+  ZSTD_e_end: 2,
+  ZSTD_fast: 1,
+  ZSTD_dfast: 2,
+  ZSTD_greedy: 3,
+  ZSTD_lazy: 4,
+  ZSTD_lazy2: 5,
+  ZSTD_btlazy2: 6,
+  ZSTD_btopt: 7,
+  ZSTD_btultra: 8,
+  ZSTD_btultra2: 9,
+  ZSTD_c_compressionLevel: 100,
+  ZSTD_c_windowLog: 101,
+  ZSTD_c_hashLog: 102,
+  ZSTD_c_chainLog: 103,
+  ZSTD_c_searchLog: 104,
+  ZSTD_c_minMatch: 105,
+  ZSTD_c_targetLength: 106,
+  ZSTD_c_strategy: 107,
+  ZSTD_c_enableLongDistanceMatching: 160,
+  ZSTD_c_ldmHashLog: 161,
+  ZSTD_c_ldmMinMatch: 162,
+  ZSTD_c_ldmBucketSizeLog: 163,
+  ZSTD_c_ldmHashRateLog: 164,
+  ZSTD_c_contentSizeFlag: 200,
+  ZSTD_c_checksumFlag: 201,
+  ZSTD_c_dictIDFlag: 202,
+  ZSTD_c_nbWorkers: 400,
+  ZSTD_c_jobSize: 401,
+  ZSTD_c_overlapLog: 402,
+  ZSTD_d_windowLogMax: 100,
+  ZSTD_CLEVEL_DEFAULT: 3
 }
 
 const levelOf = (options: ZlibOptions | undefined): number => options?.level ?? constants.Z_DEFAULT_COMPRESSION
 
 export function inflateSync(input: InputType): Buffer {
-  return __gea_node_zlib_inflate(input, ZLIB)
+  return __gea_node_zlib_inflate(bytesOf(input), ZLIB)
 }
 
 export function deflateSync(input: InputType, options?: ZlibOptions): Buffer {
-  return __gea_node_zlib_deflate(input, ZLIB, levelOf(options))
+  return __gea_node_zlib_deflate(bytesOf(input), ZLIB, levelOf(options))
 }
 
 export function gunzipSync(input: InputType): Buffer {
-  return __gea_node_zlib_inflate(input, GZIP)
+  return __gea_node_zlib_inflate(bytesOf(input), GZIP)
 }
 
 export function gzipSync(input: InputType, options?: ZlibOptions): Buffer {
-  return __gea_node_zlib_deflate(input, GZIP, levelOf(options))
+  return __gea_node_zlib_deflate(bytesOf(input), GZIP, levelOf(options))
 }
 
 export function inflateRawSync(input: InputType): Buffer {
-  return __gea_node_zlib_inflate(input, RAW)
+  return __gea_node_zlib_inflate(bytesOf(input), RAW)
 }
 
 export function deflateRawSync(input: InputType, options?: ZlibOptions): Buffer {
-  return __gea_node_zlib_deflate(input, RAW, levelOf(options))
+  return __gea_node_zlib_deflate(bytesOf(input), RAW, levelOf(options))
 }
 
 export function unzipSync(input: InputType): Buffer {
-  return __gea_node_zlib_inflate(input, DETECT)
+  return __gea_node_zlib_inflate(bytesOf(input), DETECT)
 }
 
 /** Run a codec now and report on a later turn: node never calls a zlib callback synchronously. */
@@ -129,11 +201,49 @@ export function gzip(input: InputType, options: ZlibOptions, callback: ZlibCallb
 }
 
 export function brotliDecompressSync(input: InputType): Buffer {
-  return __gea_node_brotli_decompress(input)
+  return __gea_node_brotli_decompress(bytesOf(input))
 }
 
 export function brotliDecompress(input: InputType, callback: ZlibCallback): void {
   settle(callback, () => brotliDecompressSync(input))
+}
+
+// Node's `ZstdOptions`, the part a one-shot codec reads: `params` maps
+// `constants.ZSTD_c_*` to a number, or to a boolean for the flag parameters
+// (libzstd reads a flag as 1 or 0).
+export interface ZstdOptions {
+  params?: { [key: number]: number | boolean }
+}
+
+// The parameters reach the encoder before this returns, as node applies them
+// in the codec's constructor: a parameter libzstd rejects throws here, not
+// through the callback. Reading `params` only now also keeps the caller's
+// dictionary out of the deferred work.
+export function zstdCompress(input: InputType, options: ZstdOptions, callback: ZlibCallback): void {
+  const handle = __gea_node_zstd_compressor_open()
+  try {
+    const params = options.params
+    if (params !== undefined) {
+      for (const key of Object.keys(params)) {
+        const value = params[Number(key)]
+        __gea_node_zstd_compressor_set(handle, Number(key), typeof value === 'number' ? value : value ? 1 : 0)
+      }
+    }
+  } catch (error) {
+    __gea_node_zstd_compressor_close(handle)
+    throw error
+  }
+  settle(callback, () => {
+    try {
+      return __gea_node_zstd_compress(handle, bytesOf(input))
+    } finally {
+      __gea_node_zstd_compressor_close(handle)
+    }
+  })
+}
+
+export function zstdDecompress(input: InputType, callback: ZlibCallback): void {
+  settle(callback, () => __gea_node_zstd_decompress(bytesOf(input)))
 }
 
 const MODE_INFLATE = 0

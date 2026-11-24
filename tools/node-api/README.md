@@ -16,6 +16,22 @@ npm run check:pilot
 npm run check:tcp
 ```
 
+The native checks build an app under `apps/` with `scripts/build.mjs`, so they
+need the compiler and a C++ compiler as described in the repository README.
+The remaining native checks each build one probe app, run it, and check its
+output:
+
+| Script                    | App                          | Covers                                                                                           |
+| ------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| `check:events`            | `apps/events-overlays`       | `node:events` listener lifecycle, inspection, max-listener helpers, `once`                       |
+| `check:events-advanced`   | `apps/events-advanced`       | `node:events` symbols, abort listener, async resource, rejection capture, async iterator         |
+| `check:stream`            | `apps/stream-overlays`       | `node:stream` readable/writable state, pipeline, completion, duplex, corking, functional helpers |
+| `check:stream-adapters`   | `apps/stream-adapters`       | `node:stream` async iteration, disposal, Web Stream adapters                                     |
+| `check:stream-submodules` | `apps/stream-submodules`     | `node:stream/promises` and `node:stream/consumers`                                               |
+| `check:stream-web`        | `apps/stream-web`            | `node:stream/web` readers, writers, transforms, codecs, queuing strategies                       |
+| `check:net-overloads`     | `apps/net-connect-overloads` | `net.connect` overloads                                                                          |
+| `check:net-server`        | `apps/net-server-overloads`  | `net` server overloads                                                                           |
+
 `check:pilot` compiles and executes `apps/net-stub-pilot`. It verifies that
 direct, aliased, namespace, constructor, static method, instance method, and
 property uses of implemented `node:net` members run natively, and that reading
@@ -41,8 +57,10 @@ stability, lifecycle, source, and structured platform-mention evidence. The
 normal `check` validates that all 57 declaration modules map to an official
 documentation source.
 
-The inventory describes what the runtime implements, not what an application
-uses. The generated compatibility ledger
-joins it with registered implementation overlays, rejects unknown public
+The inventory describes the declared `@types/node` surface, not what the
+runtime implements or what an application uses. Implementation is recorded by
+the generated compatibility ledger,
+`runtime/node/generated/node24-compatibility.json`, which joins the inventory
+with registered implementation overlays, rejects unknown public
 registrations, records supported overlay signatures, and classifies every
 runtime export and member as conformant, partial, stubbed, or plugin-owned.

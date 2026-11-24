@@ -22,11 +22,28 @@ The write concern variants are explicit `w=1,journal=false` and
 and case order rotates between rounds. The MongoDB server is shared and remains
 warm between samples.
 
-On the configured Ubuntu benchmark server, from the `node-compat` directory:
+`run-remote.sh` runs everything on the machine it is invoked on; it does not
+connect to another host. It was written for a Linux benchmark server and needs:
+
+- a MongoDB server reachable at `MONGODB_URI` (default
+  `mongodb://127.0.0.1:27017/`) and `mongosh` on `PATH`; `mongod` on `PATH` for
+  the version metadata
+- Node.js and npm (the Node driver is installed with `npm ci` from this
+  directory's lockfile)
+- Rust with Cargo at `$HOME/.cargo/bin/cargo`
+- `g++` with C++20, `pkg-config`, and mongo-cxx-driver installed under
+  `MONGOCXX_PREFIX` (default `$HOME/mongodb-drivers/install`, found through
+  `libmongocxx1.pc`)
+- `taskset` (util-linux) and `lscpu` for CPU pinning and metadata
+
+From the `node-compat` directory:
 
 ```sh
 ROUNDS=5 bench/mongodb/run-remote.sh
 ```
+
+Build caches and the Node install go under `bench/.work/mongodb-write`
+(`WORK_ROOT`).
 
 Useful overrides are `INSERT_ONE_DOCUMENTS`, `INSERT_MANY_DOCUMENTS`,
 `BATCH_SIZE`, `CLIENT_CPU`, `MONGODB_URI`, `MONGOCXX_PREFIX`, and `RESULT_DIR`.

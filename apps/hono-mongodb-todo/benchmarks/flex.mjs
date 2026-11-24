@@ -48,9 +48,8 @@ if (!skipBuild) {
     [
       path.join(nodeCompatRoot, "scripts/build.mjs"),
       path.join(benchmarkRoot, "flex-native.ts"),
-      "--from-source=mongodb,bson,mongodb-connection-string-url",
       "--source-project",
-      path.join(nodeCompatRoot, "vendored-sources/mongodb/tsconfig.json"),
+      path.join(appRoot, "node_modules/mongodb/tsconfig.json"),
       "--globals",
       "--out",
       distRoot,

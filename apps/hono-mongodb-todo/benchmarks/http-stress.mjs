@@ -3,10 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { mongodbVersion, resultRootFor, wrkVersion } from "./platform.mjs";
 
 const benchmarkRoot = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(benchmarkRoot, "..");
-const resultRoot = path.join(benchmarkRoot, "results");
+const resultRoot = resultRootFor(benchmarkRoot);
 const nativeFlag = process.argv.find((value) => value.startsWith("--native="));
 const nativeExecutable = nativeFlag
   ? path.resolve(nativeFlag.slice("--native=".length))
@@ -96,7 +97,9 @@ const cpuMicroseconds = (pid) => {
   return seconds * 1_000_000;
 };
 
+// macOS `leaks` only; elsewhere the retained-heap snapshot is reported as absent.
 const liveHeap = (pid) => {
+  if (process.platform !== "darwin") return null;
   const output = execFileSync("leaks", [String(pid)], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -322,7 +325,7 @@ try {
       );
     }
     heapSnapshots[runtime.name] = liveHeap(server.child.pid);
-    console.log(
+    if (heapSnapshots[runtime.name] !== null) console.log(
       `${runtime.name}: ${heapSnapshots[runtime.name].liveAllocationCount.toLocaleString("en-US")} live allocations, ${(heapSnapshots[runtime.name].liveAllocationBytes / 1024 / 1024).toFixed(1)} MiB live heap`,
     );
   }
@@ -414,15 +417,8 @@ try {
     timestamp: new Date().toISOString(),
     host: `${os.cpus()[0]?.model ?? "unknown CPU"} (${os.cpus().length} logical cores)`,
     platform: `${os.platform()} ${os.release()} ${os.arch()}`,
-    mongodb: execFileSync("mongosh", ["--quiet", "--eval", "db.version()"], {
-      encoding: "utf8",
-    })
-      .trim()
-      .split(/\r?\n/)
-      .at(-1),
-    wrk: execFileSync("brew", ["list", "--versions", "wrk"], {
-      encoding: "utf8",
-    }).trim(),
+    mongodb: mongodbVersion(),
+    wrk: wrkVersion(),
     durationSeconds,
     rounds,
     measuredRequests: samples.reduce(
@@ -521,7 +517,9 @@ try {
     }),
     "",
     `Idle server RSS: Gea ${mib(servers.get("gea-native").idleRssBytes)} MiB; Node ${mib(servers.get("nodejs-official").idleRssBytes)} MiB. MongoDB server memory is excluded.`,
-    `Post-stress live heap: Gea ${heapSnapshots["gea-native"].liveAllocationCount.toLocaleString("en-US")} allocations / ${mib(heapSnapshots["gea-native"].liveAllocationBytes)} MiB; Node ${heapSnapshots["nodejs-official"].liveAllocationCount.toLocaleString("en-US")} allocations / ${mib(heapSnapshots["nodejs-official"].liveAllocationBytes)} MiB. These are retained allocations reported by macOS \`leaks\`, not cumulative allocation calls.`,
+    heapSnapshots["gea-native"] === null
+      ? "Post-stress live heap: not measured (macOS `leaks` only)."
+      : `Post-stress live heap: Gea ${heapSnapshots["gea-native"].liveAllocationCount.toLocaleString("en-US")} allocations / ${mib(heapSnapshots["gea-native"].liveAllocationBytes)} MiB; Node ${heapSnapshots["nodejs-official"].liveAllocationCount.toLocaleString("en-US")} allocations / ${mib(heapSnapshots["nodejs-official"].liveAllocationBytes)} MiB. These are retained allocations reported by macOS \`leaks\`, not cumulative allocation calls.`,
     "",
     "Raw per-round throughput, latency, CPU, request counts, errors, and sampled RSS are in `http-stress-latest.json`.",
   ];
