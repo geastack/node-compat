@@ -12,7 +12,7 @@
 //
 // Usage: node scripts/build.mjs <entry.ts> [--out <dir>] [--exe <path>]
 //                                  [--debug] [--emit-only] [--globals] [--verbose]
-//                                  [--source-project <tsconfig>]
+//                                  [--source-project <tsconfig>] [--host-plugin <file>] [--entry-name <identifier>]
 //                                  [--dynamic-fallback] [--javascript-sources]
 //                                  [--translation-units single|per-file]
 //                                  [--report <file.json>] [--paths <file.json>]
@@ -46,7 +46,7 @@ import path from 'node:path'
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import os from 'node:os'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { geatscNodePlugin } from '../plugin/index.mjs'
 import { resolveBuiltinModules, runtimeRootsForReachableGlobalNeeds } from './builtin-modules.mjs'
@@ -94,7 +94,7 @@ function arg(name, fallback) {
 const entryArg = process.argv[2]
 if (!entryArg || entryArg.startsWith('--')) {
   console.error(
-    'usage: node scripts/build.mjs <entry.ts> [--out <dir>] [--exe <path>] [--debug] [--emit-only] [--globals] [--verbose] [--source-project <tsconfig>] [--dynamic-fallback] [--javascript-sources] [--translation-units single|per-file] [--report <file.json>] [--link-only]'
+    'usage: node scripts/build.mjs <entry.ts> [--out <dir>] [--exe <path>] [--debug] [--emit-only] [--globals] [--verbose] [--source-project <tsconfig>] [--host-plugin <file>] [--entry-name <identifier>] [--dynamic-fallback] [--javascript-sources] [--translation-units single|per-file] [--report <file.json>] [--link-only]'
   )
   process.exit(1)
 }
@@ -107,6 +107,11 @@ const bolt = process.argv.includes('--bolt')
 // `--emit-relocs`, which --bolt needs; lld links it.
 if (bolt && process.platform === 'linux' && !process.env.GEA_LD) process.env.GEA_LD = 'lld'
 const emitOnly = process.argv.includes('--emit-only')
+const entryName = arg('--entry-name', 'main')
+if (!/^[A-Za-z_][A-Za-z_0-9]*$/.test(entryName) || (entryName !== 'main' && !emitOnly)) {
+  throw new Error('--entry-name requires a C++ identifier and --emit-only')
+}
+const topLevelEntry = entryName === 'main' ? '__gea_top_level' : `${entryName}_top_level`
 // `--link-only`: skip the TypeScript compile and emission, and compile + link
 // the units an earlier `--emit-only` (or full) build already wrote to `--out`.
 // The unit list is that build's report (`generatedFiles`), so a C++ flag or
@@ -593,6 +598,10 @@ const ownerLocation = (owner) => {
 
 const compileStarted = process.hrtime.bigint()
 const requestedJavaScriptSources = process.argv.includes('--javascript-sources')
+const hostPlugin = arg('--host-plugin')
+const plugins = [geatscNodePlugin()]
+if (hostPlugin) plugins.push((await import(pathToFileURL(path.resolve(hostPlugin)).href)).default)
+
 const compileSources = (sources, javaScriptSources) =>
   compile({
     // `entry` alone is the application's real module graph, but this
@@ -612,7 +621,7 @@ const compileSources = (sources, javaScriptSources) =>
     dynamicFallback,
     javaScriptSources,
     projectFileName: projectFile,
-    plugins: [geatscNodePlugin()],
+    plugins,
     // `entry` plus its resolved dependency graph (npm packages included via
     // `packageSources`) IS the whole application -- the same
     // `compile-module-graph` shape `cli-emit.ts`'s `runModuleGraph` states for
@@ -629,7 +638,7 @@ const compileSources = (sources, javaScriptSources) =>
     // The unit is linked against this target's own `main`, which calls it. The
     // default (`__gea_top_level`) is the gea engine's entry name and means the
     // same thing here: run the program's module bodies once.
-    entrySymbol: '__gea_top_level',
+    entrySymbol: topLevelEntry,
     translationUnits,
     unitBaseName
   })
@@ -834,8 +843,8 @@ if (result.units.length === 0) {
 // source's own directory before every `-I` path, allowing a runtime header
 // copied there by an older build to shadow the current host ABI.
 const entrySource = `#include <gea_node.hpp>
-int main(int argc, char **argv) {
-return gea::node::run_compiled_program(argc, argv, __gea_top_level);
+int ${entryName}(int argc, char **argv) {
+return gea::node::run_compiled_program(argc, argv, ${topLevelEntry});
 }`
 const emittedUnits = result.units.map((unit) => ({
   ...unit,

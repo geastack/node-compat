@@ -92,6 +92,11 @@ node apps/http-parity/driver.mjs apps/http-parity/dist/server apps/http-parity/s
 
 ### Build behaviour
 
+Use `--emit-only --entry-name <identifier>` to generate a callable C++
+entry point for an existing native executable. Use `--host-plugin <file>`
+to add host functions during compilation. On the generated C++ unit, define
+`GEA_NODE_USE_SYSTEM_ALLOCATOR=1` when the host owns the process allocator.
+
 A library is compiled from its typed `.ts` source automatically, with no flag.
 The compiler acquires the source for the exact installed version and caches it
 under `node_modules/.cache/geatsc/sources`, restoring the generics `tsc`
