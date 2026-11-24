@@ -3676,8 +3676,8 @@ inline std::string makeResponse(const char *contentType, const std::string &body
 // nothing is shared afterwards, so the runtime's single-thread assumptions
 // (pool allocator free lists, microtask queue, boxed values) hold per
 // process exactly as they do today. The parent serves as worker 0.
-template <typename Responder>
-inline void serve(int port, Responder responder) {
+template <typename Responder, typename OnListening>
+inline int serve(int port, Responder responder, OnListening onListening) {
   platform::ensureSockets();
   int workers = 1;
   if (const char *env = std::getenv("GEA_WORKERS")) {
@@ -3687,10 +3687,7 @@ inline void serve(int port, Responder responder) {
   const bool isParent = platform::forkWorkers(workers);  // 1 where the host cannot fork
   EventLoop &loop = clientEventLoop();
   HttpServer<Responder> server(loop, port, std::move(responder));
-  if (!server.valid()) {
-    std::fprintf(stderr, "gea-node: failed to bind port %d: %s\n", port, platform::errorText(errno));
-    return;
-  }
+  if (!server.valid()) return errno == 0 ? EADDRNOTAVAIL : errno;
   if (isParent) {
     // Formatted first and written once: an unbuffered stream would otherwise
     // reach the file in pieces, interleaved with every other process writing
@@ -3702,8 +3699,16 @@ inline void serve(int port, Responder responder) {
   }
   loop.addBorrowed(&server);
   listenerCloser() = [&loop, &server]() { loop.close(&server); };
+  onListening();
   loop.run();
   listenerCloser() = nullptr;
+  return 0;
+}
+
+template <typename Responder>
+inline void serve(int port, Responder responder) {
+  const int error = serve(port, std::move(responder), [] {});
+  if (error != 0) std::fprintf(stderr, "gea-node: failed to bind port %d: %s\n", port, platform::errorText(error));
 }
 
 // OS byte operations use one native byte vector internally. Each compiler's
@@ -3997,6 +4002,16 @@ inline void __gea_serve_hello(double port) {
 template <typename OnRequest>
 inline void __gea_http_serve(double port, OnRequest &&onRequest) {
   gea::node::serve(static_cast<int>(port), std::forward<OnRequest>(onRequest));
+}
+
+// `__gea_http_serve` for `http.Server.listen`: `onListening` runs once the
+// socket is bound, and the result is the bind failure in libuv's numbering
+// (0 once a bound server's loop has drained), which TypeScript emits as the
+// server's 'error'.
+template <typename OnListening, typename OnRequest>
+inline double __gea_http_listen(double port, OnListening &&onListening, OnRequest &&onRequest) {
+  const int error = gea::node::serve(static_cast<int>(port), std::forward<OnRequest>(onRequest), std::forward<OnListening>(onListening));
+  return static_cast<double>(error == 0 ? 0 : gea::node::platform::uvErrorNumber(error));
 }
 
 // There is no `gea_cpp_value` fallback: the dispatch arrow is emitted as a

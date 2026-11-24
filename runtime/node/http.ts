@@ -35,17 +35,18 @@ import { DestroyCallback, Duplex, Readable, StreamCallback, Writable } from './s
 import { Socket as NetSocket } from './net'
 import type { URL as WhatwgURL } from './whatwg-url'
 
-// The narrower contract (see `net.ts` for the argument). `serve` stores the
-// dispatch handler; `done` reaches `responseComplete` -> `processInput`, which
+// The narrower contract (see `net.ts` for the argument). `listen` stores the
+// dispatch handler and runs `onListening` once bound; `done` reaches `responseComplete` -> `processInput`, which
 // runs the program's own handler for the next pipelined request; `destroy` and
 // `stop` tear C++ state down. Running program code is permitted here and
 // forbidden by `@gea-host-inert`, which is why these four carry this tag and
 // not that one -- none of them writes a property on any JavaScript object.
 /** @gea-host-no-property-writes */
-declare function __gea_http_serve(
+declare function __gea_http_listen(
   port: number,
+  onListening: () => void,
   onRequest: (connId: number, flags: number, method: string, url: string, httpVersion: string, rawHead: string, body: string) => void
-): void
+): number
 // `@gea-host-inert` is the per-declaration host effect contract (compiler
 // `src/semantics/normalize/host-effect-contracts.ts`). `write`/`write_bytes`
 // copy their payload into the connection's own buffer (`enqueueResponseBytes`
@@ -53,10 +54,12 @@ declare function __gea_http_serve(
 // retains an argument or runs program code. `done` and `destroy` are NOT
 // tagged and must not be: `responseComplete` calls `processInput()`, which
 // dispatches the next pipelined request into the program's own `onRequest`
-// closure -- program code, inside the call. `serve` takes that closure, and
+// closure -- program code, inside the call. `listen` takes that closure, and
 // `stop` runs the listener closer.
 /** @gea-host-inert */
 declare function __gea_http_write(connId: number, data: string): void
+/** @gea-host-inert */
+declare function __gea_node_net_errno_name(error: number): string
 // The header block, serialized piece by piece into the connection's retained
 // output buffer -- `commitHeaders` below says why. `head_end` answers a bit
 // pair: 1 = the body is chunked, 2 = the connection stays open.
@@ -1355,9 +1358,6 @@ export class Server extends EventEmitter {
     else if (hostname !== undefined && hostname !== '0.0.0.0' && hostname !== '::')
       nodeNotImplemented('http', `Server.listen with hostname ${hostname} (this target binds every interface)`)
     this.port_ = port
-    this.listening = true
-    if (done !== undefined) done()
-    this.emit('listening')
     // Capture into locals: the dispatch closure must not capture `this` (the
     // reactor stores it by value; shared_from_this would dangle). The arrays
     // are captured by reference, so listeners registered after `listen()` are
@@ -1368,8 +1368,13 @@ export class Server extends EventEmitter {
     const extraOnce = this.requestOnce_
     const connectionListeners = this.connectionListeners_
     const connectionOnce = this.connectionOnce_
-    __gea_http_serve(
+    const failure = __gea_http_listen(
       port,
+      (): void => {
+        this.listening = true
+        if (done !== undefined) done()
+        this.emit('listening')
+      },
       (connId: number, flags: number, method: string, url: string, httpVersion: string, rawHead: string, body: string): void => {
         const keepAlive = (flags & FLAG_KEEP_ALIVE) !== 0
         const req = new IncomingMessage(connId, method, url, httpVersion, rawHead, body)
@@ -1406,6 +1411,12 @@ export class Server extends EventEmitter {
         // above or later from inside an async handler.
       }
     )
+    if (failure !== 0) {
+      const error = listenError(failure, hostname === '0.0.0.0' ? '0.0.0.0' : '::', port)
+      queueMicrotask(() => {
+        this.emit('error', error)
+      })
+    }
     return this
   }
 
@@ -1420,6 +1431,38 @@ export class Server extends EventEmitter {
   address(): { address: string; family: string; port: number } {
     return { address: '0.0.0.0', family: 'IPv4', port: this.port_ }
   }
+}
+
+interface ListenError extends Error {
+  code: string
+  errno: number
+  syscall: string
+  address: string
+  port: number
+}
+
+function listenErrorDescription(code: string, errnoValue: number): string {
+  switch (code) {
+    case 'EADDRINUSE':
+      return 'address already in use'
+    case 'EACCES':
+      return 'permission denied'
+    case 'EADDRNOTAVAIL':
+      return 'address not available'
+    default:
+      return `Unknown system error ${errnoValue}`
+  }
+}
+
+function listenError(errnoValue: number, address: string, port: number): ListenError {
+  const code = __gea_node_net_errno_name(errnoValue)
+  const error = new Error(`listen ${code}: ${listenErrorDescription(code, errnoValue)} ${address}:${port}`) as ListenError
+  error.errno = -errnoValue
+  error.code = code
+  error.syscall = 'listen'
+  error.address = address
+  error.port = port
+  return error
 }
 
 export class ClientRequest {
