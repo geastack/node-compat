@@ -1,8 +1,9 @@
-// Compile-time-compatible TLS surface. The first database correctness target
-// is explicitly a plain connection to 127.0.0.1, so entering this path is a
-// loud error.
+// Compile-time-compatible TLS surface. The runtime has no TLS stack yet, so
+// `connect` refuses with node-compat's not-implemented error naming the call.
 
 import { Socket } from './net'
+import type { Duplex } from './stream'
+import { nodeNotImplemented } from './not-implemented'
 import type { Buffer } from './buffer'
 
 export interface PeerCertificate {
@@ -30,7 +31,9 @@ export interface ConnectionOptions {
   allowPartialTrustChain?: boolean
   ALPNProtocols?: readonly string[] | readonly Uint8Array[]
   servername?: string
-  socket?: Socket
+  // Node takes any Duplex to run TLS over: a database driver passes the
+  // stream a SOCKS5 proxy handshake hands back.
+  socket?: Socket | Duplex
   ca?: string | Buffer | readonly (string | Buffer)[]
   cert?: string | Buffer | readonly (string | Buffer)[]
   checkServerIdentity?: (hostname: string, certificate: PeerCertificate) => Error | undefined
@@ -61,7 +64,7 @@ export class TLSSocket extends Socket {
 // Node's `connect(options, secureConnectListener?)`: a database driver's
 // client-side-encryption KMS path passes the listener.
 function nodeTlsConnect(_options: ConnectionOptions, _secureConnectListener?: () => void): TLSSocket {
-  throw new Error('TLS is not implemented by the gea node-compat runtime')
+  return nodeNotImplemented('node:tls', 'connect')
 }
 
 export { nodeTlsConnect as connect }

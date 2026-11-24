@@ -3,7 +3,7 @@
 // The generated facade types every resolver `(...args: unknown[]) => never`,
 // so a library that awaits one -- a database driver resolves SRV connection
 // string seeds with `resolveSrv`/`resolveTxt` and canonicalizes Kerberos hosts with
-// `lookup`/`resolvePtr`/`resolveCname` -- cannot type-check its results. These
+// `lookup`/`resolvePtr`/`resolveCname` or `resolve(host, rrtype)` -- cannot type-check its results. These
 // are node's declared shapes. Name resolution itself is not implemented yet:
 // each call rejects with the facade's not-implemented error, the same failure
 // the facade raised, now through the Promise node's API returns.
@@ -70,6 +70,14 @@ function unimplemented<T>(member: string): Promise<T> {
 
 export function lookup(_hostname: string, _options?: LookupOptions | number): Promise<LookupAddress> {
   return unimplemented<LookupAddress>('lookup')
+}
+
+export function resolve(hostname: string): Promise<string[]>
+export function resolve(hostname: string, rrtype: 'A' | 'AAAA' | 'CNAME' | 'NS' | 'PTR'): Promise<string[]>
+export function resolve(hostname: string, rrtype: 'SRV'): Promise<SrvRecord[]>
+export function resolve(hostname: string, rrtype: 'TXT'): Promise<string[][]>
+export function resolve(_hostname: string, _rrtype?: string): Promise<never> {
+  return unimplemented<never>('resolve')
 }
 
 export function resolveSrv(_hostname: string): Promise<SrvRecord[]> {

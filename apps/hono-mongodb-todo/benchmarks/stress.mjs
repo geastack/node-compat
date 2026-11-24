@@ -1,13 +1,14 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { mongodbVersion, parseTime, peakRssSource, resultRootFor, timeFlag } from "./platform.mjs";
 
 const benchmarkRoot = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(benchmarkRoot, "..");
 const distRoot = path.join(appRoot, "dist");
-const resultRoot = path.join(benchmarkRoot, "results");
+const resultRoot = resultRootFor(benchmarkRoot);
 
 const numberFlag = (name, fallback) => {
   const prefix = `--${name}=`;
@@ -17,8 +18,10 @@ const numberFlag = (name, fallback) => {
     : Number(argument.slice(prefix.length));
 };
 
-const iterations = numberFlag("iterations", 10_000);
-const warmup = numberFlag("warmup", 100);
+// The defaults are the counts `native-driver.ts` and `node-driver.mjs` run as
+// constants (the native build cannot read the environment yet).
+const iterations = numberFlag("iterations", 20_000);
+const warmup = numberFlag("warmup", 2_000);
 const rounds = numberFlag("rounds", 3);
 if (
   ![iterations, warmup, rounds].every(Number.isInteger) ||
@@ -37,6 +40,16 @@ const rustExecutable = path.join(
   "benchmark-rust/release/gea-mongodb-driver-benchmark",
 );
 const cppExecutable = path.join(distRoot, "benchmark-cpp-driver");
+// The Rust and C++ arms run when `benchmark:drivers` could build them (it
+// skips an arm whose toolchain is missing); the native and Node arms always run.
+const optionalArms = [
+  { name: "rust-official", command: rustExecutable, args: [] },
+  { name: "cpp-official", command: cppExecutable, args: [] },
+];
+const skippedArms = optionalArms
+  .filter((driver) => !fs.existsSync(driver.command))
+  .map((driver) => `${driver.name} (not built)`);
+for (const arm of skippedArms) console.log(`skipping ${arm}`);
 const drivers = [
   { name: "gea-native", command: nativeExecutable, args: [] },
   {
@@ -44,8 +57,7 @@ const drivers = [
     command: process.execPath,
     args: [path.join(benchmarkRoot, "node-driver.mjs")],
   },
-  { name: "rust-official", command: rustExecutable, args: [] },
-  { name: "cpp-official", command: cppExecutable, args: [] },
+  ...optionalArms.filter((driver) => fs.existsSync(driver.command)),
 ];
 
 for (const driver of drivers) {
@@ -55,24 +67,6 @@ for (const driver of drivers) {
     );
   }
 }
-
-const parseTime = (stderr) => {
-  const rss = stderr.match(/^\s*(\d+)\s+maximum resident set size$/m)?.[1];
-  const times = stderr.match(
-    /^\s*([\d.]+)\s+real\s+([\d.]+)\s+user\s+([\d.]+)\s+sys$/m,
-  );
-  if (rss === undefined || times === null) {
-    throw new Error(`could not parse /usr/bin/time output:\n${stderr}`);
-  }
-  return {
-    peakRssBytes: Number(rss),
-    processSeconds: {
-      real: Number(times[1]),
-      user: Number(times[2]),
-      system: Number(times[3]),
-    },
-  };
-};
 
 const samples = [];
 const runId = Date.now().toString(36);
@@ -86,7 +80,7 @@ for (let round = 0; round < rounds; round += 1) {
     console.log(`stress ${round + 1}/${rounds}: ${driver.name}`);
     const result = spawnSync(
       "/usr/bin/time",
-      ["-l", driver.command, ...driver.args],
+      [timeFlag, driver.command, ...driver.args],
       {
         cwd: appRoot,
         encoding: "utf8",
@@ -113,7 +107,9 @@ for (let round = 0; round < rounds; round += 1) {
     }
     const benchmark = JSON.parse(resultLine.slice("BENCH_RESULT:".length));
     if (benchmark.iterations !== iterations) {
-      throw new Error(`${driver.name} reported the wrong iteration count`);
+      throw new Error(
+        `${driver.name} ran ${benchmark.iterations} iterations, not ${iterations}; the native and Node arms run a fixed 20000`,
+      );
     }
     const timing = parseTime(result.stderr);
     const timedMilliseconds = Object.values(benchmark.milliseconds).reduce(
@@ -173,12 +169,8 @@ const metadata = {
   host: `${os.cpus()[0]?.model ?? "unknown CPU"} (${os.cpus().length} logical cores)`,
   platform: `${os.platform()} ${os.release()} ${os.arch()}`,
   totalMemoryBytes: os.totalmem(),
-  mongodb: execFileSync("mongosh", ["--quiet", "--eval", "db.version()"], {
-    encoding: "utf8",
-  })
-    .trim()
-    .split(/\r?\n/)
-    .at(-1),
+  mongodb: mongodbVersion(),
+  skippedArms,
   iterations,
   warmup,
   rounds,
@@ -191,7 +183,7 @@ const report = {
       "sequential acknowledged insertOne, indexed findOne, updateOne, and deleteOne",
     transport: "one warmed pooled connection per driver process",
     memory:
-      "macOS /usr/bin/time -l maximum resident set size; includes runtime, driver, linked libraries, BSON state, and preallocated benchmark documents",
+      `${peakRssSource} maximum resident set size; includes runtime, driver, linked libraries, BSON state, and preallocated benchmark documents`,
     aggregation:
       "median throughput and peak RSS across rotated rounds; maximum RSS also retained",
   },
@@ -220,7 +212,7 @@ const lines = [
       `| ${entry.driver} | ${rate(entry.medianTimedOperationsPerSecond)} | ${entry.throughputVsNode.toFixed(2)}× | ${mib(entry.medianPeakRssBytes)} MiB | ${mib(entry.maximumPeakRssBytes)} MiB | ${entry.peakRssVsNode.toFixed(2)}× | ${entry.medianProcessSeconds.toFixed(2)} s |`,
   ),
   "",
-  "Peak RSS comes from macOS `/usr/bin/time -l` and includes each process runtime, driver, linked libraries, BSON state, and the preallocated benchmark documents. MongoDB server memory is excluded.",
+  `Peak RSS comes from ${peakRssSource} and includes each process runtime, driver, linked libraries, BSON state, and the preallocated benchmark documents. MongoDB server memory is excluded.${skippedArms.length > 0 ? ` Skipped: ${skippedArms.join("; ")}.` : ""}`,
   "",
   "Raw per-round timings and memory measurements are in `stress-latest.json`.",
 ];

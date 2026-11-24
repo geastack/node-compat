@@ -3,12 +3,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { commandExists, mongodbVersion, resultRootFor, versionOf } from "./platform.mjs";
 
 const benchmarkRoot = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(benchmarkRoot, "..");
 const nodeCompatRoot = path.resolve(appRoot, "../..");
 const distRoot = path.join(appRoot, "dist");
-const resultRoot = path.join(benchmarkRoot, "results");
+const resultRoot = resultRootFor(benchmarkRoot);
 
 const valueOf = (name, fallback) => {
   const prefix = `--${name}=`;
@@ -18,8 +19,11 @@ const valueOf = (name, fallback) => {
     : Number(argument.slice(prefix.length));
 };
 
-const iterations = valueOf("iterations", 2000);
-const warmup = valueOf("warmup", 50);
+// The defaults are the counts `native-driver.ts` and `node-driver.mjs` run as
+// constants (the native build cannot read the environment yet); the Rust and
+// C++ arms take them through BENCH_ITERATIONS/BENCH_WARMUP.
+const iterations = valueOf("iterations", 20000);
+const warmup = valueOf("warmup", 2000);
 const rounds = valueOf("rounds", 7);
 const skipBuild = process.argv.includes("--skip-build");
 if (
@@ -52,6 +56,29 @@ const pkgConfigPath = [
   .filter(Boolean)
   .join(":");
 
+// The Rust and C++ arms need their toolchains; a machine without one runs the
+// remaining drivers and the report says which arms were skipped.
+const cppFlagsOrNull = () => {
+  try {
+    return execFileSync("pkg-config", ["--cflags", "--libs", "libmongocxx1"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      env: { ...process.env, PKG_CONFIG_PATH: pkgConfigPath },
+    })
+      .trim()
+      .split(/\s+/);
+  } catch {
+    return null;
+  }
+};
+const haveRust = commandExists("cargo");
+const cppFlags = cppFlagsOrNull();
+const skippedArms = [
+  ...(haveRust ? [] : ["rust-official (no cargo on PATH)"]),
+  ...(cppFlags ? [] : ["cpp-official (pkg-config finds no libmongocxx1)"]),
+];
+for (const arm of skippedArms) console.log(`skipping ${arm}`);
+
 function runChecked(command, args, options = {}) {
   console.log(`build: ${command} ${args.join(" ")}`);
   const result = spawnSync(command, args, {
@@ -70,9 +97,8 @@ if (!skipBuild) {
   runChecked(process.execPath, [
     path.join(nodeCompatRoot, "scripts/build.mjs"),
     path.join(benchmarkRoot, "native-driver.ts"),
-    "--from-source=mongodb,bson,mongodb-connection-string-url",
     "--source-project",
-    path.join(nodeCompatRoot, "vendored-sources/mongodb/tsconfig.json"),
+    path.join(appRoot, "node_modules/mongodb/tsconfig.json"),
     "--globals",
     "--out",
     distRoot,
@@ -80,7 +106,7 @@ if (!skipBuild) {
     nativeExecutable,
   ]);
 
-  runChecked(
+  if (haveRust) runChecked(
     "cargo",
     [
       "build",
@@ -94,17 +120,7 @@ if (!skipBuild) {
     { env: { ...process.env, CARGO_TARGET_DIR: rustTarget } },
   );
 
-  const cppFlags = execFileSync(
-    "pkg-config",
-    ["--cflags", "--libs", "libmongocxx1"],
-    {
-      encoding: "utf8",
-      env: { ...process.env, PKG_CONFIG_PATH: pkgConfigPath },
-    },
-  )
-    .trim()
-    .split(/\s+/);
-  runChecked(
+  if (cppFlags) runChecked(
     "clang++",
     [
       "-std=c++20",
@@ -119,10 +135,6 @@ if (!skipBuild) {
   );
 }
 
-for (const executable of [nativeExecutable, rustExecutable, cppExecutable]) {
-  if (!fs.existsSync(executable)) throw new Error(`missing benchmark executable: ${executable}`);
-}
-
 const drivers = [
   { name: "gea-native", command: nativeExecutable, args: [] },
   {
@@ -130,9 +142,13 @@ const drivers = [
     command: process.execPath,
     args: [path.join(benchmarkRoot, "node-driver.mjs")],
   },
-  { name: "rust-official", command: rustExecutable, args: [] },
-  { name: "cpp-official", command: cppExecutable, args: [] },
+  ...(haveRust ? [{ name: "rust-official", command: rustExecutable, args: [] }] : []),
+  ...(cppFlags ? [{ name: "cpp-official", command: cppExecutable, args: [] }] : []),
 ];
+for (const driver of drivers) {
+  if (driver.command !== process.execPath && !fs.existsSync(driver.command))
+    throw new Error(`missing benchmark executable: ${driver.command}`);
+}
 const samples = [];
 const runId = Date.now().toString(36);
 
@@ -167,6 +183,10 @@ for (let round = 0; round < rounds; round += 1) {
     if (resultLine === undefined)
       throw new Error(`${driver.name} did not emit BENCH_RESULT`);
     const sample = JSON.parse(resultLine.slice("BENCH_RESULT:".length));
+    if (sample.iterations !== iterations)
+      throw new Error(
+        `${driver.name} ran ${sample.iterations} iterations, not ${iterations}; the native and Node arms run a fixed 20000`,
+      );
     samples.push({ round: round + 1, ...sample });
     console.log(`  ${JSON.stringify(sample.milliseconds)}`);
   }
@@ -223,12 +243,7 @@ const metadata = {
   timestamp: new Date().toISOString(),
   host: `${os.cpus()[0]?.model ?? "unknown CPU"} (${os.cpus().length} logical cores)`,
   platform: `${os.platform()} ${os.release()} ${os.arch()}`,
-  mongodb: execFileSync("mongosh", ["--quiet", "--eval", "db.version()"], {
-    encoding: "utf8",
-  })
-    .trim()
-    .split(/\r?\n/)
-    .at(-1),
+  mongodb: mongodbVersion(),
   node: process.version,
   nodeDriver: JSON.parse(
     fs.readFileSync(
@@ -236,13 +251,15 @@ const metadata = {
       "utf8",
     ),
   ).version,
-  rust: execFileSync("rustc", ["--version"], { encoding: "utf8" }).trim(),
+  rust: haveRust ? versionOf("rustc", ["--version"]) : null,
   rustDriver: fs
     .readFileSync(path.join(benchmarkRoot, "rust-driver/Cargo.lock"), "utf8")
     .match(/name = "mongodb"\nversion = "([^"]+)"/)?.[1],
-  cppDriver: execFileSync("brew", ["list", "--versions", "mongo-cxx-driver"], {
-    encoding: "utf8",
-  }).trim(),
+  cppDriver: cppFlags
+    ? (versionOf("brew", ["list", "--versions", "mongo-cxx-driver"]) ??
+      versionOf("pkg-config", ["--modversion", "libmongocxx1"]))
+    : null,
+  skippedArms,
   iterations,
   warmup,
   rounds,
@@ -272,7 +289,8 @@ const lines = [
   "",
   `Run: ${metadata.timestamp} on ${metadata.host}`,
   "",
-  `MongoDB ${metadata.mongodb}; ${metadata.node}; Node driver ${metadata.nodeDriver}; Rust driver ${metadata.rustDriver}; C++ driver ${metadata.cppDriver.replace("mongo-cxx-driver ", "")}.`,
+  `MongoDB ${metadata.mongodb}; ${metadata.node}; Node driver ${metadata.nodeDriver}${haveRust ? `; Rust driver ${metadata.rustDriver}` : ""}${cppFlags ? `; C++ driver ${metadata.cppDriver.replace("mongo-cxx-driver ", "")}` : ""}.`,
+  ...(skippedArms.length > 0 ? ["", `Skipped: ${skippedArms.join("; ")}.`] : []),
   "",
   `Each result is the median of ${rounds} rounds × ${iterations.toLocaleString("en-US")} sequential operations after ${warmup} untimed CRUD warmups.`,
   "",
@@ -283,7 +301,7 @@ const lines = [
       `| ${entry.driver} | ${formatRate(entry.operationsPerSecond.insertOne)} | ${formatRate(entry.operationsPerSecond.findOne)} | ${formatRate(entry.operationsPerSecond.updateOne)} | ${formatRate(entry.operationsPerSecond.deleteOne)} | ${formatRate(entry.operationsPerSecond.combined)} | ${entry.relativeToNode.combined.toFixed(2)}× |`,
   ),
   "",
-  "All four drivers reuse one warmed pooled connection. Client construction, connection setup, cleanup, and warmup are outside the timed phases.",
+  "Every driver reuses one warmed pooled connection. Client construction, connection setup, cleanup, and warmup are outside the timed phases.",
   "",
   "Raw samples and exact phase times are in `latest.json`.",
 ];

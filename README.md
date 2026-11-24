@@ -11,8 +11,8 @@ raw-socket test battery compares the two byte-for-byte.
 ## Headline results
 
 - **Full-stack Gea + Hono + MongoDB:** the todo application compiles the Gea
-  frontend, Hono, the MongoDB package's typed Gea entry, BSON, and the
-  node-compat runtime into one native executable. Its deterministic HTTP test
+  frontend, Hono, the official MongoDB driver (compiled from its TypeScript
+  source), BSON, and the node-compat runtime into one native executable. Its deterministic HTTP test
   passes create, persisted read, update, persisted read, delete, and final
   absence. The native driver reuses a client-owned TCP pool and measured 1.07×
   the official Node.js driver on the tracked sequential CRUD benchmark. A
@@ -58,18 +58,46 @@ second compiler as a runtime dependency.
 
 ## Quick start
 
-In your own project, add the package and point the build driver at a server
-file. Node 22 or newer is required for TypeScript type stripping.
+In your own Node project, install the compiler (it brings this package as a
+dependency) and run `geatsc` with no arguments:
 
 ```sh
-npm install @geastack/node-compat
-npx geatsc-node build server.ts
-./dist/server                        # → listening on http://127.0.0.1:3000
+npm install --save-dev @geastack/compiler
+npx geatsc
+./dist/<package-name>
 ```
 
-To work on this repository instead, build the compiler first
-(`npm run build` in a `geastack/compiler` checkout), then drive the bundled
-applications directly:
+`geatsc` finds the entry from `scripts.start`, `bin`, `exports`/`main`, or a
+single conventional `src/index`, `src/main`, `src/server`, `index`, `main` or
+`server` file, and writes the executable to `dist/`, named after the package (or after each
+`bin` entry).
+See the compiler's
+[docs/NODE-PROJECTS.md](https://github.com/geastack/compiler/blob/main/docs/NODE-PROJECTS.md).
+
+Prerequisites: Node 22.15 or newer (this package's `engines` floor) and a C++
+compiler. The build uses `$CXX`, or `clang++` when `CXX` is unset.
+
+A program that imports `node:zlib` also links the system's zlib, and the
+brotli decoder and libzstd when it reaches them: `brew install brotli zstd` on
+macOS, `sudo apt install zlib1g-dev libbrotli-dev libzstd-dev` on
+Debian/Ubuntu (`ZSTD_DIR` names another libzstd prefix). The build refuses a libbrotlidec affected by
+CVE-2026-111497 (anything before 1.0.10, 1.1.1 or 1.2.1 on its line). A
+distribution package that backports the fix under the old version number, such
+as Ubuntu 24.04's updated `libbrotli1` 1.1.0-2ubuntu0.1, is accepted when its
+own changelog names the CVE. Where no fixed package exists, build brotli 1.2.1
+and point `BROTLI_DIR` at it:
+
+```sh
+curl -fsSL https://github.com/google/brotli/archive/refs/tags/v1.2.1.tar.gz | tar xz
+cmake -S brotli-1.2.1 -B brotli-1.2.1/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$HOME/brotli-1.2.1" -DBROTLI_DISABLE_TESTS=ON
+cmake --build brotli-1.2.1/build -j && cmake --install brotli-1.2.1/build
+export BROTLI_DIR="$HOME/brotli-1.2.1"
+```
+
+To work on this repository instead, run `npm install` here (it installs
+`@geastack/compiler` from npm as a dev dependency), or point
+`GEA_COMPILER_DIR` at a built compiler checkout as described below, then drive
+the bundled applications directly:
 
 Set `GEA_COMPILER_DIR=/absolute/path/to/compiler` to use a particular existing
 compiler package instead of the installed peer. Frontend, preparation, plugin
@@ -87,7 +115,7 @@ node scripts/build.mjs apps/raw-http-hello/server.ts
 # the Node-parity battery
 node scripts/build.mjs apps/http-parity/server.ts
 node apps/http-parity/driver.mjs apps/http-parity/dist/server apps/http-parity/server.ts
-# → 36/36 parity, 0 diffs
+# → 38/38 parity, 0 diffs
 ```
 
 ### Build behaviour
@@ -123,6 +151,17 @@ erased so the library's hot path monomorphizes to fully typed C++ (see
   instead of the whole full-LTO link. It stays opt-in: on a cold build it was
   no clear win and its binaries are 5-8% larger (see `ltoMode` in
   `scripts/build.mjs`).
+- A large program builds in the shape the machine can afford, without flags
+  (`scripts/build-shape.mjs`). One unit with full LTO is a single optimizer run
+  over the whole program: a database driver server (2.2 MB of reachable package
+  source, 45 MB of C++) peaked at 24.5 GB that way. So a program reaching 1.5 MB
+  of package source or more, or one whose single unit would need more than 80%
+  of physical memory, builds per file; and a per-file build whose full-LTO link
+  would need more than that links with ThinLTO under clang (7.2 GB on the same
+  server) or without LTO under g++. The build prints one `[build]` line naming
+  the choice and why. `--translation-units` and `GEA_LTO` still decide when
+  given. Small programs (an HTTP framework's hello world reaches 0.15 MB) keep
+  one unit and full LTO.
 - Binaries link with hidden visibility and dead-stripping
   (`-fvisibility=hidden`, `-Wl,-dead_strip` / `--gc-sections`). OpenSSL is
   linked only when the program reaches `node:crypto`; a server that never
@@ -229,9 +268,10 @@ These are intentional. The header of
   and `TrieRouter`, with `std::tuple` route storage and no boxed handlers at
   rest).
 - MongoDB todo: compiles and runs against a local MongoDB server through
-  BSON OP_MSG and a reusable native TCP pool. The supported Gea entry covers
-  the app's direct-host CRUD surface; authentication, TLS, cluster topology,
-  retry layers, and multi-batch cursors remain outside that surface.
+  BSON OP_MSG and a reusable native TCP pool. The build compiles the official
+  `mongodb` driver from its published package source
+  (`--source-project node_modules/mongodb/tsconfig.json`); the app's
+  correctness probes and HTTP lifecycle check cover the CRUD surface it uses.
 - Compiler-feature regression apps: [apps/tuple-test](apps/tuple-test)
   (tuple monomorphization + the hono router/Result/entries shapes, byte-
   diffed vs node) and [apps/mapkeys-test](apps/mapkeys-test)

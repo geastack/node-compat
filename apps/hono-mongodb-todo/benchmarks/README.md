@@ -1,11 +1,12 @@
 # MongoDB driver benchmark
 
-This suite compares the compiled Gea MongoDB surface with the official Node.js,
-Rust, and C++ drivers against the same local MongoDB server. It times sequential,
+This suite compares the official `mongodb` driver compiled natively by geatsc
+(from its TypeScript source, with `--source-project
+node_modules/mongodb/tsconfig.json`) with the official Node.js, Rust, and C++
+drivers against the same local MongoDB server. It times sequential,
 acknowledged `insertOne`, indexed `findOne`, `updateOne`, and `deleteOne` phases.
 
-The native driver architecture and supported API are documented in the app
-README.
+How the native build compiles the driver is documented in the app README.
 
 The timed region excludes client construction, connection setup, collection
 cleanup, document allocation, and warmup. Every implementation uses the same
@@ -19,6 +20,14 @@ Requirements:
 - Rust and Cargo
 - `mongo-cxx-driver` installed through Homebrew
 - Homebrew `wrk` for the full-stack HTTP stress profile
+
+On Linux the same commands run with distribution packages (`wrk`, GNU
+`/usr/bin/time`); an arm whose toolchain is missing (Cargo, or a
+`libmongocxx1` that pkg-config can find) is skipped and named in the report,
+and the macOS-only `leaks` heap snapshot is reported as not measured. Set
+`BENCH_RESULTS_DIR=<dir>` to write the reports somewhere other than the
+tracked `results/` directory, as any run on a machine other than the one the
+published numbers come from should.
 
 Run the full benchmark:
 
@@ -47,7 +56,7 @@ writes across all four drivers:
 npm run benchmark:flex
 ```
 
-The endurance runner defaults to three rounds with 10,000 commands in each of
+The endurance runner defaults to three rounds with 20,000 commands in each of
 four CRUD phases per driver. The HTTP runner defaults to three five-second
 rounds at 1, 16, and 64 connections. Both require existing native binaries;
 the ordinary driver benchmark builds those binaries first.
@@ -59,18 +68,24 @@ and owns ports 3011 and 3012 for the duration of the run.
 For a quicker diagnostic run:
 
 ```sh
-node benchmarks/run.mjs --iterations=100 --rounds=3 --warmup=10
+node benchmarks/run.mjs --rounds=3 --skip-build
 ```
+
+The native and Node arms run a fixed 20,000 operations per phase after 2,000
+warmup rounds (the native build cannot read the environment yet), so the
+runners reject an `--iterations` or `--warmup` that differs from those counts.
 
 Pass `--skip-build` to reuse already compiled release binaries when isolating a
 measurement from compiler activity.
 
 The runner compiles release binaries, rotates driver order between rounds, and
-writes raw samples to `benchmarks/results/latest.json`.
+writes raw samples to `benchmarks/results/latest.json` and a summary to
+`latest.md`.
 
 The stress runners write their reports beside the baseline as
 `stress-latest.{md,json}`, `http-stress-latest.{md,json}`, and
-`flex-latest.{md,json}`. A stress result is publishable only when the machine is
+`flex-latest.{md,json}`; `driver-cpu.mjs` writes `driver-cpu-latest.{md,json}`.
+Only the `.json` files are tracked in `results/`. A stress result is publishable only when the machine is
 otherwise idle, every measured process completes its correctness checks, every
 wrk profile reports zero HTTP/socket errors, and both servers pass the
 full-stack CRUD checker after load.

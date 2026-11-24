@@ -50,14 +50,23 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { geatscNodePlugin } from '../plugin/index.mjs'
 import { resolveBuiltinModules, runtimeRootsForReachableGlobalNeeds } from './builtin-modules.mjs'
+import { chooseCompileJobs, chooseSplitLto, chooseTranslationUnits } from './build-shape.mjs'
 import { displayPathFrom } from './path-display.mjs'
 import { compilerRoot as resolveCompilerRoot, compilerModuleUrl } from './resolve-compiler.mjs'
 import { compilerInputs, assertCompilerInputs } from './compiler-input.mjs'
-import { brotliPrefix, windowsLibraries } from './native-libraries.mjs'
+import {
+  BROTLI_DECODER_CVE,
+  brotliPrefix,
+  zstdPrefix,
+  brotliVersionIsPatched,
+  debianBrotliBackport,
+  loadedBrotliDecoder,
+  windowsLibraries
+} from './native-libraries.mjs'
 
 const compilerRoot = resolveCompilerRoot()
 const { compile } = await import(compilerModuleUrl('.', compilerRoot))
-const { preparePackageSources } = await import(compilerModuleUrl('./preparation', compilerRoot))
+const { preparePackageSources, packageSourceProjects } = await import(compilerModuleUrl('./preparation', compilerRoot))
 
 // The compile runs in this process and allocates hard: on a database driver
 // the default young generation made V8 GC 28% of the emission (24.8k
@@ -121,10 +130,15 @@ if (!/^[A-Za-z_][A-Za-z_0-9]*$/.test(topLevelEntry)) throw new Error('--top-leve
 // runtime-header change is retried without paying for the compile again.
 const linkOnly = process.argv.includes('--link-only')
 const verbose = process.argv.includes('--verbose')
-const translationUnits = arg('--translation-units', 'single')
-if (translationUnits !== 'single' && translationUnits !== 'per-file') {
-  throw new Error(`Invalid translation-unit layout: ${translationUnits}`)
+const requestedTranslationUnits = arg('--translation-units', null)
+if (requestedTranslationUnits !== null && requestedTranslationUnits !== 'single' && requestedTranslationUnits !== 'per-file') {
+  throw new Error(`Invalid translation-unit layout: ${requestedTranslationUnits}`)
 }
+// A split build's LTO when GEA_LTO is unset and the full-LTO link would not
+// fit in memory (`chooseSplitLto`, set in `linkUnits`); undefined keeps
+// `ltoMode`'s default. Declared here because `--link-only` links before the
+// rest of this file's top level runs.
+let automaticSplitLto
 const sourceProject = arg('--source-project', null)
 const reportPath = arg('--report', null)
 const extraPathsFile = arg('--paths', null)
@@ -203,19 +217,66 @@ if (linkOnly) {
   process.exit(0)
 }
 
-function sourceLanguageOptions() {
-  if (sourceProject === null) return {}
-  const selectedProject = sourceProject
-  const file = path.resolve(selectedProject)
+function parsedProject(file, { tolerant = false } = {}) {
   const config = ts.readConfigFile(file, ts.sys.readFile)
   if (config.error) throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'))
   const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, path.dirname(file))
+  // A library's project may extend a base its published checkout never
+  // installs (a shared lint config); what it states itself still counts.
+  if (tolerant) return parsed
   // Only the options lifted below matter here; an option this TypeScript
   // does not know (`stableTypeOrdering`, from a newer one -- typescript-estree),
   // an empty `files` list, or a `references` quirk is the source project's
   // business, not a reason to refuse the build. Real read failures still throw.
   const errors = parsed.errors.filter((error) => ![18003, 5023, 5024, 5025, 5053, 6046, 6053].includes(error.code))
   if (errors.length > 0) throw new Error(errors.map((error) => ts.flattenDiagnosticMessageText(error.messageText, '\n')).join('\n'))
+  return parsed
+}
+
+// Checker settings a library's own project may switch OFF for the whole
+// program. TypeScript checks one program under one option set, so a library
+// compiled from source (a driver written with `useUnknownInCatchVariables:
+// false`, `useDefineForClassFields: false`) is checked under the settings it
+// was written against only if they hold program-wide. Each of these relaxes
+// what the checker reports without changing the type of any declaration the
+// application wrote -- an untyped catch variable becomes `any` instead of
+// `unknown`, both of which this compiler carries dynamically -- and none of them
+// changes what geatsc emits. A setting that does change declared types
+// (`strictNullChecks`, `exactOptionalPropertyTypes`, and `noImplicitAny`,
+// whose absence turns an unannotated `let x = []` from an evolving array into
+// `never[]`) is never taken from a library: the application's project decides
+// those.
+const libraryRelaxations = [
+  ['useUnknownInCatchVariables', (options) => options.strict === true],
+  ['strictPropertyInitialization', (options) => options.strict === true],
+  ['useDefineForClassFields', (options) => (options.target ?? ts.ScriptTarget.ES5) >= ts.ScriptTarget.ES2022]
+]
+
+let libraryProjects = []
+
+function sourceLanguageOptions() {
+  const relax = (options) => {
+    for (const project of libraryProjects) {
+      if (sourceProject !== null && path.resolve(project) === path.resolve(sourceProject)) continue
+      let library
+      try {
+        library = parsedProject(project, { tolerant: true }).options
+      } catch {
+        continue
+      }
+      for (const [name, implied] of libraryRelaxations) {
+        const libraryValue = library[name] ?? implied(library)
+        // The generated project below targets ES2022 and is strict unless a
+        // source project said otherwise.
+        const ownValue = options[name] ?? implied({ target: ts.ScriptTarget.ES2022, strict: options.strict ?? true })
+        if (libraryValue === false && ownValue !== false) options[name] = false
+      }
+    }
+    return options
+  }
+  if (sourceProject === null) return relax({})
+  const file = path.resolve(sourceProject)
+  const parsed = parsedProject(file)
   // Preserve source-level semantics without importing the source project's
   // module resolution, ambient platform declarations, or output directories.
   // The source project's own strictness, INCLUDING its absence: a library
@@ -248,6 +309,7 @@ function sourceLanguageOptions() {
   // JavaScript. This one never does -- geatsc reads it, tsc never runs emit
   // on it -- so state that, or the checker rejects the option itself.
   if (options.allowImportingTsExtensions) options.noEmit = true
+  relax(options)
   // The generated application project owns its module format and resolver.
   // A source checkout's tsconfig describes how that library publishes its own
   // JavaScript; importing CommonJS here would redefine an ESNext application
@@ -517,7 +579,13 @@ function writeProject() {
   fs.mkdirSync(outDir, { recursive: true })
   const projectFile = path.join(outDir, 'tsconfig.json')
   fs.writeFileSync(projectFile, `${JSON.stringify(project, null, 2)}\n`)
-  return { projectFile, unconditionalAmbientRoots }
+  // The program's size before compiling it: the package source its entry
+  // reaches (installed JavaScript and TypeScript alike), not this target's own
+  // runtime, which every program shares. `chooseTranslationUnits` reads it.
+  const reachableSourceBytes = [...reachableGlobals.files]
+    .filter((file) => !file.endsWith('.d.ts') && !file.startsWith(builtinsDir + path.sep))
+    .reduce((total, file) => total + fs.statSync(file).size, 0)
+  return { projectFile, unconditionalAmbientRoots, reachableSourceBytes }
 }
 
 // ---------------------------------------------------------------------------
@@ -550,6 +618,13 @@ const answered = answeredPackages()
 const preparedSources = acquiredSources.filter((source) => !answered.has(sourceName(source)))
 if (preparedSources.length > 0) console.error(`[build] compile-from-source: ${[...new Set(preparedSources.map(sourceName))].join(', ')}`)
 const packageSources = [...preparedSources, ...(packageRoot ? [{ root: path.resolve(packageRoot) }] : [])]
+// Every library compiled from its own TypeScript is checked under the settings
+// its own project states (`libraryRelaxations`), whichever project file the
+// caller passed for the application.
+libraryProjects =
+  (packageRoot ?? packageDirectory) && typeof packageSourceProjects === 'function'
+    ? packageSourceProjects(path.resolve(packageRoot ?? packageDirectory), packageSources)
+    : []
 
 // The application's devDependencies are installed for the build -- for their
 // TYPES, as a database driver's optional peers (`kerberos`, `gcp-metadata`,
@@ -570,7 +645,14 @@ const typesOnlyPackages = (() => {
   return new Set(Object.keys(manifest.devDependencies ?? {}).filter((name) => !shipped.has(name)))
 })()
 
-const { projectFile, unconditionalAmbientRoots } = writeProject()
+const { projectFile, unconditionalAmbientRoots, reachableSourceBytes } = writeProject()
+const unitChoice = chooseTranslationUnits({
+  requested: requestedTranslationUnits,
+  reachableSourceBytes,
+  totalMemoryBytes: os.totalmem()
+})
+const translationUnits = unitChoice.layout
+if (unitChoice.reason) console.error(`[build] ${unitChoice.reason}`)
 writeReport({ packageSources })
 console.error(`[build] compiling ${displayPath(entry)} -> ${displayPath(outDir)}`)
 
@@ -797,7 +879,13 @@ if (result.units.length === 0) {
     // result's own `locationOfDeclaration` is the one authority that resolves a
     // declaration owner to a line, and `ownerLocation` above already asks it;
     // an `op|node|...` owner has no location and prints its file alone.
-    console.error(`  certify  ${ownerLocation(refusal.owner)} ${refusal.owner}: ${refusal.reason}`)
+    // A row's owner is its whole function; the operation it names (`first at
+    // result|op|node|...`) is the line to open, resolved the same way.
+    const operation = refusal.reason.match(/first at result\|op\|(node\|f\d+\|[A-Za-z]+\|\d+(?:@[\d,]+)?)\|/)?.[1]
+    const at = operation ? result.locationOfNode(operation) : null
+    console.error(
+      `  certify  ${ownerLocation(refusal.owner)}${at ? ` @${displayPath(at.file)}:${at.line}` : ''} ${refusal.owner}: ${refusal.reason}`
+    )
   }
   // A `print` refusal names identities and nothing else -- `decl|f74|400`,
   // `node|f72|Identifier|58` -- and an identity carries no file name, so the
@@ -913,7 +1001,7 @@ await buildExecutable(emittedUnits, displayPath)
 // or worse silently mis-read, by a unit compiled with a different language
 // dialect, optimization level or visibility -- with `-x c++-header` in place of
 // `-c`. `pch` on a compile phase is that PCH's `{ file, codegen }`.
-function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, needsBrotli, pch = null }) {
+function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, needsBrotli, needsZstd = false, pch = null }) {
   const compiling = phase !== 'link'
   const linking = phase === 'all' || phase === 'link'
   const runtimeDir = path.join(repo, 'runtime')
@@ -1032,6 +1120,7 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, n
     ...(compiling ? [`-I${compilerRuntimeDir}`, `-I${runtimeDir}`, `-I${path.join(runtimeDir, 'node')}`, `-I${outDir}`] : []),
     ...(compiling && needsZlib && windowsLibraries() ? [`-I${path.join(windowsLibraries(), 'include')}`] : []),
     ...(compiling && needsBrotli ? brotliIncludeFlags() : []),
+    ...(compiling && needsZstd ? zstdIncludeFlags() : []),
     // Escape hatch for one-off builds that need a flag the pipeline does not
     // model -- `-g` for a profile or an allocation census, `-fsanitize=...` for
     // a leak hunt. Whitespace-separated, appended last so it can override an
@@ -1098,6 +1187,7 @@ function cxxFlags({ phase, cxxIsClang, inputs, output, needsCrypto, needsZlib, n
     ...(linking && process.platform === 'linux' && needsCrypto ? ['-lcrypto'] : []),
     ...(linking && needsZlib ? zlibLinkFlags() : []),
     ...(linking && needsBrotli ? brotliLinkFlags() : []),
+    ...(linking && needsZstd ? zstdLinkFlags() : []),
     '-o',
     output
   ]
@@ -1151,6 +1241,7 @@ function ltoMode(phase, cxxIsClang) {
   if (requested === 'thin') return cxxIsClang ? 'thin' : 'full'
   if (requested === 'full' || requested === '1') return 'full'
   if (requested) throw new Error(`GEA_LTO must be 0, full or thin (got ${requested})`)
+  if (phase !== 'all' && automaticSplitLto !== undefined) return automaticSplitLto
   if (phase === 'all' || !cxxIsClang) return platformDefault
   // --pgo builds of a split program. The instrumented executable only has to
   // run the training workload: instrumentation is inserted by the front end
@@ -1189,16 +1280,6 @@ function zlibLinkFlags() {
   return windows ? [`-L${path.join(windows, 'lib')}`, '-lzs'] : ['-lz']
 }
 
-function brotliVersionIsPatched(version) {
-  const major = version >>> 24
-  const minor = (version >>> 12) & 0xfff
-  const patch = version & 0xfff
-  if (major !== 1) return major > 1
-  if (minor === 0) return patch >= 10
-  if (minor === 1 || minor === 2) return patch >= 1
-  return minor > 2
-}
-
 function assertPatchedBrotli(cxx) {
   if (assertPatchedBrotli.checked) return
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gea-brotli-version-'))
@@ -1210,11 +1291,18 @@ function assertPatchedBrotli(cxx) {
     if (compiled.status !== 0) throw new Error(`could not build the libbrotlidec version check:\n${compiled.stderr}`)
     const prefix = brotliPrefix()
     const libraryPath = prefix === null ? {} : { DYLD_LIBRARY_PATH: path.join(prefix, 'lib'), LD_LIBRARY_PATH: path.join(prefix, 'lib') }
-    const ran = spawnSync(executable, [], { encoding: 'utf8', env: { ...process.env, ...libraryPath } })
+    const env = { ...process.env, ...libraryPath }
+    const ran = spawnSync(executable, [], { encoding: 'utf8', env })
     const version = Number.parseInt(ran.stdout, 10)
     if (ran.status !== 0 || !Number.isInteger(version)) throw new Error(`could not run the libbrotlidec version check:\n${ran.stderr}`)
-    if (!brotliVersionIsPatched(version)) {
-      const found = `${version >>> 24}.${(version >>> 12) & 0xfff}.${version & 0xfff}`
+    const found = `${version >>> 24}.${(version >>> 12) & 0xfff}.${version & 0xfff}`
+    const backport =
+      brotliVersionIsPatched(version) || process.platform !== 'linux' ? null : debianBrotliBackport(loadedBrotliDecoder(executable, env))
+    if (backport !== null)
+      console.error(
+        `[build] libbrotlidec ${found} is ${backport.package} ${backport.version}, which carries the ${BROTLI_DECODER_CVE} fix (named in ${backport.changelog})`
+      )
+    else if (!brotliVersionIsPatched(version)) {
       throw new Error(
         `libbrotlidec ${found} is affected by CVE-2026-111497 (decoder out-of-bounds write): node:zlib's brotli decoder needs brotli 1.2.1, 1.1.1 or 1.0.10 or later on the same line. Upgrade brotli, or set BROTLI_DIR to a prefix holding a patched build.`
       )
@@ -1239,6 +1327,17 @@ function brotliLinkFlags() {
     '-lbrotlidec',
     '-lbrotlicommon'
   ]
+}
+
+function zstdIncludeFlags() {
+  const prefix = zstdPrefix()
+  return prefix === null ? [] : [`-I${path.join(prefix, 'include')}`]
+}
+
+function zstdLinkFlags() {
+  const prefix = zstdPrefix()
+  const lib = prefix === null ? null : path.join(prefix, 'lib')
+  return [...(lib === null ? [] : [`-L${lib}`]), ...(lib !== null && process.platform !== 'win32' ? [`-Wl,-rpath,${lib}`] : []), '-lzstd']
 }
 
 // Full-LTO link flags for clang: the linker that reads LLVM bitcode -- gold's
@@ -1762,12 +1861,22 @@ async function linkUnits(units, displayPath, exePath) {
   // libz, which macOS ships too but does not link by default.
   const needsZlib = units.some((unit) => unit.source.includes('#include "gea_node_zlib.hpp"'))
   const needsBrotli = units.some((unit) => unit.source.includes('#include "gea_node_brotli.hpp"'))
+  const needsZstd = units.some((unit) => unit.source.includes('#include "gea_node_zstd.hpp"'))
   // The C++ compiler is the caller's; the default is clang++, which is what the
   // published benchmarks were built with (clang 18 on the Ubuntu bench host;
   // g++ 13 there is 4-10% slower on the same emitted source).
   const cxx = process.env.CXX ?? 'clang++'
   const cxxIsClang = /clang/.test(path.basename(cxx)) || (!/g\+\+|gcc/.test(path.basename(cxx)) && process.platform === 'darwin')
-  const common = { cxxIsClang, needsCrypto, needsZlib, needsBrotli }
+  const common = { cxxIsClang, needsCrypto, needsZlib, needsBrotli, needsZstd }
+  if (units.length > 1 && optimize && process.env.GEA_LTO === undefined && !process.env.GEA_PGO_GENERATE && !process.env.GEA_PGO_USE) {
+    const ltoChoice = chooseSplitLto({
+      emittedBytes: units.reduce((total, unit) => total + unit.source.length, 0),
+      totalMemoryBytes: os.totalmem(),
+      cxxIsClang
+    })
+    automaticSplitLto = ltoChoice.lto
+    if (ltoChoice.reason) console.error(`[build] ${ltoChoice.reason}`)
+  }
   if (needsBrotli) assertPatchedBrotli(cxx)
 
   const linkStarted = process.hrtime.bigint()
@@ -1791,11 +1900,14 @@ async function linkUnits(units, displayPath, exePath) {
   let unitCompiles
   let pchReport = null
   if (sources.length > 1) {
-    const cores = typeof os.availableParallelism === 'function' ? os.availableParallelism() : os.cpus().length
-    // Every core, unless memory says otherwise: a unit compile is ~1-1.5 GB and
-    // the program unit several times that, so budget 2.5 GB a job.
-    const byMemory = Math.floor(os.totalmem() / 2.5 / 1024 ** 3)
-    const jobs = Math.max(1, Number.parseInt(process.env.GEA_JOBS ?? '', 10) || Math.min(cores, byMemory) || 1)
+    const jobChoice = chooseCompileJobs({
+      requested: process.env.GEA_JOBS,
+      cores: typeof os.availableParallelism === 'function' ? os.availableParallelism() : os.cpus().length,
+      totalMemoryBytes: os.totalmem(),
+      availableMemoryBytes: os.freemem()
+    })
+    if (jobChoice.reason) console.error(`[build] ${jobChoice.reason}`)
+    const jobs = jobChoice.jobs
     sources = groupedUnits(sources, jobs)
     // Instrumented objects are a different program: their own file names, so a
     // PGO build does not evict the plain objects (and both stay cacheable).

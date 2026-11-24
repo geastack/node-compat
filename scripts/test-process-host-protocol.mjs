@@ -30,9 +30,11 @@ test('Process host metadata claims a finite, receiverless Process@1 protocol', (
   assert.equal(capabilities.commonJsBuiltinModules.get('node:diagnostics_channel'), 'diagnostics_channel')
   assert.equal(capabilities.commonJsBuiltinModules.get('diagnostics_channel'), 'diagnostics_channel')
   assert.ok(capabilities.commonJsBuiltinModuleSources.get('diagnostics_channel'))
-  assert.equal(capabilities.commonJsBuiltinModules.has('v8'), false)
-  assert.equal(capabilities.commonJsBuiltinModules.has('node:v8'), false)
-  assert.equal(capabilities.commonJsBuiltinModuleSources.has('v8'), false)
+  assert.equal(capabilities.commonJsBuiltinModules.get('v8'), 'v8')
+  assert.equal(capabilities.commonJsBuiltinModules.get('node:v8'), 'v8')
+  assert.equal(capabilities.commonJsBuiltinModuleSources.get('v8'), resolve(root, 'runtime/node/v8.ts'))
+  // A generated facade is declaration coverage, not a runtime module.
+  assert.equal(capabilities.commonJsBuiltinModules.has('vm'), false)
   assert.equal(
     capabilities.hostMethodBindings.get(resolve(root, 'runtime/node/node-globals.ts'))?.get('Process.getBuiltinModule')
       ?.builtinModuleLookup,
@@ -81,8 +83,8 @@ int main() {
   assert(plain.tag() == gea::Value::Tag::Object);
   assert(plain.asDynamicObject() == prefixed.asDynamicObject());
   assert(loads == 1);
-  assert(gea::node::process::get_builtin_module("v8").tag() == gea::Value::Tag::Undefined);
-  assert(gea::node::process::get_builtin_module("node:v8").tag() == gea::Value::Tag::Undefined);
+  assert(gea::node::process::get_builtin_module("vm").tag() == gea::Value::Tag::Undefined);
+  assert(gea::node::process::get_builtin_module("node:vm").tag() == gea::Value::Tag::Undefined);
   assert(gea::node::process::get_builtin_module("not-a-builtin").tag() == gea::Value::Tag::Undefined);
 }
 `,
@@ -112,7 +114,7 @@ test('Process getBuiltinModule preserves Node’s generic literal return type', 
     fileName === entry
       ? ts.createSourceFile(
           fileName,
-          `const value = process.getBuiltinModule('node:diagnostics_channel'); const unavailable = process.getBuiltinModule('v8')`,
+          `const value = process.getBuiltinModule('node:diagnostics_channel'); const unavailable = process.getBuiltinModule('vm'); const v8 = process.getBuiltinModule('v8')`,
           languageVersion,
           true
         )
@@ -129,6 +131,12 @@ test('Process getBuiltinModule preserves Node’s generic literal return type', 
   const unavailable = source.statements[1].declarationList.declarations[0].initializer
   assert.ok(unavailable)
   assert.match(program.getTypeChecker().typeToString(program.getTypeChecker().getTypeAtLocation(unavailable)), /undefined/)
+  const v8 = source.statements[2].declarationList.declarations[0].initializer
+  assert.ok(v8)
+  assert.equal(
+    program.getTypeChecker().typeToString(program.getTypeChecker().getTypeAtLocation(v8)),
+    `typeof import("${resolve(root, 'runtime/node/v8').replaceAll('\\', '/')}")`
+  )
   assert.equal(
     program
       .getSemanticDiagnostics()
