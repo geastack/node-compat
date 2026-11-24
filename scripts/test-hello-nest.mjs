@@ -10,8 +10,8 @@ import { setTimeout as delay } from 'node:timers/promises'
 const root = resolve(import.meta.dirname, '..')
 const app = resolve(root, 'apps/hello-nest')
 const entry = resolve(app, 'server.ts')
-const oracle = resolve(app, 'dist/server.js')
-const output = resolve(app, 'dist-gea')
+const oracle = resolve(app, 'dist-node/server.js')
+const output = resolve(app, 'dist')
 const executable = resolve(output, process.platform === 'win32' ? 'server.exe' : 'server')
 const port = 3900
 const recordDir = process.argv.includes('--record') ? process.argv[process.argv.indexOf('--record') + 1] : null
