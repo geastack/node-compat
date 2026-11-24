@@ -34,6 +34,23 @@ int main(int argc, char **argv) {
   bool directoryThrew = false;
   try { gea::node::read_file("."); } catch (const gea::Value &) { directoryThrew = true; }
   assert(directoryThrew);
+  const auto middle = gea::node::read_file_range(argv[2], 3, 5);
+  assert(middle.size() == 5 && std::equal(middle.begin(), middle.end(), file.begin() + 3));
+  const auto tail = gea::node::read_file_range(argv[2], 3, std::numeric_limits<double>::infinity());
+  assert(tail.size() == file.size() - 3 && std::equal(tail.begin(), tail.end(), file.begin() + 3));
+  assert(gea::node::read_file_range(argv[2], static_cast<double>(file.size()) + 10, 5).empty());
+  assert(gea::node::read_file_range(argv[2], 0, 0).empty());
+  for (const auto &[start, length] : {std::pair{-1.0, 1.0}, std::pair{0.0, -1.0}, std::pair{std::nan(""), 1.0}}) {
+    bool threw = false;
+    try { gea::node::read_file_range(argv[2], start, length); } catch (const gea::Value &) { threw = true; }
+    assert(threw);
+  }
+  bool rangeMissingThrew = false;
+  try { gea::node::read_file_range(std::string(argv[2]) + ".missing", 0, 1); } catch (const gea::Value &) { rangeMissingThrew = true; }
+  assert(rangeMissingThrew);
+  bool rangeDirectoryThrew = false;
+  try { gea::node::read_file_range(".", 0, 1); } catch (const gea::Value &) { rangeDirectoryThrew = true; }
+  assert(rangeDirectoryThrew);
 #ifdef __linux__
   assert(!gea::node::read_file("/proc/self/status").empty());
 #endif

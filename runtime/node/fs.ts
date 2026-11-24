@@ -13,6 +13,8 @@ declare function __gea_node_fs_access(path: string, mode: number): boolean
 /** @gea-host-inert */
 declare function __gea_node_fs_read_file(path: string): Buffer
 /** @gea-host-inert */
+declare function __gea_node_fs_read_file_range(path: string, start: number, length: number): Buffer
+/** @gea-host-inert */
 declare function __gea_node_fs_stat(path: string, followSymlinks: boolean): number
 /** @gea-host-inert */
 declare function __gea_node_fs_stat_field(field: number): number
@@ -294,21 +296,25 @@ export interface ReadStreamOptions {
 // constructor before anyone is listening.
 //
 // What is NOT real: there is no fd-based chunked read syscall bound on this
-// target (see `statSync` above), only a whole-file `__gea_node_fs_read_file`.
-// So this reads the entire file synchronously up front and hands it to
-// `Readable` as a single push -- correct bytes, not incremental disk I/O. A
-// large file is fully materialized in memory even when only a small byte
-// range is requested.
+// target (see `statSync` above). A stream with `start` or `end` reads only
+// that byte range (`__gea_node_fs_read_file_range`); one without either reads
+// the whole file (`__gea_node_fs_read_file`, which also serves FIFOs and
+// /proc files a positioned read cannot). Either way the bytes are read
+// synchronously up front and handed to `Readable` as a single push -- correct
+// bytes, not incremental disk I/O.
 export class ReadStream extends Readable {
   constructor(path: string | URL, options: ReadStreamOptions = {}) {
     super({ highWaterMark: options.highWaterMark })
     if (options.encoding !== undefined) this.setEncoding(options.encoding)
     const filename = filePath(path)
     try {
-      const bytes = __gea_node_fs_read_file(filename)
       const start = options.start ?? 0
-      const end = options.end === undefined ? bytes.length - 1 : options.end
-      this.push(bytes.subarray(start, end + 1))
+      const end = options.end
+      const bytes =
+        options.start === undefined && end === undefined
+          ? __gea_node_fs_read_file(filename)
+          : __gea_node_fs_read_file_range(filename, start, end === undefined ? Infinity : Math.max(0, end - start + 1))
+      this.push(bytes)
       this.push(null)
     } catch (error) {
       // A block body: `destroy` returns the stream, and an expression body made

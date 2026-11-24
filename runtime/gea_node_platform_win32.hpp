@@ -684,6 +684,44 @@ inline bool readWholeFile(const std::string &path, std::vector<std::uint8_t> &ou
   return true;
 }
 
+inline bool readFileRange(const std::string &path, std::uint64_t start, std::uint64_t length, std::vector<std::uint8_t> &out,
+                          std::string &failure) {
+  const std::wstring name = wide(path);
+  const DWORD attributes = ::GetFileAttributesW(name.c_str());
+  if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+    failure = std::string("read '") + path + "': " + errorText(EISDIR);
+    return false;
+  }
+  const HANDLE file = ::CreateFileW(name.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (file == INVALID_HANDLE_VALUE) {
+    failure = std::string("open '") + path + "': " + errorText(errnoFromWin32(::GetLastError()));
+    return false;
+  }
+  std::uint8_t bytes[65536];
+  std::uint64_t offset = start;
+  while (length > 0) {
+    OVERLAPPED at{};
+    at.Offset = static_cast<DWORD>(offset & 0xffffffffu);
+    at.OffsetHigh = static_cast<DWORD>(offset >> 32);
+    const DWORD wanted = static_cast<DWORD>(std::min<std::uint64_t>(length, sizeof(bytes)));
+    DWORD count = 0;
+    if (!::ReadFile(file, bytes, wanted, &count, &at)) {
+      const DWORD error = ::GetLastError();
+      if (error == ERROR_HANDLE_EOF) break;
+      ::CloseHandle(file);
+      failure = std::string("read '") + path + "': " + errorText(errnoFromWin32(error));
+      return false;
+    }
+    if (count == 0) break;
+    out.insert(out.end(), bytes, bytes + count);
+    offset += count;
+    length -= count;
+  }
+  ::CloseHandle(file);
+  return true;
+}
+
 inline bool fillRandom(std::uint8_t *data, std::size_t size) {
   while (size > 0) {
     const ULONG chunk = static_cast<ULONG>(std::min<std::size_t>(size, 0x10000000u));

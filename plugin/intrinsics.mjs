@@ -632,6 +632,10 @@ export const intrinsics = {
     emit: 'gea::node::read_file',
     returnType: BUFFER_NATIVE_TYPE
   },
+  __gea_node_fs_read_file_range: {
+    emit: 'gea::node::read_file_range',
+    returnType: BUFFER_NATIVE_TYPE
+  },
   // The socket notification is a typed zero-argument closure. Event payloads
   // are drained separately, with wire chunks returned as native Buffer.
   __gea_node_net_create: {

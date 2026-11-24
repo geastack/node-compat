@@ -270,6 +270,35 @@ inline bool readWholeFile(const std::string &path, std::vector<std::uint8_t> &ou
   return true;
 }
 
+inline bool readFileRange(const std::string &path, std::uint64_t start, std::uint64_t length, std::vector<std::uint8_t> &out,
+                          std::string &failure) {
+  const int fd = ::open(path.c_str(), O_RDONLY);
+  if (fd < 0) {
+    failure = std::string("open '") + path + "': " + std::strerror(errno);
+    return false;
+  }
+  std::uint8_t bytes[65536];
+  std::uint64_t offset = start;
+  while (length > 0) {
+    const std::size_t wanted = static_cast<std::size_t>(std::min<std::uint64_t>(length, sizeof(bytes)));
+    const ssize_t count = ::pread(fd, bytes, wanted, static_cast<off_t>(offset));
+    if (count > 0) {
+      out.insert(out.end(), bytes, bytes + count);
+      offset += static_cast<std::uint64_t>(count);
+      length -= static_cast<std::uint64_t>(count);
+    } else if (count == 0) {
+      break;
+    } else if (errno != EINTR) {
+      const int error = errno;
+      ::close(fd);
+      failure = std::string("read '") + path + "': " + std::strerror(error);
+      return false;
+    }
+  }
+  ::close(fd);
+  return true;
+}
+
 inline bool fillRandom(std::uint8_t *data, std::size_t size) {
   std::size_t offset = 0;
 #ifdef __linux__

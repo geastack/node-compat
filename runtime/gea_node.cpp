@@ -3739,8 +3739,26 @@ static std::vector<std::uint8_t> readFileByteVector(const std::string &path) {
   return out;
 }
 
+static std::vector<std::uint8_t> readFileRangeByteVector(const std::string &path, double start, double length) {
+  if (!std::isfinite(start) || start < 0 || start > 9007199254740991.0 || std::isnan(length) || length < 0) {
+    byteOperationError("RangeError", "file range is out of range");
+    return {};
+  }
+  const std::uint64_t limit = std::isinf(length) ? UINT64_MAX : static_cast<std::uint64_t>(length);
+  std::vector<std::uint8_t> out;
+  std::string failure;
+  if (!platform::readFileRange(path, static_cast<std::uint64_t>(start), limit, out, failure)) {
+    byteOperationError("Error", failure);
+    return {};
+  }
+  return out;
+}
+
 inline std::vector<std::uint8_t> crypto_random_bytes(double requested_size) { return randomByteVector(requested_size); }
 inline std::vector<std::uint8_t> read_file(const std::string &path) { return readFileByteVector(path); }
+inline std::vector<std::uint8_t> read_file_range(const std::string &path, double start, double length) {
+  return readFileRangeByteVector(path, start, length);
+}
 
 }  // namespace gea::node
 
