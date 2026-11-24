@@ -111,7 +111,10 @@ const entryName = arg('--entry-name', 'main')
 if (!/^[A-Za-z_][A-Za-z_0-9]*$/.test(entryName) || (entryName !== 'main' && !emitOnly)) {
   throw new Error('--entry-name requires a C++ identifier and --emit-only')
 }
-const topLevelEntry = entryName === 'main' ? '__gea_top_level' : `${entryName}_top_level`
+const overlayPath = arg('--source-overlay')
+const sourceOverlay = overlayPath ? new Map(Object.entries(JSON.parse(fs.readFileSync(overlayPath, 'utf8')))) : undefined
+const topLevelEntry = arg('--top-level-name', entryName === 'main' ? '__gea_top_level' : `${entryName}_top_level`)
+if (!/^[A-Za-z_][A-Za-z_0-9]*$/.test(topLevelEntry)) throw new Error('--top-level-name requires a C++ identifier')
 // `--link-only`: skip the TypeScript compile and emission, and compile + link
 // the units an earlier `--emit-only` (or full) build already wrote to `--out`.
 // The unit list is that build's report (`generatedFiles`), so a C++ flag or
@@ -598,9 +601,12 @@ const ownerLocation = (owner) => {
 
 const compileStarted = process.hrtime.bigint()
 const requestedJavaScriptSources = process.argv.includes('--javascript-sources')
-const hostPlugin = arg('--host-plugin')
+const hostPlugins = process.argv.flatMap((arg, index) => arg === '--host-plugin' ? [process.argv[index + 1]] : [])
 const plugins = [geatscNodePlugin()]
-if (hostPlugin) plugins.push((await import(pathToFileURL(path.resolve(hostPlugin)).href)).default)
+if (hostPlugins.length > 0) {
+  const { loadCliPlugins } = await import(pathToFileURL(path.join(compilerRoot, 'dist/plugins/load.js')).href)
+  plugins.push(...await loadCliPlugins(hostPlugins))
+}
 
 const compileSources = (sources, javaScriptSources) =>
   compile({
@@ -621,6 +627,7 @@ const compileSources = (sources, javaScriptSources) =>
     dynamicFallback,
     javaScriptSources,
     projectFileName: projectFile,
+    sourceOverlay,
     plugins,
     // `entry` plus its resolved dependency graph (npm packages included via
     // `packageSources`) IS the whole application -- the same
