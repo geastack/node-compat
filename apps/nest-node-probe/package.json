@@ -1,0 +1,24 @@
+{
+  "name": "nest-node-probe",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "12.5.1",
+    "@nestjs/core": "12.5.1",
+    "@nestjs/platform-node": "12.5.1",
+    "content-type": "2.1.0",
+    "encodeurl": "2.0.0",
+    "fast-querystring": "1.1.2",
+    "path-to-regexp": "8.4.2",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3"
+  }
+}

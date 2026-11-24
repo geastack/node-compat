@@ -335,6 +335,11 @@ const nestAnsweredPackages = () => {
       else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts')) visit(file)
     }
   }
+  const vendored = path.join(nestDir, 'platform-node')
+  walk(vendored, (file) => {
+    const relative = path.relative(vendored, file).replace(/\\/g, '/').slice(0, -'.ts'.length)
+    entries.push([`@nestjs/platform-node/${relative}`, file], [`@nestjs/platform-node/${relative}.js`, file])
+  })
   const shims = path.join(nestDir, 'shims')
   if (fs.existsSync(shims)) {
     for (const scope of fs.readdirSync(shims, { withFileTypes: true }).filter((entry) => entry.isDirectory()).sort((left, right) => left.name.localeCompare(right.name))) {

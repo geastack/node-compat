@@ -551,9 +551,11 @@ inline double byteLength(const std::string& text, const std::string& encoding = 
   return static_cast<double>(detail::encodeString(text, encoding).size());
 }
 
-inline double byteLength(const View& view) { return static_cast<double>(view.size()); }
+inline double byteLength(const View& view, const std::string& = "utf8") { return static_cast<double>(view.size()); }
 
-inline double byteLength(const gea::Ref<gea::ArrayBuffer>& block) { return static_cast<double>(block ? block->size() : 0); }
+inline double byteLength(const gea::Ref<gea::ArrayBuffer>& block, const std::string& = "utf8") {
+  return static_cast<double>(block ? block->size() : 0);
+}
 
 /**
  * `Buffer.isBuffer(value)`.
