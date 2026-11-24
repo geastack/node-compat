@@ -982,6 +982,7 @@ inline void release(void *ptr) noexcept {
 
 }  // namespace gea::node::alloc
 
+// Embedded hosts may retain their existing process allocator.
 // Exported so every image in the process resolves `operator new` to the pool.
 // A Windows executable has no such interposition: the replacement simply is
 // the program's `operator new`, linked statically.
@@ -990,7 +991,7 @@ inline void release(void *ptr) noexcept {
 #else
 #define GEA_ALLOC_EXPORT __attribute__((visibility("default")))
 #endif
-#ifdef GEA_NODE_IMPLEMENTATION
+#if defined(GEA_NODE_IMPLEMENTATION) && !defined(GEA_NODE_USE_SYSTEM_ALLOCATOR)
 GEA_ALLOC_EXPORT void *operator new(std::size_t size) { return gea::node::alloc::allocate(size); }
 GEA_ALLOC_EXPORT void *operator new(std::size_t size, const std::nothrow_t &) noexcept { return gea::node::alloc::allocate(size); }
 GEA_ALLOC_EXPORT void *operator new[](std::size_t size) { return gea::node::alloc::allocate(size); }
