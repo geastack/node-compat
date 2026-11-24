@@ -14,5 +14,8 @@
   "include": [
     "../../runtime/node/nest/shims/**/*.ts",
     "typecheck/**/*.ts"
+  ],
+  "exclude": [
+    "../../runtime/node/nest/shims/@nestjs/**"
   ]
 }

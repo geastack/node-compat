@@ -20,7 +20,8 @@
     "scripts/resolve-compiler.mjs",
     "scripts/compiler-input.mjs",
     "scripts/builtin-modules.mjs",
-    "scripts/path-display.mjs"
+    "scripts/path-display.mjs",
+    "tools/nest/aot"
   ],
   "exports": {
     ".": "./plugin/index.mjs",
