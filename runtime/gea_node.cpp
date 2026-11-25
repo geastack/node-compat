@@ -1038,6 +1038,23 @@ public:
   }
 #endif
 
+  // A forked worker gets its own kernel readiness queue. An epoll descriptor
+  // survives `fork` as a second handle on the SAME instance: the worker would
+  // receive its parent's events and every registration it changed would change
+  // the parent's. A kqueue is not inherited at all. Either way the worker
+  // starts a fresh one and registers the watchers it still has.
+  void reopenAfterFork() {
+#ifdef __linux__
+    if (epollFd_ >= 0) ::close(epollFd_);
+    epollFd_ = ::epoll_create1(EPOLL_CLOEXEC);
+    epollInterest_.clear();
+    forEachWatcher([&](IoWatcher *watcher) { watcherAdded(watcher); });
+#elif defined(__APPLE__)
+    kqueueFd_ = ::kqueue();
+    kqueueInterest_.clear();
+#endif
+  }
+
   void addBorrowed(IoWatcher *watcher) {
     borrowed_.push_back(watcher);
     watcherAdded(watcher);
@@ -1657,6 +1674,19 @@ public:
     if (closing_) return;
     platform::setLingerReset(socket_.fd());
     destroy();
+  }
+
+  // This process is a forked worker and the socket is its parent's: both hold
+  // the one connection, and two processes writing commands to it and reading
+  // each other's replies corrupt the protocol for both. The worker gives its
+  // copy up -- closing a descriptor the parent also holds sends nothing to the
+  // peer -- and reports the connection lost, which is what a client does with
+  // a reset: a database driver clears its pool and connects again, per worker.
+  void lostAcrossFork() {
+    if (closing_) return;
+    fail(ECONNRESET, "read");
+    notifySoon();
+    loop_.close(this);
   }
 
   void setPaused(bool paused) { paused_ = paused; }
@@ -3686,6 +3716,12 @@ inline void serve(int port, Responder responder) {
   }
   const bool isParent = platform::forkWorkers(workers);  // 1 where the host cannot fork
   EventLoop &loop = clientEventLoop();
+  if (!isParent) {
+    // The reactor first: closing a connection removes it from the reactor's
+    // queue, which until now is still the parent's.
+    loop.reopenAfterFork();
+    for (const auto &[id, connection] : clientConnectionRegistry()) connection->lostAcrossFork();
+  }
   auto owned = std::make_unique<HttpServer<Responder>>(loop, port, std::move(responder));
   HttpServer<Responder> &server = *owned;
   if (!server.valid()) {

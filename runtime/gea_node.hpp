@@ -336,7 +336,22 @@ inline int run_compiled_program(int argc, char **argv, void (*entry)()) {
       if (const auto count = std::strtoull(configured, nullptr, 10); count != 0) filter = static_cast<std::size_t>(count);
     }
     gea::detail::cycleState().filterInterval = filter;
-    gea::configureAutomaticCycleCollection(std::chrono::milliseconds{0}, 0, candidates);
+    // A full collection every this many buffers' worth of candidates. An
+    // object that survives two young collections is permanent, and only a
+    // full collection frees a permanent cycle. A server with requests in
+    // flight side by side keeps each one alive across several young
+    // collections, so every request's promise and closure cycles are
+    // permanent by the time they die. At the runtime's 64 buffers a full
+    // collection came once per ~2500 requests: 130 MB of dead requests held
+    // and a 35 ms trace to free them, once a second, which was the whole p99
+    // at 16 connections (65 ms against 10 ms). A short cadence frees them in
+    // small batches; a full trace costs in proportion to what died since the
+    // last one, so the total work is the same and only the pause shrinks.
+    std::size_t fullEvery = 4;
+    if (const char* configured = std::getenv("GEA_CYCLE_FULL_EVERY")) {
+      if (const auto count = std::strtoull(configured, nullptr, 10); count != 0) fullEvery = static_cast<std::size_t>(count);
+    }
+    gea::configureAutomaticCycleCollection(std::chrono::milliseconds{0}, 0, candidates, std::chrono::milliseconds{0}, fullEvery);
   }
   // An exception nothing caught ends the process the way node's does: the
   // error's `stack` (or its string form) on stderr and exit status 1, rather

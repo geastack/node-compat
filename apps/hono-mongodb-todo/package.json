@@ -22,6 +22,8 @@
     "node:work": "npm run build:work && node dist-node/server.js",
     "build:native:hono-mongodb": "node scripts/run-with-work-env.mjs npm run build:native:hono-mongodb:work",
     "build:native:hono-mongodb:work": "npm run build:assets:work && node ../../scripts/build.mjs server.ts --source-project node_modules/mongodb/tsconfig.json --out dist --exe dist/hono-mongodb",
+    "build:native:hono-mongodb:tuned": "node scripts/run-with-work-env.mjs npm run build:native:hono-mongodb:tuned:work",
+    "build:native:hono-mongodb:tuned:work": "npm run build:assets:work && GEA_OPT_LEVEL=-O2 node ../../scripts/build.mjs server.ts --source-project node_modules/mongodb/tsconfig.json --out dist --exe dist/hono-mongodb --pgo-train 'sh benchmarks/pgo-train.sh' --bolt",
     "native:hono-mongodb": "node scripts/run-with-work-env.mjs npm run native:hono-mongodb:work",
     "native:hono-mongodb:work": "npm run build:native:hono-mongodb:work && ./dist/hono-mongodb",
     "emit:native:mongodb-ping": "node scripts/run-with-work-env.mjs node scripts/native-mongodb-correctness.mjs mongodb-cmap-ping --emit-only",
