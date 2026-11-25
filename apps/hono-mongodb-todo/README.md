@@ -79,6 +79,28 @@ There is no vendored driver checkout and no package override.
 `dist/hono-mongodb`. Keep MongoDB and benchmark clients on the same remote host
 when comparing write throughput so network latency is identical.
 
+### Tuned build
+
+The plain build is `-Os` with no profile. For a server that will take load,
+build it at `-O2` with profile-guided optimisation and a BOLT layout pass
+(Linux; needs `wrk`, `curl`, `perf`, `lld`, `llvm-bolt` and a MongoDB at
+`MONGODB_URL`, default `mongodb://127.0.0.1:27017`):
+
+```sh
+NODE_OPTIONS=--max-old-space-size=8192 npm run build:native:hono-mongodb:tuned
+```
+
+It links an instrumented executable, runs `benchmarks/pgo-train.sh` against it
+(reads of `/api/todos`, the static page, and create/update/delete cycles), links
+again from that profile, then samples the same workload for BOLT. On an 8-thread
+Haswell box, one core, `GET /api/todos` at 16 connections: plain build 2,540
+requests/s and 393 µs of CPU per request; tuned build 4,080 requests/s and
+245 µs, level with Node 24 (4,070 requests/s, 246 µs) at under half its p99
+(6.5 ms against 15 ms) and 60% of its memory.
+
+`GEA_WORKERS=4 ./dist/hono-mongodb` serves from four processes sharing the port;
+each worker opens its own MongoDB connections after the fork.
+
 Hono without the driver is built and tested by node-compat's own
 `apps/hono-hello` (see the repository README).
 
